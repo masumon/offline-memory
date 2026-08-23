@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { Task } from '../types/task-model';
-import { listTasks } from './task-service';
+import { findDueTasks } from './task-repository';
 
 export interface ScheduledTask extends Task {
   dueAtDate: Date;
@@ -15,16 +15,16 @@ export async function listDueTasks(
   now = new Date(),
   horizonMinutes = 0,
 ): Promise<ScheduledTask[]> {
+  if (Number.isNaN(now.getTime())) throw new Error('Scheduler current time must be valid');
   if (!Number.isFinite(horizonMinutes) || horizonMinutes < 0) {
     throw new Error('Scheduler horizon must be a non-negative finite number');
   }
 
   const horizon = new Date(now.getTime() + horizonMinutes * 60_000);
-  const tasks = await listTasks(db, { status: 'PLANNED', limit: 500 });
+  const tasks = await findDueTasks(db, now.toISOString(), horizon.toISOString());
 
   return tasks
-    .filter((task): task is Task & { dueAt: string } => Boolean(task.dueAt))
-    .map((task) => ({ ...task, dueAtDate: new Date(task.dueAt) }))
-    .filter(({ dueAtDate }) => !Number.isNaN(dueAtDate.getTime()) && dueAtDate.getTime() <= horizon.getTime())
+    .map((task) => ({ ...task, dueAtDate: new Date(task.dueAt as string) }))
+    .filter(({ dueAtDate }) => !Number.isNaN(dueAtDate.getTime()))
     .sort((a, b) => a.dueAtDate.getTime() - b.dueAtDate.getTime());
 }
