@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
+import { Link } from 'expo-router';
 
 import { useTaskStore } from '../src/store/task.store';
 import { colors, spacing, typography } from '../src/theme';
@@ -25,8 +26,17 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>OFFLINE MEMORY</Text>
-        <Text style={styles.title}>Today</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.eyebrow}>OFFLINE MEMORY</Text>
+            <Text style={styles.title}>Today</Text>
+          </View>
+          <Link href="/memory" asChild>
+            <Pressable accessibilityRole="button" accessibilityLabel="Open memories" style={styles.memoryButton}>
+              <Text style={styles.memoryButtonText}>Memory</Text>
+            </Pressable>
+          </Link>
+        </View>
         <Text style={styles.subtitle}>Your tasks stay on this device.</Text>
       </View>
 
@@ -87,9 +97,12 @@ function TaskRow({ task, onComplete }: { task: Task; onComplete: () => void }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingTop: spacing.xl },
   header: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   eyebrow: { color: colors.primary, fontSize: typography.label.fontSize, fontWeight: '700', letterSpacing: 1.2 },
   title: { color: colors.textPrimary, fontSize: 36, fontWeight: '800', marginTop: spacing.sm },
   subtitle: { color: colors.textSecondary, fontSize: 15, marginTop: spacing.xs },
+  memoryButton: { minHeight: 42, paddingHorizontal: spacing.md, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'center' },
+  memoryButtonText: { color: colors.primary, fontWeight: '700' },
   composer: { flexDirection: 'row', gap: spacing.sm, margin: spacing.xl, marginBottom: spacing.md },
   input: { flex: 1, minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, color: colors.textPrimary, paddingHorizontal: spacing.md, fontSize: 16 },
   addButton: { minHeight: 50, paddingHorizontal: spacing.lg, borderRadius: 14, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },

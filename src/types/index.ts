@@ -32,3 +32,4 @@ export type Intent =
 
 export type { CreateTaskInput, Task, UpdateTaskInput } from './task-model';
 export type { CreateSubtaskInput, Subtask } from './subtask-model';
+export type { CreateMemoryInput, Memory, MemoryKind, MemorySource, UpdateMemoryInput } from './memory-model';
