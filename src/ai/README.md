@@ -1,14 +1,16 @@
 # Local AI boundary
 
-This directory is reserved for deterministic, fully offline intelligence.
+This directory contains deterministic, fully offline intelligence.
 
-Planned modules:
+## Implemented in M3
 
-- `nlp/` — normalization and language processing
-- `intent/` — intent classification
-- `entities/` — entity extraction
-- `date/` — natural-language date parsing
-- `time/` — natural-language time parsing
+- `nlp/normalize.ts` — Unicode normalization, Bengali digit conversion, tokenization
+- `nlp/intent.ts` — deterministic bilingual intent classification
+- `nlp/entities.ts` — local date, time, task, and memory entity extraction
+- `nlp/index.ts` — pure parser facade
+
+## Planned next layers
+
 - `context/` — local conversational/task context
 - `rules/` — deterministic business and productivity rules
 - `planning/` — priority and schedule scoring
