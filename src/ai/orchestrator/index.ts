@@ -47,7 +47,7 @@ function actionForIntent(
 
     case 'RESCHEDULE_TASK':
       if (!resolved.taskText) {
-        return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_RESCHEDULE_TARGET') };
+        return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_TASK_REFERENCE') };
       }
       if (!entities.date && !entities.time) {
         return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_SCHEDULE') };
