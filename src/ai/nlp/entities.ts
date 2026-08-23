@@ -73,16 +73,19 @@ function normalizeHour(hour: number, meridiem?: string): number {
   return hour;
 }
 
-const TIME_SUFFIX = '(?:am|pm|a\\.m\\.|p\\.m\\.|সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে|টা|টায়|টায়)';
+const TIME_PREFIX = '(?:at\\s+|সময়\\s*|সকাল\\s*|সকালে\\s*|দুপুর\\s*|বিকাল\\s*|বিকেলে\\s*|সন্ধ্যা\\s*|রাতে\\s*)?';
+const TIME_SUFFIX = '(?:am|pm|a\\.m\\.|p\\.m\\.|সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে|টা|টায়|টায়)?';
 
 export function extractTime(text: string): TimeEntity | undefined {
   const normalized = text.trim().toLocaleLowerCase();
-  const match = normalized.match(new RegExp(`(?:at\\s+|সময়\\s*)?(\\d{1,2})(?::(\\d{2}))?\\s*(${TIME_SUFFIX})(?=\\s|$|[.,!?।])`, 'u'));
+  const match = normalized.match(new RegExp(`${TIME_PREFIX}(\\d{1,2})(?::(\\d{2}))?\\s*(${TIME_SUFFIX})(?=\\s|$|[.,!?।])`, 'u'));
   if (!match) return undefined;
 
   let hour = Number(match[1]);
   const minute = Number(match[2] ?? 0);
-  const meridiem = match[3];
+  const prefix = match[0].match(/^(at\s+|সময়\s*|সকাল\s*|সকালে\s*|দুপুর\s*|বিকাল\s*|বিকেলে\s*|সন্ধ্যা\s*|রাতে\s*)/u)?.[0]?.trim();
+  const suffix = match[3]?.trim();
+  const meridiem = prefix || suffix;
   if (hour > 23 || minute > 59) return undefined;
   hour = normalizeHour(hour, meridiem);
   if (hour > 23) return undefined;
