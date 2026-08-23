@@ -1,0 +1,1 @@
+M7 implementation checkpoint: versioned backup document, validation, transactional restore boundary, backup reader contract, and validation tests are in the current main lineage. Full application-data adapters and Android file export/import remain to be completed before M7 is considered complete.
