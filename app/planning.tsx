@@ -20,7 +20,19 @@ export default function PlanningScreen() {
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to load daily plan'); }
   }, [db]);
 
-  useEffect(() => { void loadPlan(); }, [loadPlan]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setError(null);
+      try {
+        const nextPlan = await getDailyPlan(db);
+        if (!cancelled) setPlan(nextPlan);
+      } catch (cause) {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Unable to load daily plan');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [db]);
 
   const planTask = async (id: string) => {
     setBusyId(id); setError(null);
