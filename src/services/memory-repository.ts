@@ -101,11 +101,12 @@ export async function touchMemory(db: SQLiteDatabase, id: string): Promise<void>
   await db.runAsync('UPDATE memories SET last_accessed_at = ?, updated_at = updated_at WHERE id = ?', now(), id);
 }
 
-export async function searchMemories(db: SQLiteDatabase, query: string): Promise<Memory[]> {
+export async function searchMemories(db: SQLiteDatabase, query: string, matchAll = true): Promise<Memory[]> {
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
   if (terms.length === 0) return listMemories(db);
-  const clauses = terms.map(() => '(lower(content) LIKE ? OR lower(COALESCE(title, \"\")) LIKE ? OR lower(tags_json) LIKE ?)').join(' AND ');
+  const clauses = terms.map(() => '(lower(content) LIKE ? OR lower(COALESCE(title, "")) LIKE ? OR lower(tags_json) LIKE ?)');
+  const joiner = matchAll ? ' AND ' : ' OR ';
   const args = terms.flatMap((term) => [`%${term}%`, `%${term}%`, `%${term}%`]);
-  const rows = await db.getAllAsync<Record<string, unknown>>(`${SELECT} WHERE archived = 0 AND ${clauses} ORDER BY importance DESC, updated_at DESC`, ...args);
+  const rows = await db.getAllAsync<Record<string, unknown>>(`${SELECT} WHERE archived = 0 AND (${clauses.join(joiner)}) ORDER BY importance DESC, updated_at DESC`, ...args);
   return rows.map(rowToMemory);
 }
