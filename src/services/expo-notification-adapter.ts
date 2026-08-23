@@ -42,10 +42,7 @@ export async function scheduleTaskNotification(db: SQLiteDatabase, candidate: No
     const data = notificationData(item);
     return data.taskId === candidate.taskId && data.dueAt === candidate.dueAt;
   });
-  if (existing) {
-    await markNotificationDelivered(db, candidate.taskId, candidate.dueAt);
-    return existing.identifier;
-  }
+  if (existing) return existing.identifier;
 
   await initializeNotifications();
   if (!(await requestNotificationPermission())) return null;
@@ -54,6 +51,13 @@ export async function scheduleTaskNotification(db: SQLiteDatabase, candidate: No
     content: { title: 'Offline Memory', body: candidate.title, data: { taskId: candidate.taskId, dueAt: candidate.dueAt } },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: dueAt, ...(Platform.OS === 'android' ? { channelId: TASK_CHANNEL_ID } : {}) },
   });
-  await markNotificationDelivered(db, candidate.taskId, candidate.dueAt);
-  return notificationId;
+
+  try {
+    await markNotificationDelivered(db, candidate.taskId, candidate.dueAt);
+    return notificationId;
+  } catch (error) {
+    // Do not leave an OS reminder that is not represented by local state.
+    await Notifications.cancelScheduledNotificationAsync(notificationId);
+    throw error;
+  }
 }
