@@ -27,6 +27,18 @@ describe('AI action executor', () => {
     })).rejects.toThrow('A due date is required when a task time is supplied');
   });
 
+  it('rejects an invalid due minute value', async () => {
+    await expect(executeAiAction(mockDb(), {
+      type: 'CREATE_TASK', taskText: 'Call supplier', dueDate: '2026-08-25', dueMinutes: 1440,
+    })).rejects.toThrow('Task due time must be between 00:00 and 23:59');
+  });
+
+  it('rejects rescheduling without a schedule before touching persistence', async () => {
+    await expect(executeAiAction(mockDb(), {
+      type: 'RESCHEDULE_TASK', taskText: 'Supplier call',
+    })).rejects.toThrow('A schedule is required to reschedule a task');
+  });
+
   it('rejects an ambiguous task reference', async () => {
     const db = mockDb();
     (db as any).getAllAsync = async () => [
