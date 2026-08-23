@@ -28,7 +28,7 @@ function actionForIntent(intent: NlpIntent, entities: ReturnType<typeof parseLoc
     case 'COMPLETE_TASK':
       return {
         status: 'NEEDS_INPUT',
-        action: { type: 'COMPLETE_TASK', taskText: entities.taskText },
+        action: clarifyAction('MISSING_TASK_REFERENCE'),
       };
 
     case 'LIST_TASKS':
@@ -36,7 +36,7 @@ function actionForIntent(intent: NlpIntent, entities: ReturnType<typeof parseLoc
 
     case 'RESCHEDULE_TASK':
       if (!entities.date && !entities.time) {
-        return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_TASK_TEXT') };
+        return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_TASK_REFERENCE') };
       }
       return {
         status: 'NEEDS_INPUT',
