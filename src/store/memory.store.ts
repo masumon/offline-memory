@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { create } from 'zustand';
 
-import { addMemory, editMemory, findMemories, getActiveMemories, removeMemory } from '../services/memory-service';
+import { addMemory, archiveStoredMemory, editMemory, findMemories, getActiveMemories, removeMemory } from '../services/memory-service';
 import type { CreateMemoryInput, Memory, UpdateMemoryInput } from '../types/memory-model';
 
 interface MemoryStore {
@@ -12,6 +12,7 @@ interface MemoryStore {
   create: (db: SQLiteDatabase, input: CreateMemoryInput) => Promise<Memory | null>;
   update: (db: SQLiteDatabase, id: string, input: UpdateMemoryInput) => Promise<Memory | null>;
   search: (db: SQLiteDatabase, query: string) => Promise<Memory[]>;
+  archive: (db: SQLiteDatabase, id: string) => Promise<Memory | null>;
   remove: (db: SQLiteDatabase, id: string) => Promise<boolean>;
   clearError: () => void;
 }
@@ -63,6 +64,18 @@ export const useMemoryStore = create<MemoryStore>((set) => ({
     } catch (error) {
       set({ isLoading: false, error: error instanceof Error ? error.message : 'Unable to search memories' });
       return [];
+    }
+  },
+
+  archive: async (db, id) => {
+    set({ error: null });
+    try {
+      const memory = await archiveStoredMemory(db, id);
+      if (memory) set((state) => ({ memories: state.memories.filter((item) => item.id !== id) }));
+      return memory;
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Unable to archive memory' });
+      return null;
     }
   },
 
