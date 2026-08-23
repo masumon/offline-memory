@@ -14,5 +14,4 @@ export * from './overdue-task-service';
 export * from './expo-notification-adapter';
 export * from './notification-delivery-repository';
 export * from './backup-service';
-export * from './backup-restore-data';
 export * from './restore-service';
