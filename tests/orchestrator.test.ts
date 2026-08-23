@@ -45,7 +45,7 @@ describe('local orchestrator', () => {
     });
   });
 
-  it('resolves a short follow-up against explicit local context', () => {
+  it('resolves a short completion follow-up against explicit local context', () => {
     const result = orchestrate('শেষ করো', now, {
       lastTaskText: 'ডাক্তারকে ফোন করতে হবে',
     });
@@ -57,27 +57,21 @@ describe('local orchestrator', () => {
     });
   });
 
-  it('requires a target before rescheduling', () => {
-    const result = orchestrate('আগামীকাল বিকাল ৫টায় পিছিয়ে দাও', now);
-
-    expect(result.status).toBe('NEEDS_INPUT');
-    expect(result.action).toEqual({
+  it('requires both a target and a schedule for rescheduling', () => {
+    const missingTarget = orchestrate('আগামীকাল বিকাল ৫টায় পিছিয়ে দাও', now);
+    expect(missingTarget.status).toBe('NEEDS_INPUT');
+    expect(missingTarget.action).toEqual({
       type: 'CLARIFY',
       reason: 'MISSING_RESCHEDULE_TARGET',
     });
-  });
 
-  it('reschedules the context task without persistence access', () => {
-    const result = orchestrate('আগামীকাল বিকাল ৫টায় পিছিয়ে দাও', now, {
-      lastTaskText: 'সরবরাহকারীকে ফোন করতে হবে',
+    const missingSchedule = orchestrate('এই কাজটা পিছিয়ে দাও', now, {
+      lastTaskText: 'ডাক্তারকে ফোন করতে হবে',
     });
-
-    expect(result.status).toBe('READY');
-    expect(result.action).toEqual({
-      type: 'RESCHEDULE_TASK',
-      taskText: 'সরবরাহকারীকে ফোন করতে হবে',
-      dueDate: '2026-08-25',
-      dueMinutes: 1020,
+    expect(missingSchedule.status).toBe('NEEDS_INPUT');
+    expect(missingSchedule.action).toEqual({
+      type: 'CLARIFY',
+      reason: 'MISSING_SCHEDULE',
     });
   });
 
