@@ -1,6 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import * as Notifications from 'expo-notifications';
-import { hasNotificationBeenDelivered, markNotificationDelivered } from '../src/services/notification-delivery-repository';
 import { scheduleTaskNotification } from '../src/services/expo-notification-adapter';
 
 jest.mock('expo-notifications', () => ({
@@ -14,11 +13,14 @@ jest.mock('expo-notifications', () => ({
   SchedulableTriggerInputTypes: { DATE: 'date' },
 }));
 
+jest.mock('../src/services/notification-delivery-repository', () => ({
+  hasNotificationBeenDelivered: jest.fn().mockResolvedValue(false),
+  markNotificationDelivered: jest.fn().mockResolvedValue(undefined),
+}));
+
 describe('Expo notification adapter', () => {
   it('recovers an OS-scheduled notification after a process restart', async () => {
     const db = {} as SQLiteDatabase;
-    jest.spyOn({ hasNotificationBeenDelivered }, 'hasNotificationBeenDelivered');
-    jest.spyOn({ markNotificationDelivered }, 'markNotificationDelivered');
     jest.mocked(Notifications.getAllScheduledNotificationsAsync).mockResolvedValue([
       {
         identifier: 'existing-1',
