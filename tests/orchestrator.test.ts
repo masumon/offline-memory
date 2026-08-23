@@ -57,6 +57,30 @@ describe('local orchestrator', () => {
     });
   });
 
+  it('requires a target before rescheduling', () => {
+    const result = orchestrate('আগামীকাল বিকাল ৫টায় পিছিয়ে দাও', now);
+
+    expect(result.status).toBe('NEEDS_INPUT');
+    expect(result.action).toEqual({
+      type: 'CLARIFY',
+      reason: 'MISSING_RESCHEDULE_TARGET',
+    });
+  });
+
+  it('reschedules the context task without persistence access', () => {
+    const result = orchestrate('আগামীকাল বিকাল ৫টায় পিছিয়ে দাও', now, {
+      lastTaskText: 'সরবরাহকারীকে ফোন করতে হবে',
+    });
+
+    expect(result.status).toBe('READY');
+    expect(result.action).toEqual({
+      type: 'RESCHEDULE_TASK',
+      taskText: 'সরবরাহকারীকে ফোন করতে হবে',
+      dueDate: '2026-08-25',
+      dueMinutes: 1020,
+    });
+  });
+
   it('does not execute database work for unknown input', () => {
     const result = orchestrate('আজ আকাশ অনেক সুন্দর', now);
 
