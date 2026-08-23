@@ -69,6 +69,18 @@ export async function getTask(db: SQLiteDatabase, id: string): Promise<Task | nu
   return row ? toTask(row) : null;
 }
 
+export async function findTasksByExactTitle(db: SQLiteDatabase, title: string): Promise<Task[]> {
+  const normalized = title.trim();
+  if (!normalized) return [];
+  const rows = await db.getAllAsync<TaskRow>(
+    `SELECT id, title, notes, status, priority, due_at, completed_at, created_at, updated_at
+     FROM tasks WHERE LOWER(TRIM(title)) = LOWER(TRIM(?))
+     ORDER BY created_at DESC`,
+    normalized,
+  );
+  return rows.map(toTask);
+}
+
 export async function listTasks(
   db: SQLiteDatabase,
   options: { status?: TaskStatus; limit?: number } = {},
