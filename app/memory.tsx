@@ -11,28 +11,36 @@ export default function MemoryScreen() {
   const db = useSQLiteContext();
   const [content, setContent] = useState('');
   const [query, setQuery] = useState('');
-  const { memories, isLoading, error, load, create, search } = useMemoryStore();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const { memories, isLoading, error, load, create, update, search, archive, remove } = useMemoryStore();
 
-  useEffect(() => {
-    void load(db);
-  }, [db, load]);
+  useEffect(() => { void load(db); }, [db, load]);
 
   useEffect(() => {
     const value = query.trim();
-    if (!value) {
-      void load(db);
-      return;
-    }
+    if (!value) { void load(db); return; }
     const timer = setTimeout(() => void search(db, value), 180);
     return () => clearTimeout(timer);
   }, [db, query, load, search]);
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     const value = content.trim();
     if (!value) return;
+    if (editingId) {
+      const memory = await update(db, editingId, { content: value });
+      if (memory) { setContent(''); setEditingId(null); }
+      return;
+    }
     const memory = await create(db, { content: value });
     if (memory) setContent('');
   };
+
+  const beginEdit = (memory: Memory) => {
+    setEditingId(memory.id);
+    setContent(memory.content);
+  };
+
+  const cancelEdit = () => { setEditingId(null); setContent(''); };
 
   return (
     <View style={styles.container}>
@@ -46,10 +54,13 @@ export default function MemoryScreen() {
       </View>
 
       <View style={styles.composer}>
-        <TextInput value={content} onChangeText={setContent} placeholder="Remember something..." placeholderTextColor={colors.textMuted} multiline style={styles.textarea} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Save memory" onPress={() => void handleCreate()} style={styles.addButton}>
-          <Text style={styles.addButtonText}>Save</Text>
-        </Pressable>
+        <TextInput value={content} onChangeText={setContent} placeholder={editingId ? 'Edit memory...' : 'Remember something...'} placeholderTextColor={colors.textMuted} multiline style={styles.textarea} />
+        <View style={styles.composerActions}>
+          {editingId ? <Pressable onPress={cancelEdit} style={styles.secondaryButton}><Text style={styles.secondaryText}>Cancel</Text></Pressable> : null}
+          <Pressable accessibilityRole="button" accessibilityLabel={editingId ? 'Update memory' : 'Save memory'} onPress={() => void handleSave()} style={styles.addButton}>
+            <Text style={styles.addButtonText}>{editingId ? 'Update' : 'Save'}</Text>
+          </Pressable>
+        </View>
       </View>
 
       <TextInput value={query} onChangeText={setQuery} placeholder="Search memories" placeholderTextColor={colors.textMuted} style={styles.search} />
@@ -61,20 +72,32 @@ export default function MemoryScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={memories.length ? styles.list : styles.emptyList}
           ListEmptyComponent={<Text style={styles.empty}>{query ? 'No matching memories.' : 'No memories yet.'}</Text>}
-          renderItem={({ item }) => <MemoryRow memory={item} />}
+          renderItem={({ item }) => (
+            <MemoryRow
+              memory={item}
+              onEdit={() => beginEdit(item)}
+              onArchive={() => void archive(db, item.id)}
+              onDelete={() => void remove(db, item.id)}
+            />
+          )}
         />
       )}
     </View>
   );
 }
 
-function MemoryRow({ memory }: { memory: Memory }) {
+function MemoryRow({ memory, onEdit, onArchive, onDelete }: { memory: Memory; onEdit: () => void; onArchive: () => void; onDelete: () => void }) {
   return (
     <View style={styles.memoryRow}>
       <View style={styles.memoryBody}>
         {memory.title ? <Text style={styles.memoryTitle}>{memory.title}</Text> : null}
         <Text style={styles.memoryContent}>{memory.content}</Text>
         <Text style={styles.memoryMeta}>{memory.kind} · importance {memory.importance}</Text>
+      </View>
+      <View style={styles.rowActions}>
+        <Pressable onPress={onEdit}><Text style={styles.actionText}>Edit</Text></Pressable>
+        <Pressable onPress={onArchive}><Text style={styles.actionText}>Archive</Text></Pressable>
+        <Pressable onPress={onDelete}><Text style={styles.deleteText}>Delete</Text></Pressable>
       </View>
     </View>
   );
@@ -90,8 +113,11 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textSecondary, fontSize: 15, marginTop: spacing.xs },
   composer: { margin: spacing.xl, marginBottom: spacing.md, gap: spacing.sm },
   textarea: { minHeight: 90, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, color: colors.textPrimary, padding: spacing.md, fontSize: 16, textAlignVertical: 'top' },
-  addButton: { minHeight: 48, borderRadius: 14, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
+  composerActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm },
+  addButton: { minHeight: 48, minWidth: 90, paddingHorizontal: spacing.lg, borderRadius: 14, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
   addButtonText: { color: colors.onPrimary, fontWeight: '700' },
+  secondaryButton: { minHeight: 48, paddingHorizontal: spacing.lg, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'center' },
+  secondaryText: { color: colors.textSecondary, fontWeight: '700' },
   search: { minHeight: 48, marginHorizontal: spacing.xl, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, color: colors.textPrimary, paddingHorizontal: spacing.md, fontSize: 16 },
   error: { color: colors.danger, paddingHorizontal: spacing.xl, marginBottom: spacing.sm },
   loader: { marginTop: spacing.xl },
@@ -103,4 +129,7 @@ const styles = StyleSheet.create({
   memoryTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   memoryContent: { color: colors.textPrimary, fontSize: 15, lineHeight: 22 },
   memoryMeta: { color: colors.textMuted, fontSize: 11, letterSpacing: 0.3 },
+  rowActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
+  actionText: { color: colors.primary, fontSize: 13, fontWeight: '700' },
+  deleteText: { color: colors.danger, fontSize: 13, fontWeight: '700' },
 });
