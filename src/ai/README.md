@@ -9,11 +9,17 @@ This directory contains deterministic, fully offline intelligence.
 - `nlp/entities.ts` — local date, time, task, and memory entity extraction
 - `nlp/index.ts` — pure parser facade
 
+## Implemented in M4
+
+- `orchestrator/types.ts` — validated action/status contracts
+- `orchestrator/index.ts` — pure NLP-to-action orchestration
+
+The orchestrator only produces application actions. It does not open SQLite, call repositories, mutate Zustand state, call networks, or invoke external LLMs.
+
 ## Planned next layers
 
 - `context/` — local conversational/task context
 - `rules/` — deterministic business and productivity rules
 - `planning/` — priority and schedule scoring
-- `orchestrator/` — validated action orchestration
 
-The local AI layer must not call external LLM APIs or mutate persistence directly.
+The local AI layer must remain fully offline and must not mutate persistence directly.
