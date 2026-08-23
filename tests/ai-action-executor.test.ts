@@ -4,7 +4,7 @@ function mockDb() {
   const tasks = [
     {
       id: 'task-1', title: 'Supplier call', notes: null, status: 'PLANNED', priority: 'MEDIUM',
-      dueAt: null, completedAt: null, createdAt: '2026-08-24T00:00:00.000Z', updatedAt: '2026-08-24T00:00:00.000Z',
+      dueAt: '2026-08-25T14:30:00', completedAt: null, createdAt: '2026-08-24T00:00:00.000Z', updatedAt: '2026-08-24T00:00:00.000Z',
     },
   ];
 
@@ -47,5 +47,15 @@ describe('AI action executor', () => {
     ];
     await expect(executeAiAction(db, { type: 'COMPLETE_TASK', taskText: 'Call supplier' }))
       .rejects.toThrow('Referenced task is ambiguous');
+  });
+
+  it('preserves the existing task time when only the date changes', async () => {
+    const result = await executeAiAction(mockDb(), {
+      type: 'RESCHEDULE_TASK',
+      taskText: 'Supplier call',
+      dueDate: '2026-08-27',
+    });
+
+    expect(result.type).toBe('TASK_RESCHEDULED');
   });
 });
