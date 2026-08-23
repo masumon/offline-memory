@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Link } from 'expo-router';
-
 import { useTaskStore } from '../src/store/task.store';
 import { colors, spacing, typography } from '../src/theme';
 import type { Task } from '../src/types/task-model';
@@ -11,94 +10,35 @@ export default function HomeScreen() {
   const db = useSQLiteContext();
   const [title, setTitle] = useState('');
   const { tasks, isLoading, error, load, create, complete } = useTaskStore();
-
-  useEffect(() => {
-    void load(db);
-  }, [db, load]);
-
-  const handleCreate = async () => {
-    const value = title.trim();
-    if (!value) return;
-    const task = await create(db, { title: value });
-    if (task) setTitle('');
-  };
+  useEffect(() => { void load(db); }, [db, load]);
+  const handleCreate = async () => { const value = title.trim(); if (!value) return; const task = await create(db, { title: value }); if (task) setTitle(''); };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.eyebrow}>OFFLINE MEMORY</Text>
-            <Text style={styles.title}>Today</Text>
-          </View>
+          <View><Text style={styles.eyebrow}>OFFLINE MEMORY</Text><Text style={styles.title}>Today</Text></View>
           <View style={styles.headerActions}>
-            <Link href="/memory" asChild>
-              <Pressable accessibilityRole="button" accessibilityLabel="Open memories" style={styles.headerButton}>
-                <Text style={styles.headerButtonText}>Memory</Text>
-              </Pressable>
-            </Link>
-            <Link href="/backup" asChild>
-              <Pressable accessibilityRole="button" accessibilityLabel="Open backup and restore" style={styles.headerButton}>
-                <Text style={styles.headerButtonText}>Backup</Text>
-              </Pressable>
-            </Link>
+            <Link href="/planning" asChild><Pressable accessibilityRole="button" accessibilityLabel="Open daily planning" style={styles.headerButton}><Text style={styles.headerButtonText}>Plan</Text></Pressable></Link>
+            <Link href="/memory" asChild><Pressable accessibilityRole="button" accessibilityLabel="Open memories" style={styles.headerButton}><Text style={styles.headerButtonText}>Memory</Text></Pressable></Link>
+            <Link href="/backup" asChild><Pressable accessibilityRole="button" accessibilityLabel="Open backup and restore" style={styles.headerButton}><Text style={styles.headerButtonText}>Backup</Text></Pressable></Link>
           </View>
         </View>
         <Text style={styles.subtitle}>Your tasks stay on this device.</Text>
       </View>
-
       <View style={styles.composer}>
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          onSubmitEditing={() => void handleCreate()}
-          placeholder="What needs to be done?"
-          placeholderTextColor={colors.textMuted}
-          returnKeyType="done"
-          style={styles.input}
-        />
-        <Pressable accessibilityRole="button" accessibilityLabel="Add task" onPress={() => void handleCreate()} style={styles.addButton}>
-          <Text style={styles.addButtonText}>Add</Text>
-        </Pressable>
+        <TextInput value={title} onChangeText={setTitle} onSubmitEditing={() => void handleCreate()} placeholder="What needs to be done?" placeholderTextColor={colors.textMuted} returnKeyType="done" style={styles.input} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Add task" onPress={() => void handleCreate()} style={styles.addButton}><Text style={styles.addButtonText}>Add</Text></Pressable>
       </View>
-
       {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      {isLoading ? (
-        <ActivityIndicator style={styles.loader} />
-      ) : (
-        <FlatList
-          data={tasks}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={tasks.length ? styles.list : styles.emptyList}
-          ListEmptyComponent={<Text style={styles.empty}>No tasks yet. Add your first task above.</Text>}
-          renderItem={({ item }) => <TaskRow task={item} onComplete={() => void complete(db, item.id)} />}
-        />
-      )}
+      {isLoading ? <ActivityIndicator style={styles.loader} /> : <FlatList data={tasks} keyExtractor={(item) => item.id} contentContainerStyle={tasks.length ? styles.list : styles.emptyList} ListEmptyComponent={<Text style={styles.empty}>No tasks yet. Add your first task above.</Text>} renderItem={({ item }) => <TaskRow task={item} onComplete={() => void complete(db, item.id)} />} />}
     </View>
   );
 }
 
 function TaskRow({ task, onComplete }: { task: Task; onComplete: () => void }) {
   const completed = task.status === 'COMPLETED';
-  return (
-    <View style={styles.taskRow}>
-      <Pressable
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: completed }}
-        accessibilityLabel={`Complete ${task.title}`}
-        disabled={completed}
-        onPress={onComplete}
-        style={[styles.checkbox, completed && styles.checkboxDone]}
-      >
-        {completed ? <Text style={styles.check}>✓</Text> : null}
-      </Pressable>
-      <View style={styles.taskBody}>
-        <Text style={[styles.taskTitle, completed && styles.taskDone]}>{task.title}</Text>
-        <Text style={styles.taskMeta}>{task.priority} · {task.status}</Text>
-      </View>
-    </View>
-  );
+  return <View style={styles.taskRow}><Pressable accessibilityRole="checkbox" accessibilityState={{ checked: completed }} accessibilityLabel={`Complete ${task.title}`} disabled={completed} onPress={onComplete} style={[styles.checkbox, completed && styles.checkboxDone]}>{completed ? <Text style={styles.check}>✓</Text> : null}</Pressable><View style={styles.taskBody}><Text style={[styles.taskTitle, completed && styles.taskDone]}>{task.title}</Text><Text style={styles.taskMeta}>{task.priority} · {task.status}</Text></View></View>;
 }
 
 const styles = StyleSheet.create({
