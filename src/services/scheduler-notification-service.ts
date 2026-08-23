@@ -13,11 +13,6 @@ export interface SchedulerNotificationState {
   deliveredTaskIds?: ReadonlySet<string>;
 }
 
-/**
- * Produces idempotent notification candidates. It does not deliver notifications.
- * Persistent delivery state is checked first; the optional in-memory state is a
- * fast-path for the current process.
- */
 export async function getNotificationCandidates(
   db: SQLiteDatabase,
   now = new Date(),
@@ -29,12 +24,8 @@ export async function getNotificationCandidates(
 
   for (const task: ScheduledTask of tasks) {
     if (state.deliveredTaskIds?.has(task.id)) continue;
-    if (await hasNotificationBeenDelivered(db, task.id)) continue;
-    candidates.push({
-      taskId: task.id,
-      title: task.title,
-      dueAt: task.dueAt as string,
-    });
+    if (await hasNotificationBeenDelivered(db, task.id, task.dueAt as string)) continue;
+    candidates.push({ taskId: task.id, title: task.title, dueAt: task.dueAt as string });
   }
 
   return candidates;
