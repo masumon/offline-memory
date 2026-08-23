@@ -23,7 +23,9 @@ function actionForIntent(
   switch (intent) {
     case 'CREATE_TASK':
       if (!entities.taskText) return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_TASK_TEXT') };
-      if (entities.time && !entities.date) return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_SCHEDULE') };
+      if (entities.time && !entities.date) {
+        return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_SCHEDULE') };
+      }
       return {
         status: 'READY',
         action: {
