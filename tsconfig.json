@@ -6,8 +6,7 @@
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "types": ["jest"]
+    "skipLibCheck": true
   },
   "include": [
     "**/*.ts",
