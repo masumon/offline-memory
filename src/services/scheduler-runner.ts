@@ -13,8 +13,12 @@ export async function runNotificationScheduler(
   let scheduled = 0;
 
   for (const candidate of candidates) {
-    const notificationId = await scheduleTaskNotification(db, candidate);
-    if (notificationId) scheduled += 1;
+    try {
+      const notificationId = await scheduleTaskNotification(db, candidate);
+      if (notificationId) scheduled += 1;
+    } catch {
+      // One failed platform scheduling operation must not block other reminders.
+    }
   }
 
   return scheduled;
