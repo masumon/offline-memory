@@ -7,6 +7,7 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   dueAt: string | null;
+  plannedDate: string | null;
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -17,6 +18,7 @@ export interface CreateTaskInput {
   notes?: string | null;
   priority?: TaskPriority;
   dueAt?: string | null;
+  plannedDate?: string | null;
   status?: TaskStatus;
 }
 
@@ -25,5 +27,6 @@ export interface UpdateTaskInput {
   notes?: string | null;
   priority?: TaskPriority;
   dueAt?: string | null;
+  plannedDate?: string | null;
   status?: TaskStatus;
 }
