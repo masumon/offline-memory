@@ -6,9 +6,9 @@ function mockDb(): SQLiteDatabase {
 }
 
 describe('scheduler notification service', () => {
-  it('does not emit already delivered task ids', async () => {
+  it('does not emit an already delivered task/due-time key', async () => {
     const db = mockDb();
-    const state = { deliveredTaskIds: new Set(['task-1']) };
+    const state = { deliveredNotificationKeys: new Set(['task-1:2026-08-24T10:00:00.000Z']) };
     const scheduler = jest
       .require('../src/services/scheduler-service') as typeof import('../src/services/scheduler-service');
 
