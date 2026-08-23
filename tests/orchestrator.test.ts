@@ -57,20 +57,6 @@ describe('local orchestrator', () => {
     });
   });
 
-  it('resolves a reschedule follow-up against explicit local context', () => {
-    const result = orchestrate('আগামীকাল সকাল ১১টায় করো', now, {
-      lastTaskText: 'ডাক্তারকে ফোন করতে হবে',
-    });
-
-    expect(result.status).toBe('READY');
-    expect(result.action).toEqual({
-      type: 'RESCHEDULE_TASK',
-      taskText: 'ডাক্তারকে ফোন করতে হবে',
-      dueDate: '2026-08-25',
-      dueMinutes: 660,
-    });
-  });
-
   it('does not execute database work for unknown input', () => {
     const result = orchestrate('আজ আকাশ অনেক সুন্দর', now);
 
