@@ -1,7 +1,7 @@
 # Project status
 
 Current implementation baseline: `main` (M7 merged).
-Current full-audit branch: `m0-m7-full-audit`.
+Current M8 branch: `m8-production-hardening`.
 
 ## Roadmap
 
@@ -13,14 +13,28 @@ Current full-audit branch: `m0-m7-full-audit`.
 - M5 — Orchestration and context
 - M6 — Memory and search
 - M7 — Backup and restore
-- M8 — Android hardening and QA
+- M8 — Android hardening and QA **IN PROGRESS**
 - M9 — Production release
 
-## Full-audit policy
+## M8 scope
 
-M0–M7 are not considered production-complete solely because a phase was previously merged. The audit branch rechecks every phase for missing functionality, broken boundaries, stale code, schema compatibility, regression coverage, and unnecessary abstractions.
+M8 hardens the Android runtime boundary without introducing cloud dependencies. It covers notification permission/state diagnostics, scheduled-reminder visibility, database schema health checks, startup/lifecycle behavior, destructive-action safety, accessibility checks, and regression tests for platform-facing services.
 
-Known environment limitation: this execution environment cannot resolve `github.com` from a local shell and has no Android emulator/device, so full npm/Expo runtime verification must be performed in a networked local/Codex environment. Static repository review and code-level fixes continue without treating unavailable runtime checks as PASS.
+A local diagnostics screen is available at `/diagnostics` and is reachable from the Home screen. It reports SQLite schema version, notification permission state, and the number of OS-scheduled reminders. Diagnostics are informational and do not mutate application data.
+
+## Verification policy
+
+Static repository verification and code-level audits are performed continuously. Full Android/device verification remains a separate gate and must not be represented as PASS when an Android runtime is unavailable. Required M8 runtime gates are:
+
+- `npm install`
+- `npm run typecheck`
+- `npm run lint`
+- `npm test`
+- `npx expo-doctor`
+- real Android build/install
+- notification permission and exact-time reminder test
+- process restart / app resume reminder reconciliation
+- backup/restore verification on a real device
 
 ## Constraints
 
