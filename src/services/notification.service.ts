@@ -3,6 +3,15 @@ import { Platform } from 'react-native';
 
 const TASK_CHANNEL_ID = 'task-reminders';
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 export async function initializeNotifications(): Promise<void> {
   if (Platform.OS !== 'android') {
     return;
