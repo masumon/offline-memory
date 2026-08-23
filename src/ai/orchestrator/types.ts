@@ -32,7 +32,12 @@ export type OrchestratedAction =
     }
   | {
       type: 'CLARIFY';
-      reason: 'UNKNOWN_INTENT' | 'MISSING_TASK_TEXT' | 'MISSING_MEMORY_TEXT' | 'MISSING_QUERY';
+      reason:
+        | 'UNKNOWN_INTENT'
+        | 'MISSING_TASK_TEXT'
+        | 'MISSING_TASK_REFERENCE'
+        | 'MISSING_MEMORY_TEXT'
+        | 'MISSING_QUERY';
     };
 
 export interface OrchestratorResult {
