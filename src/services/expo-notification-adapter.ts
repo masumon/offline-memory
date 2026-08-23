@@ -2,24 +2,8 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { hasNotificationBeenDelivered, markNotificationDelivered } from './notification-delivery-repository';
+import { initializeNotifications, requestNotificationPermission, TASK_CHANNEL_ID } from './notification.service';
 import type { NotificationCandidate } from './scheduler-notification-service';
-
-export async function configureNotificationChannel(): Promise<void> {
-  if (Platform.OS !== 'android') return;
-
-  await Notifications.setNotificationChannelAsync('tasks', {
-    name: 'Tasks',
-    importance: Notifications.AndroidImportance.DEFAULT,
-  });
-}
-
-export async function requestNotificationPermission(): Promise<boolean> {
-  const current = await Notifications.getPermissionsAsync();
-  if (current.granted) return true;
-
-  const requested = await Notifications.requestPermissionsAsync();
-  return requested.granted;
-}
 
 export async function scheduleTaskNotification(
   db: SQLiteDatabase,
@@ -41,7 +25,7 @@ export async function scheduleTaskNotification(
     return existing.identifier;
   }
 
-  await configureNotificationChannel();
+  await initializeNotifications();
   const permitted = await requestNotificationPermission();
   if (!permitted) return null;
 
@@ -54,7 +38,7 @@ export async function scheduleTaskNotification(
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date: dueAt,
-      ...(Platform.OS === 'android' ? { channelId: 'tasks' } : {}),
+      ...(Platform.OS === 'android' ? { channelId: TASK_CHANNEL_ID } : {}),
     },
   });
 
