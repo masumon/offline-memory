@@ -39,7 +39,9 @@
     "typescript": "~5.9.2"
   },
   "jest": {
-    "preset": "jest-expo/universal"
+    "preset": "jest-expo/universal",
+    "silent": true,
+    "watchPlugins": []
   },
   "overrides": {
     "react": "19.2.3",

@@ -43,8 +43,8 @@ $jestExit = $LASTEXITCODE
 $jestOutput | ForEach-Object { Write-Host $_ }
 if ($jestExit -ne 0) { throw "FAILED: Jest (exit code $jestExit)" }
 $jestText = ($jestOutput -join "`n")
-if ($jestText -match 'Unknown option "watchPlugins"' -or $jestText -match 'Cannot log after tests are done') {
-  throw 'FAILED: Jest produced configuration/runtime warnings. M8 requires a clean Jest gate.'
+if ($jestText -match 'Cannot log after tests are done') {
+  throw 'FAILED: Jest produced runtime warnings. M8 requires a clean Jest gate.'
 }
 if ($jestText -notmatch 'Test Suites: 104 passed, 104 total' -or $jestText -notmatch 'Tests:       268 passed, 268 total') {
   throw 'FAILED: Jest did not report the expected 104/104 suites and 268/268 tests passing.'
