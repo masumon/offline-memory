@@ -5,6 +5,7 @@ export async function hasNotificationBeenDelivered(
   taskId: string,
   dueAt: string,
 ): Promise<boolean> {
+  if (typeof db.getFirstAsync !== 'function') return false;
   const row = await db.getFirstAsync<{ task_id: string }>(
     'SELECT task_id FROM notification_deliveries WHERE task_id = ? AND due_at = ? LIMIT 1',
     taskId,

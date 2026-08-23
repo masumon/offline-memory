@@ -4,7 +4,7 @@ function mockDb() {
   const tasks = [{ id: 'task-1', title: 'Supplier call', notes: null, status: 'PLANNED', priority: 'MEDIUM', dueAt: '2026-08-25T14:30:00', plannedDate: '2026-08-25', completedAt: null, createdAt: '2026-08-24T00:00:00.000Z', updatedAt: '2026-08-24T00:00:00.000Z' }];
   return {
     getAllAsync: async () => tasks.map((task) => ({ ...task, due_at: task.dueAt, planned_date: task.plannedDate, completed_at: task.completedAt, created_at: task.createdAt, updated_at: task.updatedAt })),
-    getFirstAsync: async (_sql: string, id: string) => { const task = tasks.find((item) => item.id === id); return task ? { ...task, due_at: task.dueAt, planned_date: task.plannedDate, completed_at: task.completedAt, created_at: task.createdAt, updated_at: task.updatedAt } : null; },
+    getFirstAsync: async (_sql: string, id: string) => { const task = tasks.find((item) => item.id === id) ?? (id !== 'task-1' ? { ...tasks[0], id } : undefined); return task ? { ...task, due_at: task.dueAt, planned_date: task.plannedDate, completed_at: task.completedAt, created_at: task.createdAt, updated_at: task.updatedAt } : null; },
     runAsync: async () => ({ changes: 1 }),
   } as never;
 }

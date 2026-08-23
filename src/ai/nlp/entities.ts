@@ -11,7 +11,10 @@ function toAsciiDigits(value: string): string {
   return [...value].map((char) => { const index = BENGALI_DIGITS.indexOf(char); return index >= 0 ? String(index) : char; }).join('');
 }
 function startOfDay(date: Date): Date { const value = new Date(date); value.setHours(0, 0, 0, 0); return value; }
-function dateEntity(raw: string, date: Date): DateEntity { return { raw, isoDate: date.toISOString().slice(0, 10), confidence: 0.98 }; }
+function localIsoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+function dateEntity(raw: string, date: Date): DateEntity { return { raw, isoDate: localIsoDate(date), confidence: 0.98 }; }
 function findDateTerm(text: string): string | undefined {
   for (const term of DATE_TERMS) {
     const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -75,7 +78,7 @@ function removeDateTime(text: string): string {
   return cleaned.replace(/\s+/g, ' ').trim();
 }
 function cleanContent(text: string): string {
-  return text.replace(/^(please|pls|দয়া করে|দয়া করে|আমাকে|একটা|একটি)\s+/u, '').replace(/^(remember|save|note|search|find|মনে রাখো|মনে রাখ|মনে রাখবে|নোট করো|কাজ যোগ করো|কাজ যোগ|খুঁজে দাও|খুঁজে দেখ|খুঁজে|করতে হবে)\s*[:,-]?\s*/u, '').replace(/\s+(please|pls|দয়া করে|দয়া করে|খুঁজে দাও|খুঁজে দেখ|খুঁজে দিন)$/u, '').trim();
+  return text.replace(/^(please|pls|দয়া করে|দয়া করে|আমাকে|একটা|একটি)\s+/u, '').replace(/^(remember|save|note|search|find|মনে রাখো|মনে রাখ|মনে রাখবে|নোট করো|কাজ যোগ করো|কাজ যোগ|খুঁজে দাও|খুঁজে দেখ|খুঁজে|পিছিয়ে দাও|পিছিয়ে দাও|করতে হবে)\s*[:,-]?\s*/u, '').replace(/\s+(please|pls|দয়া করে|দয়া করে|খুঁজে দাও|খুঁজে দেখ|খুঁজে দিন|পিছিয়ে দাও|পিছিয়ে দাও)$/u, '').trim();
 }
 export function extractEntities(text: string, intent: NlpIntent, now = new Date()): NlpEntities {
   const date = extractDate(text, now); const time = extractTime(text); const cleaned = removeDateTime(text); const content = cleanContent(cleaned);

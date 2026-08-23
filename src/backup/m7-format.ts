@@ -17,7 +17,8 @@ export function parseM7BackupDocument(input: unknown): M7BackupDocument {
   const value = input as Record<string, unknown>;
   if (value.format !== 'offline-memory-backup') throw new Error('Unsupported backup format');
   if (value.version !== M7_BACKUP_VERSION) throw new Error('Unsupported backup version');
-  if (typeof value.createdAt !== 'string' || !Number.isFinite(Date.parse(value.createdAt))) throw new Error('Backup createdAt must be a valid ISO date');
+  const createdAt = value.createdAt ?? value.exportedAt;
+  if (typeof createdAt !== 'string' || !Number.isFinite(Date.parse(createdAt))) throw new Error('Backup createdAt must be a valid ISO date');
   if (!value.data || typeof value.data !== 'object' || Array.isArray(value.data)) throw new Error('Backup data must be an object');
-  return value as unknown as M7BackupDocument;
+  return { ...value, createdAt } as unknown as M7BackupDocument;
 }

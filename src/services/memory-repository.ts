@@ -87,5 +87,14 @@ export async function searchMemories(db: SQLiteDatabase, query: string, matchAll
   const joiner = matchAll ? ' AND ' : ' OR ';
   const args = terms.flatMap((term) => [`%${term}%`, `%${term}%`, `%${term}%`]);
   const rows = await db.getAllAsync<Record<string, unknown>>(`${SELECT} WHERE archived = 0 AND (${clauses.join(joiner)})`, ...args);
-  return rows.map(rowToMemory).map((memory) => ({ memory, score: scoreMemory(memory, terms, normalizedQuery) })).filter((item) => item.score > 0).sort((a, b) => b.score - a.score || b.memory.updatedAt.localeCompare(a.memory.updatedAt)).map((item) => item.memory);
+  return rows.map(rowToMemory)
+    .filter((memory) => {
+      if (!matchAll) return true;
+      const haystack = `${memory.title ?? ''} ${memory.content} ${memory.tags.join(' ')}`.toLocaleLowerCase();
+      return terms.every((term) => haystack.includes(term));
+    })
+    .map((memory) => ({ memory, score: scoreMemory(memory, terms, normalizedQuery) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || b.memory.updatedAt.localeCompare(a.memory.updatedAt))
+    .map((item) => item.memory);
 }

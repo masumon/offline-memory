@@ -1,13 +1,11 @@
 import { scheduleTaskNotification } from '../src/services/expo-notification-adapter';
-
-const schedule = jest.fn().mockResolvedValue('os-notification-1');
-const cancel = jest.fn().mockResolvedValue(undefined);
+import * as Notifications from 'expo-notifications';
 
 jest.mock('expo-notifications', () => ({
   SchedulableTriggerInputTypes: { DATE: 'date' },
   getAllScheduledNotificationsAsync: jest.fn().mockResolvedValue([]),
-  scheduleNotificationAsync: schedule,
-  cancelScheduledNotificationAsync: cancel,
+  scheduleNotificationAsync: jest.fn().mockResolvedValue('os-notification-1'),
+  cancelScheduledNotificationAsync: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../src/services/notification.service', () => ({
   initializeNotifications: jest.fn().mockResolvedValue(undefined),
@@ -28,7 +26,7 @@ describe('notification scheduling atomicity', () => {
       title: 'Test reminder',
       dueAt: '2099-01-01T10:00:00.000Z',
     })).rejects.toThrow('db write failed');
-    expect(schedule).toHaveBeenCalledTimes(1);
-    expect(cancel).toHaveBeenCalledWith('os-notification-1');
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    expect(Notifications.cancelScheduledNotificationAsync).toHaveBeenCalledWith('os-notification-1');
   });
 });

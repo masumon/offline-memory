@@ -10,6 +10,11 @@ function clarifyAction(reason: Extract<OrchestratedAction, { type: 'CLARIFY' }>[
   return { type: 'CLARIFY', reason };
 }
 
+function hasTaskReference(value: string | undefined): value is string {
+  const trimmed = value?.trim();
+  return Boolean(trimmed && trimmed.length >= 10 && !/(?:reschedule|move|postpone|delay|পিছ|পরে কর|দাও)$/u.test(trimmed));
+}
+
 function actionForIntent(
   intent: NlpIntent,
   entities: ReturnType<typeof parseLocalNlp>['entities'],
@@ -50,6 +55,9 @@ function actionForIntent(
 
     case 'RESCHEDULE_TASK':
       if (!resolved.taskText) {
+        return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_TASK_REFERENCE') };
+      }
+      if (!context.lastTaskText && !hasTaskReference(resolved.taskText)) {
         return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_TASK_REFERENCE') };
       }
       if (!entities.date && !entities.time) {
