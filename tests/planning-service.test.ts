@@ -13,7 +13,7 @@ function mockDb(): SQLiteDatabase { return { withTransactionAsync: async (callba
 describe('daily planning service', () => {
   beforeEach(() => jest.clearAllMocks());
   it('separates inbox and date-only planned tasks without creating a reminder time', async () => {
-    mockedListTasks.mockImplementation(async (_db, options) => {
+    mockedListTasks.mockImplementation(async (_db, options = {}) => {
       if (options.status === 'INBOX') return [{ id: 'inbox', title: 'Inbox', status: 'INBOX', priority: 'MEDIUM', notes: null, dueAt: null, plannedDate: null, completedAt: null, createdAt: '', updatedAt: '' }];
       if (options.status === 'IN_PROGRESS') return [];
       return [{ id: 'planned', title: 'Planned', status: 'PLANNED', priority: 'HIGH', notes: null, dueAt: null, plannedDate: '2026-08-24', completedAt: null, createdAt: '', updatedAt: '' }];
