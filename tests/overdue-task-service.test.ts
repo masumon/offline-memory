@@ -8,12 +8,12 @@ describe('overdue task service', () => {
     jest.spyOn(repository, 'findDueTasks').mockResolvedValue([
       {
         id: 'overdue', title: 'Missed task', notes: null, status: 'PLANNED', priority: 'MEDIUM',
-        dueAt: '2026-08-24T08:00:00.000Z', completedAt: null,
+        dueAt: '2026-08-24T08:00:00.000Z', plannedDate: '2026-08-24', completedAt: null,
         createdAt: '2026-08-23T08:00:00.000Z', updatedAt: '2026-08-23T08:00:00.000Z',
       },
       {
         id: 'future', title: 'Future task', notes: null, status: 'PLANNED', priority: 'MEDIUM',
-        dueAt: '2026-08-24T12:00:00.000Z', completedAt: null,
+        dueAt: '2026-08-24T12:00:00.000Z', plannedDate: '2026-08-24', completedAt: null,
         createdAt: '2026-08-23T08:00:00.000Z', updatedAt: '2026-08-23T08:00:00.000Z',
       },
     ]);
