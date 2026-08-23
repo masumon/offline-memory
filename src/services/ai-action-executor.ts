@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { OrchestratedAction } from '../ai/orchestrator';
 import { addMemory, findMemories } from './memory-service';
-import { addTask, completeTask, listTasks, rescheduleTask } from './task-service';
+import { addTask, completeTask, findTasksByExactTitle, listTasks, rescheduleTask } from './task-service';
 import type { Memory } from '../types/memory-model';
 import type { Task } from '../types/task-model';
 
@@ -12,10 +12,6 @@ export type ActionExecutionResult =
   | { type: 'TASK_RESCHEDULED'; task: Task }
   | { type: 'MEMORY_CREATED'; memory: Memory }
   | { type: 'MEMORIES_FOUND'; memories: Memory[] };
-
-function normalizeReference(value: string): string {
-  return value.trim().toLocaleLowerCase();
-}
 
 function buildDueAt(action: Extract<OrchestratedAction, { type: 'CREATE_TASK' | 'RESCHEDULE_TASK' }>): string | null {
   if (!action.dueDate && action.dueMinutes === undefined) return null;
@@ -30,12 +26,10 @@ function buildDueAt(action: Extract<OrchestratedAction, { type: 'CREATE_TASK' | 
 }
 
 async function findTaskByReference(db: SQLiteDatabase, reference: string): Promise<Task> {
-  const target = normalizeReference(reference);
-  const tasks = await listTasks(db, { limit: 500 });
-  const exact = tasks.filter((task) => normalizeReference(task.title) === target);
-  if (exact.length === 0) throw new Error('Referenced task was not found');
-  if (exact.length > 1) throw new Error('Referenced task is ambiguous');
-  return exact[0];
+  const matches = await findTasksByExactTitle(db, reference);
+  if (matches.length === 0) throw new Error('Referenced task was not found');
+  if (matches.length > 1) throw new Error('Referenced task is ambiguous');
+  return matches[0];
 }
 
 /**
