@@ -29,3 +29,5 @@ export type Intent =
   | 'PLAN_DAY'
   | 'DAILY_REVIEW'
   | 'WEEKLY_REVIEW';
+
+export type { CreateTaskInput, Task, UpdateTaskInput } from './task-model';
