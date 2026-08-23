@@ -11,14 +11,14 @@ export type OrchestratedAction =
     }
   | {
       type: 'COMPLETE_TASK';
-      taskText?: string;
+      taskText: string;
     }
   | {
       type: 'LIST_TASKS';
     }
   | {
       type: 'RESCHEDULE_TASK';
-      taskText?: string;
+      taskText: string;
       dueDate?: string;
       dueMinutes?: number;
     }
@@ -37,7 +37,8 @@ export type OrchestratedAction =
         | 'MISSING_TASK_TEXT'
         | 'MISSING_TASK_REFERENCE'
         | 'MISSING_MEMORY_TEXT'
-        | 'MISSING_QUERY';
+        | 'MISSING_QUERY'
+        | 'MISSING_RESCHEDULE_TARGET';
     };
 
 export interface OrchestratorResult {
