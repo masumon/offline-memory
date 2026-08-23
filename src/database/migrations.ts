@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA journal_mode = WAL;');
@@ -83,8 +83,42 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
       3,
       new Date().toISOString(),
     );
+  }
 
-    await db.execAsync('PRAGMA user_version = 3;');
+  if (currentVersion < 4) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS memories (
+        id TEXT PRIMARY KEY NOT NULL,
+        title TEXT,
+        content TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'NOTE',
+        source TEXT NOT NULL DEFAULT 'USER',
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        importance INTEGER NOT NULL DEFAULT 3,
+        archived INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_accessed_at TEXT,
+        CHECK (length(trim(content)) > 0),
+        CHECK (kind IN ('NOTE','FACT','PREFERENCE','EVENT','REFLECTION')),
+        CHECK (source IN ('USER','SYSTEM','IMPORTED')),
+        CHECK (importance BETWEEN 1 AND 5),
+        CHECK (archived IN (0, 1))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_memories_kind ON memories(kind);
+      CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance);
+      CREATE INDEX IF NOT EXISTS idx_memories_updated_at ON memories(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_memories_archived ON memories(archived);
+    `);
+
+    await db.runAsync(
+      'INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
+      4,
+      new Date().toISOString(),
+    );
+
+    await db.execAsync('PRAGMA user_version = 4;');
   }
 }
 
