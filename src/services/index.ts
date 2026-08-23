@@ -4,6 +4,7 @@ export * from './task-service';
 export * from './subtask-repository';
 export * from './memory-repository';
 export * from './memory-service';
+export * from './memory-search-service';
 export * from './ai-action-executor';
 export * from './scheduler-service';
 export * from './scheduler-notification-service';
