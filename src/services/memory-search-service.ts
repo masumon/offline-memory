@@ -16,7 +16,7 @@ export async function searchRankedMemories(db: SQLiteDatabase, query: string): P
   if (!normalized) return [];
 
   const terms = tokenize(normalized);
-  const memories = await searchMemories(db, normalized);
+  const memories = await searchMemories(db, normalized, false);
 
   return memories
     .map((memory) => {
@@ -24,7 +24,7 @@ export async function searchRankedMemories(db: SQLiteDatabase, query: string): P
       const content = tokenize(memory.content);
       const tags = tokenize(memory.tags.join(' '));
       const matched = terms.filter((term) => title.includes(term) || content.includes(term) || tags.includes(term));
-      const exactPhrase = `${memory.title ?? ''} ${memory.content}`.toLocaleLowerCase().includes(normalized.toLocaleLowerCase());
+      const exactPhrase = `${memory.title ?? ''} ${memory.content} ${memory.tags.join(' ')}`.toLocaleLowerCase().includes(normalized.toLocaleLowerCase());
       const relevance = matched.length / Math.max(terms.length, 1) + (exactPhrase ? 1 : 0) + memory.importance * 0.05;
       return { ...memory, relevance };
     })
