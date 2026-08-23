@@ -1,20 +1,14 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { createM7BackupDocument, M7_BACKUP_VERSION, type M7BackupDocument } from '../backup/m7-format';
+import { readSQLiteBackupData } from '../backup/sqlite-reader';
 
-export const BACKUP_FORMAT_VERSION = 1 as const;
-
-export interface BackupDocument {
-  format: 'offline-memory-backup';
-  version: typeof BACKUP_FORMAT_VERSION;
-  exportedAt: string;
-  data: Record<string, unknown>;
-}
+export const BACKUP_FORMAT_VERSION = M7_BACKUP_VERSION;
+export type BackupDocument = M7BackupDocument;
 
 export async function createBackupDocument(
   db: SQLiteDatabase,
-  readData: (db: SQLiteDatabase) => Promise<Record<string, unknown>>,
+  readData: (db: SQLiteDatabase) => Promise<Record<string, unknown>> = async (database) => readSQLiteBackupData(database) as unknown as Record<string, unknown>,
   exportedAt = new Date().toISOString(),
 ): Promise<BackupDocument> {
-  if (Number.isNaN(Date.parse(exportedAt))) throw new Error('Invalid backup timestamp');
-  const data = await readData(db);
-  return { format: 'offline-memory-backup', version: BACKUP_FORMAT_VERSION, exportedAt, data };
+  return createM7BackupDocument(await readData(db), exportedAt);
 }

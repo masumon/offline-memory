@@ -31,11 +31,18 @@ export default function HomeScreen() {
             <Text style={styles.eyebrow}>OFFLINE MEMORY</Text>
             <Text style={styles.title}>Today</Text>
           </View>
-          <Link href="/memory" asChild>
-            <Pressable accessibilityRole="button" accessibilityLabel="Open memories" style={styles.memoryButton}>
-              <Text style={styles.memoryButtonText}>Memory</Text>
-            </Pressable>
-          </Link>
+          <View style={styles.headerActions}>
+            <Link href="/memory" asChild>
+              <Pressable accessibilityRole="button" accessibilityLabel="Open memories" style={styles.headerButton}>
+                <Text style={styles.headerButtonText}>Memory</Text>
+              </Pressable>
+            </Link>
+            <Link href="/backup" asChild>
+              <Pressable accessibilityRole="button" accessibilityLabel="Open backup and restore" style={styles.headerButton}>
+                <Text style={styles.headerButtonText}>Backup</Text>
+              </Pressable>
+            </Link>
+          </View>
         </View>
         <Text style={styles.subtitle}>Your tasks stay on this device.</Text>
       </View>
@@ -98,11 +105,12 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingTop: spacing.xl },
   header: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  headerActions: { flexDirection: 'row', gap: spacing.xs },
   eyebrow: { color: colors.primary, fontSize: typography.label.fontSize, fontWeight: '700', letterSpacing: 1.2 },
   title: { color: colors.textPrimary, fontSize: 36, fontWeight: '800', marginTop: spacing.sm },
   subtitle: { color: colors.textSecondary, fontSize: 15, marginTop: spacing.xs },
-  memoryButton: { minHeight: 42, paddingHorizontal: spacing.md, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'center' },
-  memoryButtonText: { color: colors.primary, fontWeight: '700' },
+  headerButton: { minHeight: 42, paddingHorizontal: spacing.md, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'center' },
+  headerButtonText: { color: colors.primary, fontWeight: '700' },
   composer: { flexDirection: 'row', gap: spacing.sm, margin: spacing.xl, marginBottom: spacing.md },
   input: { flex: 1, minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, color: colors.textPrimary, paddingHorizontal: spacing.md, fontSize: 16 },
   addButton: { minHeight: 50, paddingHorizontal: spacing.lg, borderRadius: 14, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
