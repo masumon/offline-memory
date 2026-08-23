@@ -13,11 +13,20 @@ export type ActionExecutionResult =
   | { type: 'MEMORY_CREATED'; memory: Memory }
   | { type: 'MEMORIES_FOUND'; memories: Memory[] };
 
-function buildDueAt(action: Extract<OrchestratedAction, { type: 'CREATE_TASK' | 'RESCHEDULE_TASK' }>): string | null {
+function buildDueAt(
+  action: Extract<OrchestratedAction, { type: 'CREATE_TASK' | 'RESCHEDULE_TASK' }>,
+  preserveTimeFrom?: string | null,
+): string | null {
   if (!action.dueDate && action.dueMinutes === undefined) return null;
   if (!action.dueDate) throw new Error('A due date is required when a task time is supplied');
 
-  const minutes = action.dueMinutes ?? 0;
+  let minutes = action.dueMinutes;
+  if (minutes === undefined && preserveTimeFrom) {
+    const match = preserveTimeFrom.match(/T(\d{2}):(\d{2})/u);
+    if (match) minutes = Number(match[1]) * 60 + Number(match[2]);
+  }
+  minutes ??= 0;
+
   if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1439) {
     throw new Error('Task due time must be between 00:00 and 23:59');
   }
@@ -60,7 +69,7 @@ export async function executeAiAction(
       return { type: 'TASKS_LISTED', tasks: await listTasks(db) };
     case 'RESCHEDULE_TASK': {
       const target = await findTaskByReference(db, action.taskText);
-      const dueAt = buildDueAt(action);
+      const dueAt = buildDueAt(action, target.dueAt);
       if (!dueAt) throw new Error('A schedule is required to reschedule a task');
       const task = await rescheduleTask(db, target.id, dueAt);
       if (!task) throw new Error('Task disappeared before rescheduling');
