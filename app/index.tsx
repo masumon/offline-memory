@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSQLiteContext } from 'expo-sqlite';
 import { Link } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 import { useTaskStore } from '../src/store/task.store';
 import { colors, spacing, typography } from '../src/theme';
 import type { Task } from '../src/types/task-model';
@@ -22,6 +22,7 @@ export default function HomeScreen() {
             <Link href="/planning" asChild><Pressable accessibilityRole="button" accessibilityLabel="Open daily planning" style={styles.headerButton}><Text style={styles.headerButtonText}>Plan</Text></Pressable></Link>
             <Link href="/memory" asChild><Pressable accessibilityRole="button" accessibilityLabel="Open memories" style={styles.headerButton}><Text style={styles.headerButtonText}>Memory</Text></Pressable></Link>
             <Link href="/backup" asChild><Pressable accessibilityRole="button" accessibilityLabel="Open backup and restore" style={styles.headerButton}><Text style={styles.headerButtonText}>Backup</Text></Pressable></Link>
+            <Link href="/diagnostics" asChild><Pressable accessibilityRole="button" accessibilityLabel="Open device diagnostics" style={styles.headerButton}><Text style={styles.headerButtonText}>QA</Text></Pressable></Link>
           </View>
         </View>
         <Text style={styles.subtitle}>Your tasks stay on this device.</Text>
@@ -45,7 +46,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingTop: spacing.xl },
   header: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  headerActions: { flexDirection: 'row', gap: spacing.xs },
+  headerActions: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 250 },
   eyebrow: { color: colors.primary, fontSize: typography.label.fontSize, fontWeight: '700', letterSpacing: 1.2 },
   title: { color: colors.textPrimary, fontSize: 36, fontWeight: '800', marginTop: spacing.sm },
   subtitle: { color: colors.textSecondary, fontSize: 15, marginTop: spacing.xs },
