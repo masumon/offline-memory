@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-const DATABASE_VERSION = 5;
+const DATABASE_VERSION = 6;
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA journal_mode = WAL;');
@@ -16,18 +16,12 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
         value TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
-
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version INTEGER PRIMARY KEY NOT NULL,
         applied_at TEXT NOT NULL
       );
     `);
-
-    await db.runAsync(
-      'INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
-      1,
-      new Date().toISOString(),
-    );
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 1, new Date().toISOString());
   }
 
   if (currentVersion < 2) {
@@ -46,18 +40,12 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
         CHECK (status IN ('INBOX','PLANNED','IN_PROGRESS','COMPLETED','RESCHEDULED','ARCHIVED','CANCELLED')),
         CHECK (priority IN ('URGENT','HIGH','MEDIUM','LOW'))
       );
-
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
       CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
       CREATE INDEX IF NOT EXISTS idx_tasks_due_at ON tasks(due_at);
       CREATE INDEX IF NOT EXISTS idx_tasks_updated_at ON tasks(updated_at);
     `);
-
-    await db.runAsync(
-      'INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
-      2,
-      new Date().toISOString(),
-    );
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 2, new Date().toISOString());
   }
 
   if (currentVersion < 3) {
@@ -74,15 +62,9 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
         CHECK (completed IN (0, 1)),
         FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
       );
-
       CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id, position);
     `);
-
-    await db.runAsync(
-      'INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
-      3,
-      new Date().toISOString(),
-    );
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 3, new Date().toISOString());
   }
 
   if (currentVersion < 4) {
@@ -105,18 +87,12 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
         CHECK (importance BETWEEN 1 AND 5),
         CHECK (archived IN (0, 1))
       );
-
       CREATE INDEX IF NOT EXISTS idx_memories_kind ON memories(kind);
       CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance);
       CREATE INDEX IF NOT EXISTS idx_memories_updated_at ON memories(updated_at);
       CREATE INDEX IF NOT EXISTS idx_memories_archived ON memories(archived);
     `);
-
-    await db.runAsync(
-      'INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
-      4,
-      new Date().toISOString(),
-    );
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 4, new Date().toISOString());
   }
 
   if (currentVersion < 5) {
@@ -128,19 +104,21 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
         PRIMARY KEY (task_id, due_at),
         FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
       );
-
-      CREATE INDEX IF NOT EXISTS idx_notification_deliveries_delivered_at
-        ON notification_deliveries(delivered_at);
+      CREATE INDEX IF NOT EXISTS idx_notification_deliveries_delivered_at ON notification_deliveries(delivered_at);
     `);
-
-    await db.runAsync(
-      'INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
-      5,
-      new Date().toISOString(),
-    );
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 5, new Date().toISOString());
   }
 
-  await db.execAsync('PRAGMA user_version = 5;');
+  if (currentVersion < 6) {
+    await db.execAsync(`
+      ALTER TABLE tasks ADD COLUMN planned_date TEXT;
+      CREATE INDEX IF NOT EXISTS idx_tasks_planned_date ON tasks(planned_date);
+      UPDATE tasks SET planned_date = substr(due_at, 1, 10) WHERE planned_date IS NULL AND due_at IS NOT NULL;
+    `);
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 6, new Date().toISOString());
+  }
+
+  await db.execAsync('PRAGMA user_version = 6;');
 }
 
 export { DATABASE_VERSION };
