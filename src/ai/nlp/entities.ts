@@ -87,7 +87,7 @@ export function extractTime(text: string): TimeEntity | undefined {
   const minute = Number(match[2] ?? 0);
   const prefix = match[0].match(/^(at\s+|সময়\s*|সকাল\s*|সকালে\s*|দুপুর\s*|বিকাল\s*|বিকেলে\s*|সন্ধ্যা\s*|রাতে\s*)/u)?.[0]?.trim();
   const suffix = match[3]?.trim();
-  const meridiem = prefix || suffix;
+  const meridiem = prefix && !/^(at|সময়)$/u.test(prefix) ? prefix : suffix;
   if (hour > 23 || minute > 59) return undefined;
   hour = normalizeHour(hour, meridiem);
   if (hour > 23) return undefined;
