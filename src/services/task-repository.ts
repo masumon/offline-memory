@@ -38,7 +38,7 @@ export async function createTask(db: SQLiteDatabase, input: CreateTaskInput): Pr
 
   const now = new Date().toISOString();
   const id = createId();
-  const status = input.status ?? 'INBOX';
+  const status = input.status ?? (input.dueAt ? 'PLANNED' : 'INBOX');
   const priority = input.priority ?? 'MEDIUM';
 
   await db.runAsync(
@@ -91,10 +91,11 @@ export async function findDueTasks(
   const rows = await db.getAllAsync<TaskRow>(
     `SELECT id, title, notes, status, priority, due_at, completed_at, created_at, updated_at
      FROM tasks
-     WHERE status = ? AND due_at IS NOT NULL AND due_at >= ? AND due_at <= ?
+     WHERE status IN (?, ?) AND due_at IS NOT NULL AND due_at >= ? AND due_at <= ?
      ORDER BY due_at ASC, created_at DESC
      LIMIT ?`,
     'PLANNED',
+    'RESCHEDULED',
     fromIso,
     toIso,
     safeLimit,
