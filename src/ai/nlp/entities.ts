@@ -75,7 +75,7 @@ function normalizeHour(hour: number, meridiem?: string): number {
 
 export function extractTime(text: string): TimeEntity | undefined {
   const normalized = text.trim().toLocaleLowerCase();
-  const match = normalized.match(/(?:at\s+|সময়\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.|সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে|টা)\b/u);
+  const match = normalized.match(/(?:at\s+|সময়\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.|সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে|টা|টায়|টায়)\b/u);
   if (!match) return undefined;
 
   let hour = Number(match[1]);
@@ -92,8 +92,16 @@ function removeDateTime(text: string): string {
   return text
     .replace(/\b(today|tomorrow|day after tomorrow|আজ|আগামীকাল|কাল|পরশু)\b/gu, ' ')
     .replace(/\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{4})?\b/gu, ' ')
-    .replace(/\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে|টা)\b/gu, ' ')
+    .replace(/\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে|টা|টায়|টায়)\b/gu, ' ')
     .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cleanContent(text: string): string {
+  return text
+    .replace(/^(please|pls|দয়া করে|দয়া করে|আমাকে|একটা|একটি)\s+/u, '')
+    .replace(/^(remember|save|note|search|find|মনে রাখো|মনে রাখ|মনে রাখবে|নোট করো|কাজ যোগ করো|কাজ যোগ|খুঁজে দাও|খুঁজে দেখ|খুঁজে|করতে হবে)\s*[:,-]?\s*/u, '')
+    .replace(/\s+(please|pls|দয়া করে|দয়া করে|খুঁজে দাও|খুঁজে দেখ|খুঁজে দিন)$/u, '')
     .trim();
 }
 
@@ -101,10 +109,7 @@ export function extractEntities(text: string, intent: NlpIntent, now = new Date(
   const date = extractDate(text, now);
   const time = extractTime(text);
   const cleaned = removeDateTime(text);
-  const content = cleaned
-    .replace(/^(please|pls|দয়া করে|দয়া করে|আমাকে|আমার|একটা|একটি)\s+/u, '')
-    .replace(/^(remember|save|note|মনে রাখো|মনে রাখ|মনে রাখবে|নোট করো|কাজ যোগ করো|কাজ যোগ|করতে হবে)\s*[:,-]?\s*/u, '')
-    .trim();
+  const content = cleanContent(cleaned);
 
   if (intent === 'CREATE_TASK' || intent === 'RESCHEDULE_TASK') return { taskText: content || undefined, date, time };
   if (intent === 'CREATE_MEMORY') return { memoryText: content || undefined };
