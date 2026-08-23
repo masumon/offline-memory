@@ -10,7 +10,11 @@ export interface NotificationCandidate {
 }
 
 export interface SchedulerNotificationState {
-  deliveredTaskIds?: ReadonlySet<string>;
+  deliveredNotificationKeys?: ReadonlySet<string>;
+}
+
+export function notificationKey(taskId: string, dueAt: string): string {
+  return `${taskId}:${dueAt}`;
 }
 
 export async function getNotificationCandidates(
@@ -23,9 +27,10 @@ export async function getNotificationCandidates(
   const candidates: NotificationCandidate[] = [];
 
   for (const task: ScheduledTask of tasks) {
-    if (state.deliveredTaskIds?.has(task.id)) continue;
-    if (await hasNotificationBeenDelivered(db, task.id, task.dueAt as string)) continue;
-    candidates.push({ taskId: task.id, title: task.title, dueAt: task.dueAt as string });
+    const dueAt = task.dueAt as string;
+    if (state.deliveredNotificationKeys?.has(notificationKey(task.id, dueAt))) continue;
+    if (await hasNotificationBeenDelivered(db, task.id, dueAt)) continue;
+    candidates.push({ taskId: task.id, title: task.title, dueAt });
   }
 
   return candidates;
