@@ -7,7 +7,7 @@
     "start": "expo start",
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint",
+    "lint": "eslint .",
     "test": "jest"
   },
   "dependencies": {
@@ -21,6 +21,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.0",
+    "eslint": "^9.39.0",
+    "eslint-config-expo": "57.0.1",
     "jest": "^30.2.0",
     "jest-expo": "57.0.4",
     "typescript": "~5.9.2"
