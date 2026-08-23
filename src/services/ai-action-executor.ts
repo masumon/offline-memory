@@ -14,6 +14,7 @@ export type ActionExecutionResult =
   | { type: 'MEMORIES_FOUND'; memories: Memory[] };
 
 function buildDueAt(action: Extract<OrchestratedAction, { type: 'CREATE_TASK' | 'RESCHEDULE_TASK' }>, preserveTimeFrom?: string | null): string | null {
+  if (action.dueMinutes !== undefined && !action.dueDate) throw new Error('A due date is required when a task time is supplied');
   if (!action.dueDate) return null;
   let minutes = action.dueMinutes;
   if (minutes === undefined && preserveTimeFrom) {
@@ -47,13 +48,8 @@ export async function executeAiAction(db: SQLiteDatabase, action: Exclude<Orches
     }
     case 'LIST_TASKS': return { type: 'TASKS_LISTED', tasks: await listTasks(db) };
     case 'RESCHEDULE_TASK': {
-      const target = await findTaskByReference(db, action.taskText);
-      const dueAt = buildDueAt(action, target.dueAt);
-      if (dueAt) {
-        const task = await rescheduleTask(db, target.id, dueAt);
-        if (!task) throw new Error('Task disappeared before rescheduling');
-        return { type: 'TASK_RESCHEDULED', task };
-      }
+      const target = await findTaskByReference(db, action.taskText); const dueAt = buildDueAt(action, target.dueAt);
+      if (dueAt) { const task = await rescheduleTask(db, target.id, dueAt); if (!task) throw new Error('Task disappeared before rescheduling'); return { type: 'TASK_RESCHEDULED', task }; }
       if (!action.dueDate) throw new Error('A schedule is required to reschedule a task');
       const task = await editTask(db, target.id, { status: 'PLANNED', dueAt: null, plannedDate: action.dueDate });
       if (!task) throw new Error('Task disappeared before rescheduling');
