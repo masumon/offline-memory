@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { findMemories } from '../src/services/memory-service';
 import { retrieveMemoryContext } from '../src/services/memory-context-service';
+import { findMemories } from '../src/services/memory-service';
 
 jest.mock('../src/services/memory-service', () => ({
   findMemories: jest.fn(),
