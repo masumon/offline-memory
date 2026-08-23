@@ -7,6 +7,7 @@ export * from './memory-service';
 export * from './memory-search-service';
 export * from './memory-context-service';
 export * from './ai-action-executor';
+export * from './planning-service';
 export * from './scheduler-service';
 export * from './scheduler-notification-service';
 export * from './scheduler-runner';
