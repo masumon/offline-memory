@@ -29,7 +29,9 @@ async function findTaskByReference(db: SQLiteDatabase, reference: string): Promi
   const matches = await findTasksByExactTitle(db, reference);
   if (matches.length === 0) throw new Error('Referenced task was not found');
   if (matches.length > 1) throw new Error('Referenced task is ambiguous');
-  return matches[0];
+  const [match] = matches;
+  if (!match) throw new Error('Referenced task was not found');
+  return match;
 }
 
 /**
