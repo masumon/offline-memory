@@ -73,9 +73,11 @@ function normalizeHour(hour: number, meridiem?: string): number {
   return hour;
 }
 
+const TIME_SUFFIX = '(?:am|pm|a\\.m\\.|p\\.m\\.|সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে|টা|টায়|টায়)';
+
 export function extractTime(text: string): TimeEntity | undefined {
   const normalized = text.trim().toLocaleLowerCase();
-  const match = normalized.match(/(?:at\s+|সময়\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.|সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে|টা|টায়|টায়)\b/u);
+  const match = normalized.match(new RegExp(`(?:at\\s+|সময়\\s*)?(\\d{1,2})(?::(\\d{2}))?\\s*(${TIME_SUFFIX})(?=\\s|$|[.,!?।])`, 'u'));
   if (!match) return undefined;
 
   let hour = Number(match[1]);
@@ -89,12 +91,13 @@ export function extractTime(text: string): TimeEntity | undefined {
 }
 
 function removeDateTime(text: string): string {
-  return text
+  const normalized = text
     .replace(/\b(today|tomorrow|day after tomorrow|আজ|আগামীকাল|কাল|পরশু)\b/gu, ' ')
-    .replace(/\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{4})?\b/gu, ' ')
-    .replace(/\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে|টা|টায়|টায়)\b/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{4})?\b/gu, ' ');
+
+  const time = extractTime(normalized);
+  if (!time) return normalized.replace(/\s+/g, ' ').trim();
+  return normalized.replace(time.raw, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function cleanContent(text: string): string {
