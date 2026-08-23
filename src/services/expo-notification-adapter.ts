@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { markNotificationDelivered } from './notification-delivery-repository';
+import { hasNotificationBeenDelivered, markNotificationDelivered } from './notification-delivery-repository';
 import type { NotificationCandidate } from './scheduler-notification-service';
 
 export async function configureNotificationChannel(): Promise<void> {
@@ -25,8 +25,21 @@ export async function scheduleTaskNotification(
   db: SQLiteDatabase,
   candidate: NotificationCandidate,
 ): Promise<string | null> {
+  if (await hasNotificationBeenDelivered(db, candidate.taskId, candidate.dueAt)) return null;
+
   const dueAt = new Date(candidate.dueAt);
   if (Number.isNaN(dueAt.getTime()) || dueAt.getTime() <= Date.now()) return null;
+
+  // Recover from a crash between OS scheduling and SQLite bookkeeping.
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const existing = scheduled.find((item) => {
+    const data = item.content.data as { taskId?: unknown; dueAt?: unknown } | undefined;
+    return data?.taskId === candidate.taskId && data?.dueAt === candidate.dueAt;
+  });
+  if (existing) {
+    await markNotificationDelivered(db, candidate.taskId, candidate.dueAt);
+    return existing.identifier;
+  }
 
   await configureNotificationChannel();
   const permitted = await requestNotificationPermission();
@@ -36,7 +49,7 @@ export async function scheduleTaskNotification(
     content: {
       title: 'Offline Memory',
       body: candidate.title,
-      data: { taskId: candidate.taskId },
+      data: { taskId: candidate.taskId, dueAt: candidate.dueAt },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
