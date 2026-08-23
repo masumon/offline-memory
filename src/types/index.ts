@@ -31,3 +31,4 @@ export type Intent =
   | 'WEEKLY_REVIEW';
 
 export type { CreateTaskInput, Task, UpdateTaskInput } from './task-model';
+export type { CreateSubtaskInput, Subtask } from './subtask-model';
