@@ -9,9 +9,19 @@ function mockDb(): SQLiteDatabase {
 }
 
 describe('ranked memory search', () => {
+  beforeEach(() => jest.clearAllMocks());
+
   it('returns no results for blank queries without hitting persistence', async () => {
     await expect(searchRankedMemories(mockDb(), '   ')).resolves.toEqual([]);
     expect(repository.searchMemories).not.toHaveBeenCalled();
+  });
+
+  it('uses OR candidate retrieval so partial multi-word matches can be ranked', async () => {
+    jest.mocked(repository.searchMemories).mockResolvedValue([]);
+
+    await searchRankedMemories(mockDb(), 'supplier phone');
+
+    expect(repository.searchMemories).toHaveBeenCalledWith(expect.anything(), 'supplier phone', false);
   });
 
   it('ranks an exact phrase above a partial match and factors importance', async () => {
