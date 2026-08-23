@@ -1,3 +1,5 @@
+import { resolveContext } from '../context';
+import type { OrchestrationContext } from '../context';
 import { parseLocalNlp } from '../nlp';
 import type { NlpIntent } from '../nlp/types';
 import type { OrchestratedAction, OrchestratorResult } from './types';
@@ -8,10 +10,16 @@ function clarifyAction(reason: Extract<OrchestratedAction, { type: 'CLARIFY' }>[
   return { type: 'CLARIFY', reason };
 }
 
-function actionForIntent(intent: NlpIntent, entities: ReturnType<typeof parseLocalNlp>['entities']): {
+function actionForIntent(
+  intent: NlpIntent,
+  entities: ReturnType<typeof parseLocalNlp>['entities'],
+  context: OrchestrationContext,
+): {
   status: OrchestratorResult['status'];
   action: OrchestratedAction;
 } {
+  const resolved = resolveContext(entities, context);
+
   switch (intent) {
     case 'CREATE_TASK':
       if (!entities.taskText) return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_TASK_TEXT') };
@@ -26,23 +34,29 @@ function actionForIntent(intent: NlpIntent, entities: ReturnType<typeof parseLoc
       };
 
     case 'COMPLETE_TASK':
+      if (!resolved.taskText) {
+        return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_TASK_REFERENCE') };
+      }
       return {
-        status: 'NEEDS_INPUT',
-        action: clarifyAction('MISSING_TASK_REFERENCE'),
+        status: 'READY',
+        action: { type: 'COMPLETE_TASK', taskText: resolved.taskText },
       };
 
     case 'LIST_TASKS':
       return { status: 'READY', action: { type: 'LIST_TASKS' } };
 
     case 'RESCHEDULE_TASK':
-      if (!entities.date && !entities.time) {
+      if (!resolved.taskText) {
         return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_TASK_REFERENCE') };
       }
+      if (!entities.date && !entities.time) {
+        return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_TASK_TEXT') };
+      }
       return {
-        status: 'NEEDS_INPUT',
+        status: 'READY',
         action: {
           type: 'RESCHEDULE_TASK',
-          taskText: entities.taskText,
+          taskText: resolved.taskText,
           dueDate: entities.date?.isoDate,
           dueMinutes: entities.time?.minutes,
         },
@@ -53,8 +67,8 @@ function actionForIntent(intent: NlpIntent, entities: ReturnType<typeof parseLoc
       return { status: 'READY', action: { type: 'CREATE_MEMORY', content: entities.memoryText } };
 
     case 'SEARCH_MEMORY':
-      if (!entities.query) return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_QUERY') };
-      return { status: 'READY', action: { type: 'SEARCH_MEMORY', query: entities.query } };
+      if (!resolved.memoryQuery) return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_QUERY') };
+      return { status: 'READY', action: { type: 'SEARCH_MEMORY', query: resolved.memoryQuery } };
 
     case 'UNKNOWN':
     default:
@@ -66,8 +80,12 @@ function actionForIntent(intent: NlpIntent, entities: ReturnType<typeof parseLoc
  * Converts deterministic local NLP output into a validated application action.
  * This layer is pure: it never opens SQLite, calls a repository, or mutates state.
  */
-export function orchestrate(input: string, now = new Date()): OrchestratorResult {
+export function orchestrate(
+  input: string,
+  now = new Date(),
+  context: OrchestrationContext = {},
+): OrchestratorResult {
   const nlp = parseLocalNlp(input, now);
-  const { status, action } = actionForIntent(nlp.intent, nlp.entities);
+  const { status, action } = actionForIntent(nlp.intent, nlp.entities, context);
   return { status, action, nlp };
 }
