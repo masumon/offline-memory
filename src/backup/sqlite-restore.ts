@@ -3,6 +3,10 @@ import { DATABASE_VERSION } from '../database';
 import { parseM7BackupDocument } from './m7-format';
 
 interface BackupRow { [key: string]: unknown }
+const TASK_STATUSES = new Set(['INBOX', 'PLANNED', 'IN_PROGRESS', 'COMPLETED', 'RESCHEDULED', 'ARCHIVED', 'CANCELLED']);
+const PRIORITIES = new Set(['URGENT', 'HIGH', 'MEDIUM', 'LOW']);
+const MEMORY_KINDS = new Set(['NOTE', 'FACT', 'PREFERENCE', 'EVENT', 'REFLECTION']);
+const MEMORY_SOURCES = new Set(['USER', 'SYSTEM', 'IMPORTED']);
 
 function rows(data: Record<string, unknown>, key: string): BackupRow[] {
   const value = data[key];
@@ -38,6 +42,15 @@ function uniqueId(row: BackupRow, key: string, seen: Set<string>): string {
   return id;
 }
 
+function validJsonArray(value: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed);
+  } catch {
+    return false;
+  }
+}
+
 export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown): Promise<void> {
   const backup = parseM7BackupDocument(input);
   const schemaVersion = backup.data.schemaVersion;
@@ -55,8 +68,10 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
   for (const row of tasks) {
     uniqueId(row, 'id', taskIds);
     requiredString(row, 'title');
-    requiredString(row, 'status');
-    requiredString(row, 'priority');
+    const status = requiredString(row, 'status');
+    if (!TASK_STATUSES.has(status)) throw new Error(`Unsupported task status: ${status}`);
+    const priority = requiredString(row, 'priority');
+    if (!PRIORITIES.has(priority)) throw new Error(`Unsupported task priority: ${priority}`);
     requiredString(row, 'created_at');
     requiredString(row, 'updated_at');
   }
@@ -82,9 +97,12 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
     if (!Number.isInteger(importance) || importance < 1 || importance > 5) throw new Error('Backup importance must be an integer from 1 to 5');
     const archived = requiredNumber(row, 'archived');
     if (![0, 1].includes(archived)) throw new Error('Backup archived must be 0 or 1');
-    requiredString(row, 'kind');
-    requiredString(row, 'source');
-    requiredString(row, 'tags_json');
+    const kind = requiredString(row, 'kind');
+    if (!MEMORY_KINDS.has(kind)) throw new Error(`Unsupported memory kind: ${kind}`);
+    const source = requiredString(row, 'source');
+    if (!MEMORY_SOURCES.has(source)) throw new Error(`Unsupported memory source: ${source}`);
+    const tags = requiredString(row, 'tags_json');
+    if (!validJsonArray(tags)) throw new Error('Backup tags_json must be a valid JSON array');
     requiredString(row, 'created_at');
     requiredString(row, 'updated_at');
   }
