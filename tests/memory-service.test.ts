@@ -1,12 +1,11 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { filterMemories, restoreStoredMemory } from '../src/services/memory-service';
+import { listMemories, updateMemory } from '../src/services/memory-repository';
 
 jest.mock('../src/services/memory-repository', () => ({
   archiveMemory: jest.fn(), createMemory: jest.fn(), deleteMemory: jest.fn(), getMemory: jest.fn(),
   listMemories: jest.fn(), searchMemories: jest.fn(), touchMemory: jest.fn(), updateMemory: jest.fn(),
 }));
-
-import { listMemories, updateMemory } from '../src/services/memory-repository';
 
 const memory = (id: string, kind: 'NOTE' | 'FACT', tags: string[], archived = false) => ({
   id, title: id, content: id, kind, source: 'USER', tags, importance: 3, archived,

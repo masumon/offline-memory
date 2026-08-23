@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import * as Notifications from 'expo-notifications';
 import { reconcileScheduledTaskNotifications, scheduleTaskNotification } from '../src/services/expo-notification-adapter';
+import * as taskRepository from '../src/services/task-repository';
 
 jest.mock('expo-notifications', () => ({
   getAllScheduledNotificationsAsync: jest.fn(), cancelScheduledNotificationAsync: jest.fn(), getPermissionsAsync: jest.fn(), requestPermissionsAsync: jest.fn(), scheduleNotificationAsync: jest.fn(), setNotificationChannelAsync: jest.fn(),
@@ -9,7 +10,6 @@ jest.mock('expo-notifications', () => ({
 jest.mock('../src/services/notification-delivery-repository', () => ({ hasNotificationBeenDelivered: jest.fn().mockResolvedValue(false), markNotificationDelivered: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('../src/services/task-repository', () => ({ getTask: jest.fn() }));
 
-import * as taskRepository from '../src/services/task-repository';
 const mockedGetTask = jest.mocked(taskRepository.getTask);
 
 describe('Expo notification adapter', () => {
