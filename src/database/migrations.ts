@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA journal_mode = WAL;');
@@ -117,9 +117,30 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
       4,
       new Date().toISOString(),
     );
-
-    await db.execAsync('PRAGMA user_version = 4;');
   }
+
+  if (currentVersion < 5) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS notification_deliveries (
+        task_id TEXT NOT NULL,
+        due_at TEXT NOT NULL,
+        delivered_at TEXT NOT NULL,
+        PRIMARY KEY (task_id, due_at),
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_notification_deliveries_delivered_at
+        ON notification_deliveries(delivered_at);
+    `);
+
+    await db.runAsync(
+      'INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
+      5,
+      new Date().toISOString(),
+    );
+  }
+
+  await db.execAsync('PRAGMA user_version = 5;');
 }
 
 export { DATABASE_VERSION };

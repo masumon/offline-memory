@@ -38,7 +38,7 @@ export async function createTask(db: SQLiteDatabase, input: CreateTaskInput): Pr
 
   const now = new Date().toISOString();
   const id = createId();
-  const status = input.status ?? 'INBOX';
+  const status = input.status ?? (input.dueAt ? 'PLANNED' : 'INBOX');
   const priority = input.priority ?? 'MEDIUM';
 
   await db.runAsync(
@@ -77,6 +77,28 @@ export async function findTasksByExactTitle(db: SQLiteDatabase, title: string): 
      FROM tasks WHERE LOWER(TRIM(title)) = LOWER(TRIM(?))
      ORDER BY created_at DESC`,
     normalized,
+  );
+  return rows.map(toTask);
+}
+
+export async function findDueTasks(
+  db: SQLiteDatabase,
+  fromIso: string,
+  toIso: string,
+  limit = 500,
+): Promise<Task[]> {
+  const safeLimit = Math.max(1, Math.min(Math.floor(limit), 500));
+  const rows = await db.getAllAsync<TaskRow>(
+    `SELECT id, title, notes, status, priority, due_at, completed_at, created_at, updated_at
+     FROM tasks
+     WHERE status IN (?, ?) AND due_at IS NOT NULL AND due_at >= ? AND due_at <= ?
+     ORDER BY due_at ASC, created_at DESC
+     LIMIT ?`,
+    'PLANNED',
+    'RESCHEDULED',
+    fromIso,
+    toIso,
+    safeLimit,
   );
   return rows.map(toTask);
 }
@@ -141,3 +163,5 @@ export async function deleteTask(db: SQLiteDatabase, id: string): Promise<boolea
   const result = await db.runAsync('DELETE FROM tasks WHERE id = ?', id);
   return result.changes > 0;
 }
+
+export { toTask };
