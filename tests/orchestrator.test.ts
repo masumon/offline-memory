@@ -15,6 +15,16 @@ describe('local orchestrator', () => {
     });
   });
 
+  it('requires a date when a task contains an explicit time', () => {
+    const result = orchestrate('সকাল ১০টায় ডাক্তারকে ফোন করতে হবে', now);
+
+    expect(result.status).toBe('NEEDS_INPUT');
+    expect(result.action).toEqual({
+      type: 'CLARIFY',
+      reason: 'MISSING_SCHEDULE',
+    });
+  });
+
   it('maps memory creation without touching persistence', () => {
     const result = orchestrate('মনে রাখো আমার দোকান শুক্রবার বন্ধ থাকে', now);
 
@@ -62,7 +72,7 @@ describe('local orchestrator', () => {
     expect(missingTarget.status).toBe('NEEDS_INPUT');
     expect(missingTarget.action).toEqual({
       type: 'CLARIFY',
-      reason: 'MISSING_RESCHEDULE_TARGET',
+      reason: 'MISSING_TASK_REFERENCE',
     });
 
     const missingSchedule = orchestrate('এই কাজটা পিছিয়ে দাও', now, {
