@@ -31,6 +31,13 @@ function requiredNumber(row: BackupRow, key: string): number {
   return value;
 }
 
+function uniqueId(row: BackupRow, key: string, seen: Set<string>): string {
+  const id = requiredString(row, key);
+  if (seen.has(id)) throw new Error(`Duplicate ${key}: ${id}`);
+  seen.add(id);
+  return id;
+}
+
 export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown): Promise<void> {
   const backup = parseM7BackupDocument(input);
   const schemaVersion = backup.data.schemaVersion;
@@ -44,38 +51,59 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
   const memories = rows(backup.data, 'memories');
   const notificationDeliveries = rows(backup.data, 'notificationDeliveries');
 
-  const taskIds = new Set(tasks.map((row) => requiredString(row, 'id')));
-  const subtaskIds = new Set<string>();
-  for (const row of subtasks) {
-    const id = requiredString(row, 'id');
-    if (subtaskIds.has(id)) throw new Error(`Duplicate subtask id: ${id}`);
-    subtaskIds.add(id);
-    const taskId = requiredString(row, 'task_id');
-    if (!taskIds.has(taskId)) throw new Error(`Subtask references missing task: ${taskId}`);
-  }
-
-  const memoryIds = new Set<string>();
-  for (const row of memories) {
-    const id = requiredString(row, 'id');
-    if (memoryIds.has(id)) throw new Error(`Duplicate memory id: ${id}`);
-    memoryIds.add(id);
-    requiredString(row, 'content');
-    requiredNumber(row, 'importance');
-  }
-
-  for (const row of notificationDeliveries) {
-    const taskId = requiredString(row, 'task_id');
-    if (!taskIds.has(taskId)) throw new Error(`Notification references missing task: ${taskId}`);
-    requiredString(row, 'due_at');
-    requiredString(row, 'delivered_at');
-  }
-
+  const taskIds = new Set<string>();
   for (const row of tasks) {
-    requiredString(row, 'id');
+    uniqueId(row, 'id', taskIds);
     requiredString(row, 'title');
     requiredString(row, 'status');
     requiredString(row, 'priority');
     requiredString(row, 'created_at');
+    requiredString(row, 'updated_at');
+  }
+
+  const subtaskIds = new Set<string>();
+  for (const row of subtasks) {
+    uniqueId(row, 'id', subtaskIds);
+    const taskId = requiredString(row, 'task_id');
+    if (!taskIds.has(taskId)) throw new Error(`Subtask references missing task: ${taskId}`);
+    requiredString(row, 'title');
+    const completed = requiredNumber(row, 'completed');
+    if (![0, 1].includes(completed)) throw new Error('Backup completed must be 0 or 1');
+    requiredNumber(row, 'position');
+    requiredString(row, 'created_at');
+    requiredString(row, 'updated_at');
+  }
+
+  const memoryIds = new Set<string>();
+  for (const row of memories) {
+    uniqueId(row, 'id', memoryIds);
+    requiredString(row, 'content');
+    const importance = requiredNumber(row, 'importance');
+    if (!Number.isInteger(importance) || importance < 1 || importance > 5) throw new Error('Backup importance must be an integer from 1 to 5');
+    const archived = requiredNumber(row, 'archived');
+    if (![0, 1].includes(archived)) throw new Error('Backup archived must be 0 or 1');
+    requiredString(row, 'kind');
+    requiredString(row, 'source');
+    requiredString(row, 'tags_json');
+    requiredString(row, 'created_at');
+    requiredString(row, 'updated_at');
+  }
+
+  const notificationKeys = new Set<string>();
+  for (const row of notificationDeliveries) {
+    const taskId = requiredString(row, 'task_id');
+    if (!taskIds.has(taskId)) throw new Error(`Notification references missing task: ${taskId}`);
+    const dueAt = requiredString(row, 'due_at');
+    const key = `${taskId}\u0000${dueAt}`;
+    if (notificationKeys.has(key)) throw new Error(`Duplicate notification delivery: ${taskId} ${dueAt}`);
+    notificationKeys.add(key);
+    requiredString(row, 'delivered_at');
+  }
+
+  const metadataKeys = new Set<string>();
+  for (const row of appMetadata) {
+    uniqueId(row, 'key', metadataKeys);
+    requiredString(row, 'value');
     requiredString(row, 'updated_at');
   }
 
