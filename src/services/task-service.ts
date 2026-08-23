@@ -13,15 +13,18 @@ const ALLOWED_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
   CANCELLED: ['INBOX', 'ARCHIVED'],
 };
 
-export async function addTask(db: SQLiteDatabase, input: CreateTaskInput): Promise<Task> {
-  return createTask(db, input);
+function dateKeyFromIso(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error('A valid due date is required');
+  return date.toISOString().slice(0, 10);
 }
 
-export async function editTask(
-  db: SQLiteDatabase,
-  id: string,
-  input: UpdateTaskInput,
-): Promise<Task | null> {
+export async function addTask(db: SQLiteDatabase, input: CreateTaskInput): Promise<Task> {
+  const plannedDate = input.plannedDate ?? (input.dueAt ? dateKeyFromIso(input.dueAt) : null);
+  return createTask(db, { ...input, plannedDate });
+}
+
+export async function editTask(db: SQLiteDatabase, id: string, input: UpdateTaskInput): Promise<Task | null> {
   if (input.status) {
     const current = await getTask(db, id);
     if (!current) return null;
@@ -29,24 +32,23 @@ export async function editTask(
       throw new Error(`Invalid task status transition: ${current.status} -> ${input.status}`);
     }
   }
-  return updateTask(db, id, input);
+  const plannedDate = input.plannedDate !== undefined
+    ? input.plannedDate
+    : input.dueAt !== undefined && input.dueAt !== null
+      ? dateKeyFromIso(input.dueAt)
+      : undefined;
+  return updateTask(db, id, { ...input, plannedDate });
 }
 
 export async function completeTask(db: SQLiteDatabase, id: string): Promise<Task | null> {
   return editTask(db, id, { status: 'COMPLETED' });
 }
 
-export async function rescheduleTask(
-  db: SQLiteDatabase,
-  id: string,
-  dueAt: string,
-): Promise<Task | null> {
+export async function rescheduleTask(db: SQLiteDatabase, id: string, dueAt: string): Promise<Task | null> {
   if (!dueAt) throw new Error('A due date is required to reschedule a task');
   return editTask(db, id, { status: 'RESCHEDULED', dueAt });
 }
 
-export async function removeTask(db: SQLiteDatabase, id: string): Promise<boolean> {
-  return deleteTask(db, id);
-}
+export async function removeTask(db: SQLiteDatabase, id: string): Promise<boolean> { return deleteTask(db, id); }
 
 export { findTasksByExactTitle, getTask, listTasks, ALLOWED_TRANSITIONS };

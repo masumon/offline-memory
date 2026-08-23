@@ -5,7 +5,6 @@ describe('local NLP parser', () => {
 
   it('normalizes Bengali digits and classifies task creation', () => {
     const result = parseLocalNlp('আগামীকাল সকাল ১০টায় ডাক্তারকে ফোন করতে হবে', now);
-
     expect(result.intent).toBe('CREATE_TASK');
     expect(result.entities.taskText).toContain('ডাক্তারকে ফোন');
     expect(result.entities.date?.isoDate).toBe('2026-08-25');
@@ -14,15 +13,19 @@ describe('local NLP parser', () => {
 
   it('parses Bengali afternoon time using the period prefix', () => {
     const result = parseLocalNlp('আগামীকাল দুপুর ৫টায় দোকানে যেতে হবে', now);
-
     expect(result.intent).toBe('CREATE_TASK');
     expect(result.entities.date?.isoDate).toBe('2026-08-25');
     expect(result.entities.time?.minutes).toBe(1020);
   });
 
+  it('parses Bengali midnight correctly', () => {
+    const result = parseLocalNlp('আগামীকাল রাতে ১২টায় রিপোর্ট দেখতে হবে', now);
+    expect(result.intent).toBe('CREATE_TASK');
+    expect(result.entities.time?.minutes).toBe(0);
+  });
+
   it('parses English time with an explicit date', () => {
     const result = parseLocalNlp('Create a task to call the supplier on 12/8/2026 at 5pm', now);
-
     expect(result.intent).toBe('CREATE_TASK');
     expect(result.entities.date?.isoDate).toBe('2026-08-12');
     expect(result.entities.time?.minutes).toBe(1020);
@@ -31,21 +34,18 @@ describe('local NLP parser', () => {
 
   it('classifies memory creation without persistence access', () => {
     const result = parseLocalNlp('মনে রাখো আমার দোকান শুক্রবার বন্ধ থাকে', now);
-
     expect(result.intent).toBe('CREATE_MEMORY');
     expect(result.entities.memoryText).toContain('আমার দোকান শুক্রবার বন্ধ থাকে');
   });
 
   it('classifies memory search and removes the search command', () => {
     const result = parseLocalNlp('আমার দোকান কখন বন্ধ থাকে খুঁজে দাও', now);
-
     expect(result.intent).toBe('SEARCH_MEMORY');
     expect(result.entities.query).toBe('আমার দোকান কখন বন্ধ থাকে');
   });
 
   it('parses Bengali date terms without ASCII word-boundary assumptions', () => {
     const result = parseLocalNlp('পরশু সকাল ৮টায় রিপোর্ট পাঠাতে হবে', now);
-
     expect(result.intent).toBe('CREATE_TASK');
     expect(result.entities.date?.isoDate).toBe('2026-08-26');
     expect(result.entities.time?.minutes).toBe(480);
@@ -53,7 +53,6 @@ describe('local NLP parser', () => {
 
   it('does not invent an intent for unrelated input', () => {
     const result = parseLocalNlp('আজ আকাশ অনেক সুন্দর', now);
-
     expect(result.intent).toBe('UNKNOWN');
     expect(result.confidence).toBe(0);
   });

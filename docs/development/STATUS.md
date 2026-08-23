@@ -1,26 +1,30 @@
 # Project status
 
-Current implementation branch: `main`
+Current implementation baseline: `main` (M7 merged).
+Current full-audit branch: `m0-m7-full-audit`.
 
-## M0
+## Roadmap
 
-M0 foundation and hardening are implemented on `main`.
+- M0 — Project bootstrap and offline foundation
+- M1 — Task and repository engine
+- M2 — Reminders and scheduling
+- M3 — Inbox and daily planning
+- M4 — Local deterministic NLP
+- M5 — Orchestration and context
+- M6 — Memory and search
+- M7 — Backup and restore
+- M8 — Android hardening and QA
+- M9 — Production release
 
-Completed:
+## Full-audit policy
 
-- local notification channel initialization is wired into application startup
-- SQLite migration remains isolated behind `SQLiteProvider.onInit`
-- no network or external LLM dependency is introduced
-- CI/CD has intentionally been removed from the current development workflow
+M0–M7 are not considered production-complete solely because a phase was previously merged. The audit branch rechecks every phase for missing functionality, broken boundaries, stale code, schema compatibility, regression coverage, and unnecessary abstractions.
 
-Verification policy:
+Known environment limitation: this execution environment cannot resolve `github.com` from a local shell and has no Android emulator/device, so full npm/Expo runtime verification must be performed in a networked local/Codex environment. Static repository review and code-level fixes continue without treating unavailable runtime checks as PASS.
 
-- code is reviewed and validated in the available development environment as far as tooling permits
-- executable Android/device verification will be performed when a suitable Android environment/device is available
-- a feature is not considered production-ready solely from static review
+## Constraints
 
-## Development sequence
-
-M0 Foundation → M1 Task Engine → M2 Memory Engine → M3 Local NLP → M4 Orchestrator → M5 Planning & Scheduling → M6 Notifications & Reminders → M7 Professional UI → M8 Intelligence & Personalization → M9 Security/Privacy → M10 Final Android QA and release hardening.
-
-CI/CD is explicitly out of scope for the current implementation sequence and will not block feature development.
+- Core functionality remains fully offline.
+- Local deterministic NLP/orchestration is used instead of external LLM APIs.
+- No cloud database or network dependency is introduced for core features.
+- CI/CD and GitHub Actions remain intentionally out of scope.

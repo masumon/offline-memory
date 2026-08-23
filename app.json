@@ -8,6 +8,7 @@
     "scheme": "offlinememory",
     "android": {
       "package": "com.masumon.offlinememory",
+      "permissions": ["SCHEDULE_EXACT_ALARM"],
       "adaptiveIcon": {
         "backgroundColor": "#0F172A"
       }
