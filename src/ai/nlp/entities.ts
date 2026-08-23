@@ -17,6 +17,16 @@ const WEEKDAYS: Record<string, number> = {
   'শনিবার': 6,
 };
 
+const DATE_TERMS = [
+  'day after tomorrow',
+  'tomorrow',
+  'today',
+  'আগামীকাল',
+  'পরশু',
+  'কাল',
+  'আজ',
+] as const;
+
 function startOfDay(date: Date): Date {
   const value = new Date(date);
   value.setHours(0, 0, 0, 0);
@@ -27,29 +37,41 @@ function dateEntity(raw: string, date: Date): DateEntity {
   return { raw, isoDate: date.toISOString().slice(0, 10), confidence: 0.98 };
 }
 
+function findDateTerm(text: string): string | undefined {
+  for (const term of DATE_TERMS) {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = text.match(new RegExp(`(?<!\\p{L})${escaped}(?!\\p{L})`, 'u'));
+    if (match) return match[0];
+  }
+  return undefined;
+}
+
 export function extractDate(text: string, now = new Date()): DateEntity | undefined {
   const normalized = text.trim().toLocaleLowerCase();
   const base = startOfDay(now);
+  const dateTerm = findDateTerm(normalized);
 
-  if (/\b(today|আজ)\b/u.test(normalized)) return dateEntity(normalized.match(/\b(today|আজ)\b/u)?.[0] ?? 'today', base);
-  if (/\b(tomorrow|আগামীকাল|কাল)\b/u.test(normalized)) {
+  if (dateTerm === 'today' || dateTerm === 'আজ') return dateEntity(dateTerm, base);
+  if (dateTerm === 'tomorrow' || dateTerm === 'আগামীকাল' || dateTerm === 'কাল') {
     const date = new Date(base);
     date.setDate(date.getDate() + 1);
-    return dateEntity(normalized.match(/\b(tomorrow|আগামীকাল|কাল)\b/u)?.[0] ?? 'tomorrow', date);
+    return dateEntity(dateTerm, date);
   }
-  if (/\b(day after tomorrow|পরশু)\b/u.test(normalized)) {
+  if (dateTerm === 'day after tomorrow' || dateTerm === 'পরশু') {
     const date = new Date(base);
     date.setDate(date.getDate() + 2);
-    return dateEntity(normalized.match(/\b(day after tomorrow|পরশু)\b/u)?.[0] ?? 'পরশু', date);
+    return dateEntity(dateTerm, date);
   }
 
-  const numeric = normalized.match(/\b(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{4}))?\b/u);
+  const numeric = normalized.match(/(?<!\d)(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{4}))?(?!\d)/u);
   if (numeric) {
     const day = Number(numeric[1]);
     const month = Number(numeric[2]) - 1;
     const year = numeric[3] ? Number(numeric[3]) : now.getFullYear();
     const date = new Date(year, month, day);
-    if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) return dateEntity(numeric[0], date);
+    if (date.getFullYear() === year && date.getMonth() === month && date.getDate() === day) {
+      return dateEntity(numeric[0], date);
+    }
   }
 
   const weekday = Object.entries(WEEKDAYS).find(([name]) => normalized.includes(name));
@@ -73,36 +95,37 @@ function normalizeHour(hour: number, meridiem?: string): number {
   return hour;
 }
 
-const TIME_PREFIX = '(?:at\\s+|সময়\\s*|সকাল\\s*|সকালে\\s*|দুপুর\\s*|বিকাল\\s*|বিকেলে\\s*|সন্ধ্যা\\s*|রাতে\\s*)';
-const TIME_SUFFIX = '(?:am|pm|a\\.m\\.|p\\.m\\.|সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে|টা|টায়|টায়)';
+const TIME_PATTERN = /(?:(?:\bat\s+|সময়\s*|(?<period>সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে)\s*)(?<hour>\d{1,2})(?::(?<minute>\d{2}))?\s*(?<suffix>am|pm|a\.m\.|p\.m\.|টা|টায়|টায়)?|(?<plainHour>\d{1,2}):(?<plainMinute>\d{2})\s*(?<plainSuffix>am|pm|a\.m\.|p\.m\.)?|(?<suffixHour>\d{1,2})\s*(?<suffixOnly>am|pm|a\.m\.|p\.m\.|টা|টায়|টায়))(?=\s|$|[.,!?।])/u;
 
 export function extractTime(text: string): TimeEntity | undefined {
   const normalized = text.trim().toLocaleLowerCase();
-  const prefixPattern = new RegExp(`${TIME_PREFIX}(\\d{1,2})(?::(\\d{2}))?\\s*(${TIME_SUFFIX})?(?=\\s|$|[.,!?।])`, 'u');
-  const suffixPattern = new RegExp(`(\\d{1,2})(?::(\\d{2}))?\\s*(${TIME_SUFFIX})(?=\\s|$|[.,!?।])`, 'u');
-  const match = normalized.match(prefixPattern) ?? normalized.match(suffixPattern);
-  if (!match) return undefined;
+  const match = normalized.match(TIME_PATTERN);
+  if (!match?.groups) return undefined;
 
-  let hour = Number(match[1]);
-  const minute = Number(match[2] ?? 0);
-  const prefix = match[0].match(/^(at\s+|সময়\s*|সকাল\s*|সকালে\s*|দুপুর\s*|বিকাল\s*|বিকেলে\s*|সন্ধ্যা\s*|রাতে\s*)/u)?.[0]?.trim();
-  const suffix = match[3]?.trim();
-  const meridiem = prefix && !/^(at|সময়)$/u.test(prefix) ? prefix : suffix;
+  const groups = match.groups;
+  const hour = Number(groups.hour ?? groups.plainHour ?? groups.suffixHour);
+  const minute = Number(groups.minute ?? groups.plainMinute ?? 0);
+  const meridiem = groups.period ?? groups.suffix ?? groups.plainSuffix ?? groups.suffixOnly;
+
   if (hour > 23 || minute > 59) return undefined;
-  hour = normalizeHour(hour, meridiem);
-  if (hour > 23) return undefined;
+  const normalizedHour = normalizeHour(hour, meridiem);
+  if (normalizedHour > 23) return undefined;
 
-  return { raw: match[0].trim(), minutes: hour * 60 + minute, confidence: 0.96 };
+  return {
+    raw: match[0].trim(),
+    minutes: normalizedHour * 60 + minute,
+    confidence: 0.96,
+  };
 }
 
 function removeDateTime(text: string): string {
-  const normalized = text
-    .replace(/\b(today|tomorrow|day after tomorrow|আজ|আগামীকাল|কাল|পরশু)\b/gu, ' ')
-    .replace(/\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{4})?\b/gu, ' ');
+  let cleaned = text.replace(/(?<!\p{L})(?:today|tomorrow|day after tomorrow|আজ|আগামীকাল|কাল|পরশু)(?!\p{L})/gu, ' ');
+  cleaned = cleaned.replace(/(?<!\d)\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{4})?(?!\d)/gu, ' ');
 
-  const time = extractTime(normalized);
-  if (!time) return normalized.replace(/\s+/g, ' ').trim();
-  return normalized.replace(time.raw, ' ').replace(/\s+/g, ' ').trim();
+  const time = extractTime(cleaned);
+  if (time) cleaned = cleaned.replace(time.raw, ' ');
+
+  return cleaned.replace(/\s+/g, ' ').trim();
 }
 
 function cleanContent(text: string): string {

@@ -12,6 +12,14 @@ describe('local NLP parser', () => {
     expect(result.entities.time?.minutes).toBe(600);
   });
 
+  it('parses Bengali afternoon time using the period prefix', () => {
+    const result = parseLocalNlp('আগামীকাল দুপুর ৫টায় দোকানে যেতে হবে', now);
+
+    expect(result.intent).toBe('CREATE_TASK');
+    expect(result.entities.date?.isoDate).toBe('2026-08-25');
+    expect(result.entities.time?.minutes).toBe(1020);
+  });
+
   it('parses English time with an explicit date', () => {
     const result = parseLocalNlp('Create a task to call the supplier on 12/8/2026 at 5pm', now);
 
@@ -33,6 +41,14 @@ describe('local NLP parser', () => {
 
     expect(result.intent).toBe('SEARCH_MEMORY');
     expect(result.entities.query).toBe('আমার দোকান কখন বন্ধ থাকে');
+  });
+
+  it('parses Bengali date terms without ASCII word-boundary assumptions', () => {
+    const result = parseLocalNlp('পরশু সকাল ৮টায় রিপোর্ট পাঠাতে হবে', now);
+
+    expect(result.intent).toBe('CREATE_TASK');
+    expect(result.entities.date?.isoDate).toBe('2026-08-26');
+    expect(result.entities.time?.minutes).toBe(480);
   });
 
   it('does not invent an intent for unrelated input', () => {
