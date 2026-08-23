@@ -66,7 +66,7 @@ export function extractDate(text: string, now = new Date()): DateEntity | undefi
 
 function normalizeHour(hour: number, meridiem?: string): number {
   if (!meridiem) return hour;
-  const afternoon = /^(pm|p\.m\.|বিকাল|বিকেলে|সন্ধ্যা|রাতে)/u.test(meridiem);
+  const afternoon = /^(pm|p\.m\.|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে)/u.test(meridiem);
   const morning = /^(am|a\.m\.|সকাল|সকালে)/u.test(meridiem);
   if (afternoon && hour < 12) return hour + 12;
   if (morning && hour === 12) return 0;
@@ -75,7 +75,7 @@ function normalizeHour(hour: number, meridiem?: string): number {
 
 export function extractTime(text: string): TimeEntity | undefined {
   const normalized = text.trim().toLocaleLowerCase();
-  const match = normalized.match(/(?:at\s+|সময়\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.|সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে|টা)?/u);
+  const match = normalized.match(/(?:at\s+|সময়\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.|সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে|টা)\b/u);
   if (!match) return undefined;
 
   let hour = Number(match[1]);
