@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { runNotificationScheduler } from '../services/scheduler-runner';
 
@@ -23,10 +24,14 @@ export function SchedulerBootstrap() {
 
     void run();
     const intervalId = setInterval(() => void run(), SCHEDULER_INTERVAL_MS);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void run();
+    });
 
     return () => {
       active = false;
       clearInterval(intervalId);
+      subscription.remove();
     };
   }, [db]);
 
