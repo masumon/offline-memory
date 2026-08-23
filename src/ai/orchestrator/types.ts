@@ -38,7 +38,7 @@ export type OrchestratedAction =
         | 'MISSING_TASK_REFERENCE'
         | 'MISSING_MEMORY_TEXT'
         | 'MISSING_QUERY'
-        | 'MISSING_RESCHEDULE_TARGET';
+        | 'MISSING_SCHEDULE';
     };
 
 export interface OrchestratorResult {
