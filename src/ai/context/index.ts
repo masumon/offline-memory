@@ -1,4 +1,4 @@
-import type { NlpEntities } from '../nlp/types';
+import type { NlpEntities, NlpIntent } from '../nlp/types';
 import type { OrchestrationContext, ResolvedContext } from './types';
 
 export * from './types';
@@ -19,11 +19,13 @@ export function resolveContext(
 }
 
 export function updateContext(
+  intent: NlpIntent,
   entities: NlpEntities,
   previous: OrchestrationContext = {},
 ): OrchestrationContext {
   return {
     lastTaskText: entities.taskText ?? previous.lastTaskText,
     lastMemoryQuery: entities.query ?? previous.lastMemoryQuery,
+    lastIntent: intent === 'UNKNOWN' ? previous.lastIntent : intent,
   };
 }
