@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA journal_mode = WAL;');
@@ -22,12 +22,7 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
         applied_at TEXT NOT NULL
       );
     `);
-
-    await db.runAsync(
-      'INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
-      1,
-      new Date().toISOString(),
-    );
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 1, new Date().toISOString());
   }
 
   if (currentVersion < 2) {
@@ -46,18 +41,12 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
         CHECK (status IN ('INBOX','PLANNED','IN_PROGRESS','COMPLETED','RESCHEDULED','ARCHIVED','CANCELLED')),
         CHECK (priority IN ('URGENT','HIGH','MEDIUM','LOW'))
       );
-
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
       CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
       CREATE INDEX IF NOT EXISTS idx_tasks_due_at ON tasks(due_at);
       CREATE INDEX IF NOT EXISTS idx_tasks_updated_at ON tasks(updated_at);
     `);
-
-    await db.runAsync(
-      'INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
-      2,
-      new Date().toISOString(),
-    );
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 2, new Date().toISOString());
   }
 
   if (currentVersion < 3) {
@@ -74,15 +63,9 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
         CHECK (completed IN (0, 1)),
         FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
       );
-
       CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id, position);
     `);
-
-    await db.runAsync(
-      'INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
-      3,
-      new Date().toISOString(),
-    );
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 3, new Date().toISOString());
   }
 
   if (currentVersion < 4) {
@@ -105,21 +88,28 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
         CHECK (importance BETWEEN 1 AND 5),
         CHECK (archived IN (0, 1))
       );
-
       CREATE INDEX IF NOT EXISTS idx_memories_kind ON memories(kind);
       CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance);
       CREATE INDEX IF NOT EXISTS idx_memories_updated_at ON memories(updated_at);
       CREATE INDEX IF NOT EXISTS idx_memories_archived ON memories(archived);
     `);
-
-    await db.runAsync(
-      'INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)',
-      4,
-      new Date().toISOString(),
-    );
-
-    await db.execAsync('PRAGMA user_version = 4;');
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 4, new Date().toISOString());
   }
+
+  if (currentVersion < 5) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS notification_deliveries (
+        task_id TEXT PRIMARY KEY NOT NULL,
+        delivered_at TEXT NOT NULL,
+        due_at TEXT NOT NULL,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_notification_deliveries_delivered_at ON notification_deliveries(delivered_at);
+    `);
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 5, new Date().toISOString());
+  }
+
+  await db.execAsync('PRAGMA user_version = 5;');
 }
 
 export { DATABASE_VERSION };
