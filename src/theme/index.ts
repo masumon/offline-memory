@@ -4,6 +4,7 @@ export const colors = {
   surfaceMuted: '#F1F5F9',
   primary: '#2563EB',
   primaryPressed: '#1D4ED8',
+  onPrimary: '#FFFFFF',
   textPrimary: '#0F172A',
   textSecondary: '#475569',
   textMuted: '#94A3B8',
