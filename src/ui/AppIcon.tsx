@@ -13,5 +13,16 @@ type AppIconProps = {
 
 export function AppIcon({ name, size = 22, color, accessibilityLabel }: AppIconProps) {
   const { colors } = useAppPreferences();
-  return <MaterialCommunityIcons name={name} size={size} color={color ?? colors.textSecondary} accessibilityLabel={accessibilityLabel} />;
+  const labelled = Boolean(accessibilityLabel);
+  return (
+    <MaterialCommunityIcons
+      name={name}
+      size={size}
+      color={color ?? colors.textSecondary}
+      accessible={labelled}
+      accessibilityRole={labelled ? 'image' : undefined}
+      accessibilityLabel={accessibilityLabel}
+      importantForAccessibility={labelled ? 'yes' : 'no'}
+    />
+  );
 }
