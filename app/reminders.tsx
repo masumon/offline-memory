@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 
@@ -48,6 +48,7 @@ export default function RemindersScreen() {
       const granted = await requestNotificationPermission();
       if (!granted) {
         setError('Notification permission is not enabled on this device.');
+        await refresh();
         return;
       }
       await runNotificationScheduler(db);
@@ -59,7 +60,20 @@ export default function RemindersScreen() {
     }
   };
 
+  const openNotificationSettings = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await Linking.openSettings();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to open notification settings');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const taskTitle = new Map(tasks.map((task) => [task.id, task.title]));
+  const permissionBlocked = status?.granted === false && status.canAskAgain === false;
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -81,17 +95,21 @@ export default function RemindersScreen() {
         <Text style={styles.cardText}>
           {status?.granted
             ? 'Offline Memory can schedule eligible task reminders locally.'
-            : status?.canAskAgain === false
-              ? 'Permission was denied. Enable notifications in Android settings.'
+            : permissionBlocked
+              ? 'Notification permission is blocked. Open device settings and allow notifications for Offline Memory.'
               : 'Allow notifications to schedule task reminders.'}
         </Text>
-        {!status?.granted ? (
-          <Pressable disabled={busy} onPress={() => void enableReminders()} accessibilityRole="button" accessibilityLabel="Enable and schedule reminders" style={styles.primaryButton}>
-            {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>Enable & schedule reminders</Text>}
-          </Pressable>
-        ) : (
+        {status?.granted ? (
           <Pressable disabled={busy} onPress={() => void enableReminders()} accessibilityRole="button" accessibilityLabel="Refresh scheduled reminders" style={styles.secondaryButton}>
             {busy ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Refresh scheduled reminders</Text>}
+          </Pressable>
+        ) : permissionBlocked ? (
+          <Pressable disabled={busy} onPress={() => void openNotificationSettings()} accessibilityRole="button" accessibilityLabel="Open notification settings" style={styles.primaryButton}>
+            {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>Open notification settings</Text>}
+          </Pressable>
+        ) : (
+          <Pressable disabled={busy} onPress={() => void enableReminders()} accessibilityRole="button" accessibilityLabel="Enable and schedule reminders" style={styles.primaryButton}>
+            {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>Enable & schedule reminders</Text>}
           </Pressable>
         )}
       </View>
