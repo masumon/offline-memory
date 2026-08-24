@@ -14,14 +14,16 @@ function formatToday(date: Date) { return new Intl.DateTimeFormat(undefined, { w
 export default function HomeScreen() {
   const db = useSQLiteContext();
   const [title, setTitle] = useState('');
-  const [nlpPreview, setNlpPreview] = useState<NlpResult | null>(null);
   const { tasks, isLoading, error, load, create, complete } = useTaskStore();
   const { memories, load: loadMemories, isLoading: memoriesLoading } = useMemoryStore();
   const today = useMemo(() => new Date(), []);
   const todayKey = dateKey(today);
+  const nlpPreview = useMemo<NlpResult | null>(() => {
+    const value = title.trim();
+    return value ? parseLocalNlp(value, new Date()) : null;
+  }, [title]);
 
   useEffect(() => { void load(db); void loadMemories(db); }, [db, load, loadMemories]);
-  useEffect(() => { const value = title.trim(); setNlpPreview(value ? parseLocalNlp(value, new Date()) : null); }, [title]);
 
   const handleCreate = async () => {
     const value = title.trim();
@@ -58,7 +60,7 @@ export default function HomeScreen() {
     renderItem={({ item }) => <TaskRow task={item} onComplete={() => void complete(db, item.id)}/>} ListEmptyComponent={isLoading ? <ActivityIndicator style={styles.loader}/> : <Text style={styles.empty}>No tasks for today. Use Quick Capture above to add one.</Text>}
     ListFooterComponent={<>
       <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent memories</Text><Link href="/memory" asChild><Pressable accessibilityRole="button" accessibilityLabel="Open memories" style={styles.textAction}><Text style={styles.textActionText}>View all →</Text></Pressable></Link></View>
-      {memoriesLoading ? <ActivityIndicator style={styles.loader}/> : recentMemories.length ? recentMemories.map((memory) => <Link key={memory.id} href={{ pathname: '/memory-editor', params: { id: memory.id } }} asChild><Pressable accessibilityRole="button" style={styles.memoryCard}><Text numberOfLines={2} style={styles.memoryTitle}>{memory.content}</Text></Pressable></Link>) : <Text style={styles.empty}>No memories yet.</Text>}
+      {memoriesLoading ? <ActivityIndicator style={styles.loader}/> : recentMemories.length ? recentMemories.map((memory) => <Link key={memory.id} href={{ pathname: '/memory-editor', params: { id: memory.id } }} asChild><Pressable accessibilityRole="button" accessibilityLabel={`Open memory ${memory.content.slice(0, 60)}`} style={styles.memoryCard}><Text numberOfLines={2} style={styles.memoryTitle}>{memory.content}</Text></Pressable></Link>) : <Text style={styles.empty}>No memories yet.</Text>}
       <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>More</Text><Link href="/more" asChild><Pressable accessibilityRole="button" accessibilityLabel="Open more tools" style={styles.textAction}><Text style={styles.textActionText}>Open →</Text></Pressable></Link></View>
     </>}/></View>;
 }
