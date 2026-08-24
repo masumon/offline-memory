@@ -25,7 +25,6 @@ export function AppPreferencesProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     let active = true;
     const load = async () => {
-      await db.execAsync('CREATE TABLE IF NOT EXISTS app_preferences (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)');
       const rows = await db.getAllAsync<{ key: string; value: string }>("SELECT key, value FROM app_preferences WHERE key IN ('language', 'themeMode')");
       if (!active) return;
       for (const row of rows) {
