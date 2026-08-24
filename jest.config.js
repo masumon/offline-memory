@@ -9,22 +9,25 @@ const expoTransformIgnorePatterns = [
   '/node_modules/@react-native/babel-preset/',
 ];
 
-const projects = (universal.projects || []).map((project) => ({
-  ...project,
-  watchPlugins: [],
-  setupFilesAfterEnv: [
-    ...(project.setupFilesAfterEnv || []),
-    safeWarnSetup,
-  ],
-  setupFiles: [
-    require.resolve('./jest.setup.js'),
-    ...(project.setupFiles || []),
-  ],
-  transformIgnorePatterns: expoTransformIgnorePatterns,
-}));
+const projects = (universal.projects || []).map((project) => {
+  const { watchPlugins: _watchPlugins, ...projectConfig } = project;
+  return {
+    ...projectConfig,
+    setupFilesAfterEnv: [
+      ...(projectConfig.setupFilesAfterEnv || []),
+      safeWarnSetup,
+    ],
+    setupFiles: [
+      require.resolve('./jest.setup.js'),
+      ...(projectConfig.setupFiles || []),
+    ],
+    transformIgnorePatterns: expoTransformIgnorePatterns,
+  };
+});
+
+const { watchPlugins: _watchPlugins, ...universalConfig } = universal;
 
 module.exports = {
-  ...universal,
+  ...universalConfig,
   projects,
-  watchPlugins: [],
 };
