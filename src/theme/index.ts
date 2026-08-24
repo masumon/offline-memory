@@ -44,11 +44,12 @@ export function getThemeColors(mode: 'light' | 'dark'): ThemeColors {
 
 export const colors = lightColors;
 
-// 4dp-based spacing scale. Existing aliases are preserved for compatibility.
+// Established aliases are preserved; smd fills the 12dp step of the AIOS scale.
 export const spacing = {
   xxs: 4,
-  xs: 8,
-  sm: 12,
+  xs: 4,
+  sm: 8,
+  smd: 12,
   md: 16,
   lg: 24,
   xl: 32,
