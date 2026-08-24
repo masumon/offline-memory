@@ -1,10 +1,10 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ComponentProps, type ReactNode, type StyleProp, type ViewStyle } from 'react-native';
 import { AppIcon } from './AppIcon';
 import { elevation, radius, spacing, typography } from '../theme';
 import { useAppPreferences } from '../app/AppPreferences';
 
 type AppCardProps = {
-  children: React.ReactNode;
+  children: ReactNode;
   style?: StyleProp<ViewStyle>;
   elevated?: boolean;
 };
@@ -20,7 +20,7 @@ export function AppCard({ children, style, elevated = true }: AppCardProps) {
 
 type AppButtonProps = {
   label: string;
-  icon?: React.ComponentProps<typeof AppIcon>['name'];
+  icon?: ComponentProps<typeof AppIcon>['name'];
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   loading?: boolean;
@@ -52,7 +52,7 @@ export function AppButton({ label, icon, onPress, variant = 'primary', loading =
 type AppStateProps = {
   title: string;
   description?: string;
-  icon?: React.ComponentProps<typeof AppIcon>['name'];
+  icon?: ComponentProps<typeof AppIcon>['name'];
   loading?: boolean;
   actionLabel?: string;
   onAction?: () => void;
@@ -62,7 +62,7 @@ export function AppState({ title, description, icon = 'information-outline', loa
   const { colors } = useAppPreferences();
   return (
     <View style={styles.state} accessibilityRole={loading ? 'progressbar' : undefined}>
-      {loading ? <ActivityIndicator size="large" color={colors.primary} /> : <View style={[styles.stateIcon, { backgroundColor: colors.surfaceMuted }]}><AppIcon name={icon} size={28} color={colors.primary} /></View>}
+      {loading ? <ActivityIndicator size="large" color={colors.primary} /> : <View style={[styles.stateIcon, { backgroundColor: colors.surfaceMuted }]}><AppIcon name={icon} size={28} color={colors.primary} accessibilityLabel={title} /></View>}
       <Text style={[styles.stateTitle, { color: colors.textPrimary }]}>{title}</Text>
       {description ? <Text style={[styles.stateDescription, { color: colors.textSecondary }]}>{description}</Text> : null}
       {actionLabel && onAction ? <AppButton label={actionLabel} onPress={onAction} variant="secondary" /> : null}
