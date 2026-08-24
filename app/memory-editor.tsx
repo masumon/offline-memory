@@ -25,6 +25,7 @@ export default function MemoryEditorScreen() {
     if (!id) return;
     const run = async () => {
       if (!existing) await load(db);
+      await Promise.resolve();
       setInitializing(false);
     };
     void run();
@@ -32,10 +33,14 @@ export default function MemoryEditorScreen() {
 
   useEffect(() => {
     if (!existing) return;
-    setContent(existing.content);
-    setTagsInput(existing.tags.join(', '));
-    setKind(existing.kind);
-    setImportance(existing.importance);
+    const run = async () => {
+      await Promise.resolve();
+      setContent(existing.content);
+      setTagsInput(existing.tags.join(', '));
+      setKind(existing.kind);
+      setImportance(existing.importance);
+    };
+    void run();
   }, [existing]);
 
   const handleSave = async () => {
@@ -58,7 +63,6 @@ export default function MemoryEditorScreen() {
       <Text style={styles.title}>{id ? 'Edit memory' : 'Remember something'}</Text>
       <Text style={styles.subtitle}>Stored privately on this device.</Text>
     </View>
-
     <View style={styles.form}>
       <Text style={styles.label}>Memory</Text>
       <TextInput value={content} onChangeText={setContent} placeholder="Write what you want to remember..." placeholderTextColor={colors.textMuted} multiline autoFocus={!id} style={styles.textarea} accessibilityLabel="Memory content" />
@@ -75,32 +79,5 @@ export default function MemoryEditorScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.xl, paddingBottom: spacing.xl * 2 },
-  header: { paddingTop: spacing.lg },
-  backButton: { minHeight: 40, justifyContent: 'center', alignSelf: 'flex-start' },
-  back: { color: colors.primary, fontWeight: '700' },
-  eyebrow: { color: colors.primary, fontSize: typography.label.fontSize, fontWeight: '700', letterSpacing: 1.2, marginTop: spacing.sm },
-  title: { color: colors.textPrimary, fontSize: 32, fontWeight: '800', marginTop: spacing.sm },
-  subtitle: { color: colors.textSecondary, fontSize: 14, marginTop: spacing.xs },
-  form: { marginTop: spacing.xl, gap: spacing.sm },
-  label: { color: colors.textSecondary, fontSize: 13, fontWeight: '700', marginTop: spacing.sm },
-  textarea: { minHeight: 170, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.surface, color: colors.textPrimary, padding: spacing.md, fontSize: 16, textAlignVertical: 'top' },
-  input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, color: colors.textPrimary, paddingHorizontal: spacing.md, fontSize: 15 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  chip: { minHeight: 40, borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: spacing.md, justifyContent: 'center' },
-  chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' },
-  chipTextSelected: { color: colors.onPrimary },
-  importanceRow: { flexDirection: 'row', gap: spacing.sm },
-  importanceButton: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  error: { color: colors.danger, marginTop: spacing.sm },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.lg },
-  primaryButton: { minHeight: 50, paddingHorizontal: spacing.lg, borderRadius: 14, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
-  primaryText: { color: colors.onPrimary, fontWeight: '700' },
-  secondaryButton: { minHeight: 50, paddingHorizontal: spacing.lg, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
-  secondaryText: { color: colors.textSecondary, fontWeight: '700' },
-  disabled: { opacity: 0.5 },
-  center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.md },
-  emptyTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '800' },
+  container: { flex: 1, backgroundColor: colors.background }, content: { padding: spacing.xl, paddingBottom: spacing.xl * 2 }, header: { paddingTop: spacing.lg }, backButton: { minHeight: 40, justifyContent: 'center', alignSelf: 'flex-start' }, back: { color: colors.primary, fontWeight: '700' }, eyebrow: { color: colors.primary, fontSize: typography.label.fontSize, fontWeight: '700', letterSpacing: 1.2, marginTop: spacing.sm }, title: { color: colors.textPrimary, fontSize: 32, fontWeight: '800', marginTop: spacing.sm }, subtitle: { color: colors.textSecondary, fontSize: 14, marginTop: spacing.xs }, form: { marginTop: spacing.xl, gap: spacing.sm }, label: { color: colors.textSecondary, fontSize: 13, fontWeight: '700', marginTop: spacing.sm }, textarea: { minHeight: 170, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.surface, color: colors.textPrimary, padding: spacing.md, fontSize: 16, textAlignVertical: 'top' }, input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, color: colors.textPrimary, paddingHorizontal: spacing.md, fontSize: 15 }, chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }, chip: { minHeight: 40, borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: spacing.md, justifyContent: 'center' }, chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary }, chipText: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' }, chipTextSelected: { color: colors.onPrimary }, importanceRow: { flexDirection: 'row', gap: spacing.sm }, importanceButton: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, error: { color: colors.danger, marginTop: spacing.sm }, actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.lg }, primaryButton: { minHeight: 50, paddingHorizontal: spacing.lg, borderRadius: 14, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }, primaryText: { color: colors.onPrimary, fontWeight: '700' }, secondaryButton: { minHeight: 50, paddingHorizontal: spacing.lg, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' }, secondaryText: { color: colors.textSecondary, fontWeight: '700' }, disabled: { opacity: 0.5 }, center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.md }, emptyTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '800' },
 });
