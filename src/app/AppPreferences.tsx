@@ -1,5 +1,6 @@
+import { Appearance } from 'react-native';
 import type { PropsWithChildren } from 'react';
-import { Appearance, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
 import { getThemeColors, type ThemeColors } from '../theme';
 
