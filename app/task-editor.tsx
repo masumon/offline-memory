@@ -23,13 +23,17 @@ export default function TaskEditorScreen() {
 
   useEffect(() => {
     if (!id) return;
-    const run = async () => { if (!task) await load(db); setLoaded(true); };
+    const run = async () => { if (!task) await load(db); await Promise.resolve(); setLoaded(true); };
     void run();
   }, [db, id, load, task]);
 
   useEffect(() => {
     if (!task) return;
-    setTitle(task.title); setNotes(task.notes ?? ''); setPriority(task.priority); setPlannedDate(task.plannedDate ?? ''); setDueAt(task.dueAt ?? '');
+    const run = async () => {
+      await Promise.resolve();
+      setTitle(task.title); setNotes(task.notes ?? ''); setPriority(task.priority); setPlannedDate(task.plannedDate ?? ''); setDueAt(task.dueAt ?? '');
+    };
+    void run();
   }, [task]);
 
   const save = async () => {
@@ -58,7 +62,7 @@ export default function TaskEditorScreen() {
     <View style={styles.form}>
       <Text style={styles.label}>Title</Text><TextInput value={title} onChangeText={setTitle} placeholder="Task title" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel="Task title" />
       <Text style={styles.label}>Notes</Text><TextInput value={notes} onChangeText={setNotes} placeholder="Optional notes" placeholderTextColor={colors.textMuted} multiline style={styles.textarea} accessibilityLabel="Task notes" />
-      <Text style={styles.label}>Priority</Text><View style={styles.chips}>{PRIORITIES.map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: priority === value }} onPress={() => setPriority(value)} style={[styles.chip, priority === value && styles.selected]}><Text style={[styles.chipText, priority === value && styles.selectedText]}>{value}</Text></Pressable>)}</View>
+      <Text style={styles.label}>Priority</Text><View style={styles.chips}>{PRIORITIES.map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: priority === value }} accessibilityLabel={`Priority ${value}`} onPress={() => setPriority(value)} style={[styles.chip, priority === value && styles.selected]}><Text style={[styles.chipText, priority === value && styles.selectedText]}>{value}</Text></Pressable>)}</View>
       <Text style={styles.label}>Planned date</Text><TextInput value={plannedDate} onChangeText={setPlannedDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel="Planned date" />
       <Text style={styles.label}>Due date/time</Text><TextInput value={dueAt} onChangeText={setDueAt} placeholder="ISO date/time, e.g. 2026-08-25T09:00:00" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel="Due date and time" />
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
@@ -70,7 +74,7 @@ export default function TaskEditorScreen() {
         {status === 'COMPLETED' ? <Pressable onPress={() => void reopenCompleted()} style={styles.secondary}><Text style={styles.secondaryText}>Reopen task</Text></Pressable> : null}
         {status === 'CANCELLED' ? <Pressable onPress={() => void restoreCancelled()} style={styles.secondary}><Text style={styles.secondaryText}>Move to inbox</Text></Pressable> : null}
       </View> : null}
-      {id ? <Pressable onPress={confirmDelete} style={styles.dangerButton}><Text style={styles.dangerText}>Delete permanently</Text></Pressable> : null}
+      {id ? <Pressable accessibilityRole="button" accessibilityLabel="Delete task permanently" onPress={confirmDelete} style={styles.dangerButton}><Text style={styles.dangerText}>Delete permanently</Text></Pressable> : null}
     </View>
   </ScrollView>;
 }
