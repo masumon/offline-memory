@@ -6,6 +6,10 @@ jest.mock('../src/services/task-service', () => ({ searchTasks: jest.fn() }));
 jest.mock('../src/services/memory-service', () => ({ findMemories: jest.fn() }));
 
 describe('unified search service', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('searches task title/notes and memories using existing services', async () => {
     (searchTasks as jest.Mock).mockResolvedValue([
       { id: 'task-1', title: 'Call supplier', notes: 'Paper order', status: 'INBOX', priority: 'HIGH' },
