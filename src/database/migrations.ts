@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-const DATABASE_VERSION = 6;
+const DATABASE_VERSION = 7;
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA journal_mode = WAL;');
@@ -40,7 +40,11 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
     await db.execAsync('UPDATE tasks SET planned_date = substr(due_at, 1, 10) WHERE planned_date IS NULL AND due_at IS NOT NULL;');
     await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 6, new Date().toISOString());
   }
-  await db.execAsync('PRAGMA user_version = 6;');
+  if (currentVersion < 7) {
+    await db.execAsync(`CREATE TABLE IF NOT EXISTS app_preferences (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);`);
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 7, new Date().toISOString());
+  }
+  await db.execAsync('PRAGMA user_version = 7;');
 }
 
 export { DATABASE_VERSION };
