@@ -1,26 +1,28 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppProviders } from '../src/app/AppProviders';
 import { useAppPreferences } from '../src/app/AppPreferences';
 
 function AppNavigator() {
-  const { themeMode } = useAppPreferences();
+  const { themeMode, colors } = useAppPreferences();
   const dark = themeMode === 'dark';
-  const backgroundColor = dark ? '#0B1220' : '#F8FAFC';
 
   return (
-    <>
-      <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} backgroundColor={backgroundColor} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor } }} />
-    </>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
+      <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />
+    </SafeAreaView>
   );
 }
 
 export default function RootLayout() {
   return (
-    <AppProviders>
-      <AppNavigator />
-    </AppProviders>
+    <SafeAreaProvider>
+      <AppProviders>
+        <AppNavigator />
+      </AppProviders>
+    </SafeAreaProvider>
   );
 }
