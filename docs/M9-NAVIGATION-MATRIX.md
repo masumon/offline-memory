@@ -8,6 +8,7 @@
 | Home | More | More |
 | Planning | New task | Task editor/create |
 | Planning | Task row | Task editor/detail |
+| Inbox | Task row | Task editor/detail |
 | Inbox | Plan | Planning |
 | Search | Task result | Task editor/detail |
 | Search | Memory result | Memory editor |
