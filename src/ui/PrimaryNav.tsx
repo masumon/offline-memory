@@ -1,7 +1,6 @@
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { useAppPreferences } from '../app/AppPreferences';
 import { AppIcon } from './AppIcon';
 import { elevation, radius, spacing } from '../theme';
@@ -13,66 +12,10 @@ const items = [
   { href: '/inbox', icon: 'inbox' as const, en: 'Inbox', bn: 'ইনবক্স' },
   { href: '/more', icon: 'dots-horizontal' as const, en: 'More', bn: 'আরও' },
 ];
-
 const EXPANDED_BREAKPOINT = 720;
 
 export function PrimaryNav() {
-  const router = useRouter();
-  const pathname = usePathname();
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const { colors, language } = useAppPreferences();
-  const bn = language === 'bn';
-  const expanded = width >= EXPANDED_BREAKPOINT;
-
-  return (
-    <View pointerEvents="box-none" style={[styles.host, expanded && styles.hostExpanded]}>
-      <View
-        style={[
-          styles.bar,
-          expanded && styles.barExpanded,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-            paddingBottom: expanded ? spacing.lg : Math.max(insets.bottom, spacing.sm),
-          },
-        ]}
-      >
-        {items.map((item) => {
-          const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-          const label = bn ? item.bn : item.en;
-          return (
-            <Pressable
-              key={item.href}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={label}
-              hitSlop={4}
-              onPress={() => {
-                if (!active) router.replace(item.href as never);
-              }}
-              style={({ pressed }) => [styles.item, expanded && styles.itemExpanded, pressed && styles.pressed]}
-            >
-              <View style={[styles.iconWrap, active && { backgroundColor: colors.primary }]}>
-                <AppIcon name={item.icon} size={21} color={active ? colors.onPrimary : colors.textSecondary} accessibilityLabel={label} />
-              </View>
-              <Text numberOfLines={1} style={[styles.label, { color: active ? colors.primary : colors.textSecondary }]}>{label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
+  const router = useRouter(); const pathname = usePathname(); const insets = useSafeAreaInsets(); const { width } = useWindowDimensions(); const { colors, language } = useAppPreferences(); const bn = language === 'bn'; const expanded = width >= EXPANDED_BREAKPOINT;
+  return <View pointerEvents="box-none" style={[styles.host, expanded && styles.hostExpanded]}><View style={[styles.bar, expanded && styles.barExpanded, {backgroundColor:colors.surface,borderColor:colors.border,paddingBottom:expanded?spacing.lg:Math.max(insets.bottom,spacing.sm)}]}>{items.map((item)=>{const active=item.href==='/'?pathname==='/':pathname.startsWith(item.href);const label=bn?item.bn:item.en;return <Pressable key={item.href} accessibilityRole="tab" accessibilityState={{selected:active}} accessibilityLabel={label} hitSlop={4} onPress={()=>{if(!active)router.replace(item.href as never)}} style={({pressed})=>[styles.item,expanded&&styles.itemExpanded,pressed&&styles.pressed]}><View style={[styles.iconWrap,active&&{backgroundColor:colors.primary}]}><AppIcon name={item.icon} size={21} color={active?colors.onPrimary:colors.textSecondary}/></View><Text numberOfLines={1} style={[styles.label,{color:active?colors.primary:colors.textSecondary}]}>{label}</Text></Pressable>})}</View></View>;
 }
-
-const styles = StyleSheet.create({
-  host: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  hostExpanded: { top: 0, right: undefined, width: 104, bottom: 0 },
-  bar: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around', borderTopWidth: 1, paddingTop: spacing.sm, ...elevation.floating },
-  barExpanded: { flex: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'stretch', borderTopWidth: 0, borderRightWidth: 1, paddingTop: spacing.lg, paddingHorizontal: spacing.sm, gap: spacing.sm },
-  item: { flex: 1, maxWidth: 96, minHeight: 58, alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: spacing.xs, paddingTop: 2, borderRadius: radius.md },
-  itemExpanded: { flex: 0, maxWidth: undefined, minHeight: 68, width: '100%', justifyContent: 'center', paddingHorizontal: spacing.xs },
-  pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
-  iconWrap: { width: 40, height: 32, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 11, lineHeight: 16, fontWeight: '800', marginTop: 2, maxWidth: 84, textAlign: 'center' },
-});
+const styles=StyleSheet.create({host:{position:'absolute',left:0,right:0,bottom:0},hostExpanded:{top:0,right:undefined,width:104,bottom:0},bar:{flexDirection:'row',alignItems:'flex-start',justifyContent:'space-around',borderTopWidth:1,paddingTop:spacing.sm,...elevation.floating},barExpanded:{flex:1,flexDirection:'column',justifyContent:'center',alignItems:'stretch',borderTopWidth:0,borderRightWidth:1,paddingTop:spacing.lg,paddingHorizontal:spacing.sm,gap:spacing.sm},item:{flex:1,maxWidth:96,minHeight:58,alignItems:'center',justifyContent:'flex-start',paddingHorizontal:spacing.xs,paddingTop:2,borderRadius:radius.md},itemExpanded:{flex:0,maxWidth:undefined,minHeight:68,width:'100%',justifyContent:'center',paddingHorizontal:spacing.xs},pressed:{opacity:.72,transform:[{scale:.98}]},iconWrap:{width:40,height:32,borderRadius:radius.pill,alignItems:'center',justifyContent:'center'},label:{fontSize:11,lineHeight:16,fontWeight:'800',marginTop:2,maxWidth:84,textAlign:'center'}});
