@@ -26,19 +26,21 @@ export function PrimaryNav() {
       <View style={[styles.bar, { backgroundColor: colors.surface, borderColor: colors.border, paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
         {items.map((item) => {
           const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+          const label = bn ? item.bn : item.en;
           return (
             <Pressable
               key={item.href}
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
-              accessibilityLabel={bn ? item.bn : item.en}
+              accessibilityLabel={label}
+              hitSlop={4}
               onPress={() => router.push(item.href as never)}
               style={({ pressed }) => [styles.item, pressed && styles.pressed]}
             >
               <View style={[styles.iconWrap, active && { backgroundColor: colors.primary }]}>
-                <AppIcon name={item.icon} size={21} color={active ? colors.onPrimary : colors.textSecondary} />
+                <AppIcon name={item.icon} size={21} color={active ? colors.onPrimary : colors.textSecondary} accessibilityLabel={label} />
               </View>
-              <Text numberOfLines={1} style={[styles.label, { color: active ? colors.primary : colors.textSecondary }]}>{bn ? item.bn : item.en}</Text>
+              <Text numberOfLines={1} style={[styles.label, { color: active ? colors.primary : colors.textSecondary }]}>{label}</Text>
             </Pressable>
           );
         })}
@@ -50,8 +52,8 @@ export function PrimaryNav() {
 const styles = StyleSheet.create({
   host: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   bar: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around', borderTopWidth: 1, paddingTop: spacing.sm, ...elevation.floating },
-  item: { minWidth: 58, minHeight: 58, alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: spacing.xs, paddingTop: 2, borderRadius: radius.md },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
+  item: { flex: 1, maxWidth: 96, minHeight: 58, alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: spacing.xs, paddingTop: 2, borderRadius: radius.md },
+  pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
   iconWrap: { width: 40, height: 32, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 11, lineHeight: 16, fontWeight: '800', marginTop: 2 },
+  label: { fontSize: 11, lineHeight: 16, fontWeight: '800', marginTop: 2, maxWidth: 84, textAlign: 'center' },
 });
