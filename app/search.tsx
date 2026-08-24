@@ -5,9 +5,19 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { searchAll, type UnifiedSearchResult } from '../src/services/unified-search-service';
 import { colors, spacing, typography } from '../src/theme';
 
+const EMPTY_RESULT: UnifiedSearchResult = { tasks: [], memories: [] };
+
 export default function SearchScreen() {
-  const db = useSQLiteContext(); const [query, setQuery] = useState(''); const [result, setResult] = useState<UnifiedSearchResult>({ tasks: [], memories: [] }); const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null);
-  useEffect(() => { const value = query.trim(); if (!value) { setResult({ tasks: [], memories: [] }); setError(null); return; } const timer = setTimeout(() => { setLoading(true); setError(null); void searchAll(db, value).then(setResult).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to search local data')).finally(() => setLoading(false)); }, 180); return () => clearTimeout(timer); }, [db, query]);
+  const db = useSQLiteContext(); const [query, setQuery] = useState(''); const [result, setResult] = useState<UnifiedSearchResult>(EMPTY_RESULT); const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const value = query.trim();
+    const timer = setTimeout(() => {
+      if (!value) { setResult(EMPTY_RESULT); setError(null); setLoading(false); return; }
+      setLoading(true); setError(null);
+      void searchAll(db, value).then(setResult).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to search local data')).finally(() => setLoading(false));
+    }, value ? 180 : 0);
+    return () => clearTimeout(timer);
+  }, [db, query]);
   return <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><View style={styles.header}><Link href="/" asChild><Pressable accessibilityRole="button" style={styles.back}><Text style={styles.backText}>‹ Home</Text></Pressable></Link><Text style={styles.eyebrow}>SEARCH</Text><View style={styles.titleRow}><View style={styles.titleCopy}><Text style={styles.title}>Find anything</Text><Text style={styles.subtitle}>Search tasks and active memories stored on this device.</Text></View><Link href="/task-editor" asChild><Pressable accessibilityRole="button" accessibilityLabel="Create new task" style={styles.addButton}><Text style={styles.addText}>Task</Text></Pressable></Link></View></View><TextInput value={query} onChangeText={setQuery} placeholder="Search tasks and memories" placeholderTextColor={colors.textMuted} autoFocus style={styles.input} accessibilityLabel="Search tasks and memories"/>{loading ? <ActivityIndicator style={styles.loader}/> : null}{error ? <Text style={styles.error}>{error}</Text> : null}{query.trim() && !loading && !result.tasks.length && !result.memories.length && !error ? <Text style={styles.empty}>No matching local data.</Text> : null}{result.tasks.length ? <Section title={`Tasks · ${result.tasks.length}`}>{result.tasks.map((task) => <Link key={task.id} href={{ pathname: '/task-editor', params: { id: task.id } }} asChild><Pressable accessibilityRole="button" accessibilityLabel={`Open task ${task.title}`} style={styles.resultCard}><Text style={styles.resultTitle}>{task.title}</Text><Text style={styles.meta}>{task.status} · {task.priority}</Text></Pressable></Link>)}</Section> : null}{result.memories.length ? <Section title={`Memories · ${result.memories.length}`}>{result.memories.map((memory) => <Link key={memory.id} href={{ pathname: '/memory-editor', params: { id: memory.id } }} asChild><Pressable accessibilityRole="button" accessibilityLabel={`Open memory ${memory.content.slice(0, 60)}`} style={styles.resultCard}><Text style={styles.resultTitle} numberOfLines={3}>{memory.content}</Text><Text style={styles.meta}>{memory.kind} · importance {memory.importance}</Text></Pressable></Link>)}</Section> : null}</ScrollView>;
 }
 function Section({ title, children }: { title: string; children: ReactNode }) { return <View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text>{children}</View>; }
