@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import { Appearance, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
+import { getThemeColors, type ThemeColors } from '../theme';
 
 type Language = 'en' | 'bn';
 type ThemeMode = 'light' | 'dark';
@@ -8,6 +9,7 @@ type ThemeMode = 'light' | 'dark';
 type PreferencesContextValue = {
   language: Language;
   themeMode: ThemeMode;
+  colors: ThemeColors;
   setLanguage: (language: Language) => Promise<void>;
   setThemeMode: (themeMode: ThemeMode) => Promise<void>;
 };
@@ -23,7 +25,7 @@ export function AppPreferencesProvider({ children }: PropsWithChildren) {
     let active = true;
     const load = async () => {
       await db.execAsync('CREATE TABLE IF NOT EXISTS app_preferences (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)');
-      const rows = await db.getAllAsync<{ key: string; value: string }>('SELECT key, value FROM app_preferences WHERE key IN (\'language\', \'themeMode\')');
+      const rows = await db.getAllAsync<{ key: string; value: string }>("SELECT key, value FROM app_preferences WHERE key IN ('language', 'themeMode')");
       if (!active) return;
       for (const row of rows) {
         if (row.key === 'language' && (row.value === 'en' || row.value === 'bn')) setLanguageState(row.value);
@@ -52,7 +54,8 @@ export function AppPreferencesProvider({ children }: PropsWithChildren) {
     await persist('themeMode', value);
   }, [persist]);
 
-  const value = useMemo(() => ({ language, themeMode, setLanguage, setThemeMode }), [language, themeMode, setLanguage, setThemeMode]);
+  const colors = useMemo(() => getThemeColors(themeMode), [themeMode]);
+  const value = useMemo(() => ({ language, themeMode, colors, setLanguage, setThemeMode }), [language, themeMode, colors, setLanguage, setThemeMode]);
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
 }
 
