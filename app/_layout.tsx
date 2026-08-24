@@ -7,11 +7,12 @@ import { useAppPreferences } from '../src/app/AppPreferences';
 function AppNavigator() {
   const { themeMode } = useAppPreferences();
   const dark = themeMode === 'dark';
+  const backgroundColor = dark ? '#0B1220' : '#F8FAFC';
 
   return (
     <>
-      <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} backgroundColor={dark ? '#0B1220' : '#F8FAFC'} />
-      <Stack screenOptions={{ headerShown: false }} />
+      <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} backgroundColor={backgroundColor} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor } }} />
     </>
   );
 }
