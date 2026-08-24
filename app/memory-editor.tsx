@@ -3,87 +3,11 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useMemoryStore } from '../src/store/memory.store';
-import { colors, spacing, typography } from '../src/theme';
+import { useAppPreferences } from '../src/app/AppPreferences';
+import { AppIcon } from '../src/ui/AppIcon';
+import { elevation, spacing, type ThemeColors } from '../src/theme';
 import type { MemoryKind } from '../src/types/memory-model';
 
-const MEMORY_KINDS: MemoryKind[] = ['NOTE', 'FACT', 'PREFERENCE', 'EVENT', 'REFLECTION'];
-
-export default function MemoryEditorScreen() {
-  const db = useSQLiteContext();
-  const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const [content, setContent] = useState('');
-  const [tagsInput, setTagsInput] = useState('');
-  const [kind, setKind] = useState<MemoryKind>('NOTE');
-  const [importance, setImportance] = useState(3);
-  const [initializing, setInitializing] = useState(Boolean(id));
-  const [saving, setSaving] = useState(false);
-  const { memories, load, create, update, error } = useMemoryStore();
-
-  const existing = useMemo(() => memories.find((memory) => memory.id === id), [id, memories]);
-
-  useEffect(() => {
-    if (!id) return;
-    const run = async () => {
-      if (!existing) await load(db);
-      await Promise.resolve();
-      setInitializing(false);
-    };
-    void run();
-  }, [db, existing, id, load]);
-
-  useEffect(() => {
-    if (!existing) return;
-    const run = async () => {
-      await Promise.resolve();
-      setContent(existing.content);
-      setTagsInput(existing.tags.join(', '));
-      setKind(existing.kind);
-      setImportance(existing.importance);
-    };
-    void run();
-  }, [existing]);
-
-  const handleSave = async () => {
-    const value = content.trim();
-    if (!value || saving) return;
-    setSaving(true);
-    try {
-      const tags = tagsInput.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30);
-      const memory = id
-        ? await update(db, id, { content: value, tags, kind, importance })
-        : await create(db, { content: value, tags, kind, importance });
-      if (memory) router.replace('/memory');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (initializing) return <View style={styles.center}><ActivityIndicator /></View>;
-  if (id && !existing) return <View style={styles.center}><Text style={styles.emptyTitle}>Memory not found</Text><Link href="/memory" asChild><Pressable style={styles.secondaryButton}><Text style={styles.secondaryText}>Back to memories</Text></Pressable></Link></View>;
-
-  return <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-    <View style={styles.header}>
-      <Link href="/memory" asChild><Pressable accessibilityRole="button" accessibilityLabel="Back to memories" style={styles.backButton}><Text style={styles.back}>Memory</Text></Pressable></Link>
-      <Text style={styles.eyebrow}>{id ? 'EDIT MEMORY' : 'NEW MEMORY'}</Text>
-      <Text style={styles.title}>{id ? 'Edit memory' : 'Remember something'}</Text>
-      <Text style={styles.subtitle}>Stored privately on this device.</Text>
-    </View>
-    <View style={styles.form}>
-      <Text style={styles.label}>Memory</Text>
-      <TextInput value={content} onChangeText={setContent} placeholder="Write what you want to remember..." placeholderTextColor={colors.textMuted} multiline autoFocus={!id} style={styles.textarea} accessibilityLabel="Memory content" />
-      <Text style={styles.label}>Tags</Text>
-      <TextInput value={tagsInput} onChangeText={setTagsInput} placeholder="work, family, idea" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel="Memory tags" />
-      <Text style={styles.label}>Type</Text>
-      <View style={styles.chipRow}>{MEMORY_KINDS.map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: kind === value }} accessibilityLabel={`Memory type ${value}`} onPress={() => setKind(value)} style={[styles.chip, kind === value && styles.chipSelected]}><Text style={[styles.chipText, kind === value && styles.chipTextSelected]}>{value}</Text></Pressable>)}</View>
-      <Text style={styles.label}>Importance</Text>
-      <View style={styles.importanceRow}>{[1, 2, 3, 4, 5].map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: importance === value }} accessibilityLabel={`Importance ${value}`} onPress={() => setImportance(value)} style={[styles.importanceButton, importance === value && styles.chipSelected]}><Text style={[styles.chipText, importance === value && styles.chipTextSelected]}>{value}</Text></Pressable>)}</View>
-      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      <View style={styles.actions}><Link href="/memory" asChild><Pressable disabled={saving} style={[styles.secondaryButton, saving && styles.disabled]}><Text style={styles.secondaryText}>Cancel</Text></Pressable></Link><Pressable accessibilityRole="button" accessibilityLabel={id ? 'Update memory' : 'Save memory'} disabled={!content.trim() || saving} onPress={() => void handleSave()} style={[styles.primaryButton, (!content.trim() || saving) && styles.disabled]}>{saving ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>{id ? 'Update' : 'Save memory'}</Text>}</Pressable></View>
-    </View>
-  </ScrollView>;
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background }, content: { padding: spacing.xl, paddingBottom: spacing.xl * 2 }, header: { paddingTop: spacing.lg }, backButton: { minHeight: 40, justifyContent: 'center', alignSelf: 'flex-start' }, back: { color: colors.primary, fontWeight: '700' }, eyebrow: { color: colors.primary, fontSize: typography.label.fontSize, fontWeight: '700', letterSpacing: 1.2, marginTop: spacing.sm }, title: { color: colors.textPrimary, fontSize: 32, fontWeight: '800', marginTop: spacing.sm }, subtitle: { color: colors.textSecondary, fontSize: 14, marginTop: spacing.xs }, form: { marginTop: spacing.xl, gap: spacing.sm }, label: { color: colors.textSecondary, fontSize: 13, fontWeight: '700', marginTop: spacing.sm }, textarea: { minHeight: 170, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.surface, color: colors.textPrimary, padding: spacing.md, fontSize: 16, textAlignVertical: 'top' }, input: { minHeight: 50, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, color: colors.textPrimary, paddingHorizontal: spacing.md, fontSize: 15 }, chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }, chip: { minHeight: 40, borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: spacing.md, justifyContent: 'center' }, chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary }, chipText: { color: colors.textSecondary, fontSize: 12, fontWeight: '700' }, chipTextSelected: { color: colors.onPrimary }, importanceRow: { flexDirection: 'row', gap: spacing.sm }, importanceButton: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, error: { color: colors.danger, marginTop: spacing.sm }, actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.lg }, primaryButton: { minHeight: 50, paddingHorizontal: spacing.lg, borderRadius: 14, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' }, primaryText: { color: colors.onPrimary, fontWeight: '700' }, secondaryButton: { minHeight: 50, paddingHorizontal: spacing.lg, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' }, secondaryText: { color: colors.textSecondary, fontWeight: '700' }, disabled: { opacity: 0.5 }, center: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.md }, emptyTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '800' },
-});
+const MEMORY_KINDS: MemoryKind[]=['NOTE','FACT','PREFERENCE','EVENT','REFLECTION'];
+export default function MemoryEditorScreen(){const db=useSQLiteContext();const router=useRouter();const{id}=useLocalSearchParams<{id?:string}>();const{colors,language}=useAppPreferences();const bn=language==='bn';const styles=useMemo(()=>makeStyles(colors),[colors]);const[content,setContent]=useState('');const[tagsInput,setTagsInput]=useState('');const[kind,setKind]=useState<MemoryKind>('NOTE');const[importance,setImportance]=useState(3);const[initializing,setInitializing]=useState(Boolean(id));const[saving,setSaving]=useState(false);const{memories,load,create,update,error}=useMemoryStore();const existing=useMemo(()=>memories.find(memory=>memory.id===id),[id,memories]);useEffect(()=>{if(!id)return;const run=async()=>{if(!existing)await load(db);await Promise.resolve();setInitializing(false)};void run()},[db,existing,id,load]);useEffect(()=>{if(!existing)return;void Promise.resolve().then(()=>{setContent(existing.content);setTagsInput(existing.tags.join(', '));setKind(existing.kind);setImportance(existing.importance)})},[existing]);const handleSave=async()=>{const value=content.trim();if(!value||saving)return;setSaving(true);try{const tags=tagsInput.split(',').map(tag=>tag.trim()).filter(Boolean).slice(0,30);const memory=id?await update(db,id,{content:value,tags,kind,importance}):await create(db,{content:value,tags,kind,importance});if(memory)router.replace('/memory')}finally{setSaving(false)}};const copy=bn?{back:'মেমোরি',newEyebrow:'নতুন মেমোরি',editEyebrow:'মেমোরি এডিট',newTitle:'কিছু মনে রাখুন',editTitle:'মেমোরি এডিট করুন',subtitle:'এই ডিভাইসে ব্যক্তিগতভাবে সংরক্ষিত।',memory:'মেমোরি',placeholder:'যা মনে রাখতে চান লিখুন…',tags:'ট্যাগ',tagsPlaceholder:'কাজ, পরিবার, আইডিয়া',type:'ধরন',importance:'গুরুত্ব',cancel:'বাতিল',save:'মেমোরি সংরক্ষণ',update:'আপডেট',notFound:'মেমোরি পাওয়া যায়নি',backTo:'মেমোরিতে ফিরুন'}:{back:'Memory',newEyebrow:'NEW MEMORY',editEyebrow:'EDIT MEMORY',newTitle:'Remember something',editTitle:'Edit memory',subtitle:'Stored privately on this device.',memory:'Memory',placeholder:'Write what you want to remember...',tags:'Tags',tagsPlaceholder:'work, family, idea',type:'Type',importance:'Importance',cancel:'Cancel',save:'Save memory',update:'Update',notFound:'Memory not found',backTo:'Back to memories'};if(initializing)return <View style={styles.center}><ActivityIndicator color={colors.primary}/></View>;if(id&&!existing)return <View style={styles.center}><AppIcon name="brain" size={44} color={colors.warning}/><Text style={styles.emptyTitle}>{copy.notFound}</Text><Link href="/memory" asChild><Pressable style={styles.secondaryButton}><Text style={styles.secondaryText}>{copy.backTo}</Text></Pressable></Link></View>;return <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}><View style={styles.header}><Link href="/memory" asChild><Pressable accessibilityRole="button" style={styles.backButton}><AppIcon name="arrow-left" size={20} color={colors.primary}/><Text style={styles.back}>{copy.back}</Text></Pressable></Link><View style={styles.titleRow}><View style={styles.titleIcon}><AppIcon name="brain" size={27} color={colors.primary}/></View><View style={styles.titleCopy}><Text style={styles.eyebrow}>{id?copy.editEyebrow:copy.newEyebrow}</Text><Text style={styles.title}>{id?copy.editTitle:copy.newTitle}</Text></View></View><Text style={styles.subtitle}>{copy.subtitle}</Text></View><View style={styles.form}><Text style={styles.label}>{copy.memory}</Text><TextInput value={content} onChangeText={setContent} placeholder={copy.placeholder} placeholderTextColor={colors.textMuted} multiline autoFocus={!id} style={styles.textarea} accessibilityLabel={copy.memory}/><Text style={styles.label}>{copy.tags}</Text><TextInput value={tagsInput} onChangeText={setTagsInput} placeholder={copy.tagsPlaceholder} placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel={copy.tags}/><Text style={styles.label}>{copy.type}</Text><View style={styles.chipRow}>{MEMORY_KINDS.map(value=><Pressable key={value} accessibilityRole="radio" accessibilityState={{selected:kind===value}} onPress={()=>setKind(value)} style={[styles.chip,kind===value&&styles.chipSelected]}><Text style={[styles.chipText,kind===value&&styles.chipTextSelected]}>{value}</Text></Pressable>)}</View><Text style={styles.label}>{copy.importance}</Text><View style={styles.importanceRow}>{[1,2,3,4,5].map(value=><Pressable key={value} accessibilityRole="radio" accessibilityState={{selected:importance===value}} onPress={()=>setImportance(value)} style={[styles.importanceButton,importance===value&&styles.chipSelected]}><Text style={[styles.chipText,importance===value&&styles.chipTextSelected]}>{value}</Text></Pressable>)}</View>{error?<Text accessibilityRole="alert" style={styles.error}>{error}</Text>:null}<View style={styles.actions}><Link href="/memory" asChild><Pressable disabled={saving} style={[styles.secondaryButton,saving&&styles.disabled]}><AppIcon name="close" size={18} color={colors.textSecondary}/><Text style={styles.secondaryText}>{copy.cancel}</Text></Pressable></Link><Pressable accessibilityRole="button" disabled={!content.trim()||saving} onPress={()=>void handleSave()} style={[styles.primaryButton,(!content.trim()||saving)&&styles.disabled]}>{saving?<ActivityIndicator color={colors.onPrimary}/>:<><AppIcon name={id?'content-save-outline':'plus'} size={19} color={colors.onPrimary}/><Text style={styles.primaryText}>{id?copy.update:copy.save}</Text></>}</Pressable></View></View></ScrollView>}
+function makeStyles(colors:ThemeColors){return StyleSheet.create({container:{flex:1,backgroundColor:colors.background},content:{paddingHorizontal:spacing.lg,paddingTop:spacing.md,paddingBottom:spacing.xxl},header:{paddingTop:spacing.sm},backButton:{minHeight:44,flexDirection:'row',alignItems:'center',gap:4,marginBottom:spacing.lg},back:{color:colors.primary,fontWeight:'800'},titleRow:{flexDirection:'row',alignItems:'center',gap:spacing.md},titleIcon:{width:52,height:52,borderRadius:16,backgroundColor:colors.surfaceMuted,alignItems:'center',justifyContent:'center'},titleCopy:{flex:1},eyebrow:{color:colors.primary,fontSize:12,fontWeight:'900',letterSpacing:1.2},title:{color:colors.textPrimary,fontSize:30,fontWeight:'900',marginTop:2},subtitle:{color:colors.textSecondary,fontSize:14,marginTop:spacing.md},form:{marginTop:spacing.lg,gap:spacing.sm},label:{color:colors.textSecondary,fontSize:13,fontWeight:'800',marginTop:spacing.sm},textarea:{minHeight:170,borderWidth:1,borderColor:colors.border,borderRadius:18,backgroundColor:colors.surface,color:colors.textPrimary,padding:spacing.md,fontSize:16,textAlignVertical:'top',...elevation.card},input:{minHeight:52,borderWidth:1,borderColor:colors.border,borderRadius:15,backgroundColor:colors.surface,color:colors.textPrimary,paddingHorizontal:spacing.md,fontSize:15},chipRow:{flexDirection:'row',flexWrap:'wrap',gap:spacing.xs},chip:{minHeight:42,borderWidth:1,borderColor:colors.border,borderRadius:999,paddingHorizontal:spacing.md,justifyContent:'center',backgroundColor:colors.surface},chipSelected:{backgroundColor:colors.primary,borderColor:colors.primary},chipText:{color:colors.textSecondary,fontSize:12,fontWeight:'800'},chipTextSelected:{color:colors.onPrimary},importanceRow:{flexDirection:'row',gap:spacing.sm},importanceButton:{width:44,height:44,borderRadius:22,borderWidth:1,borderColor:colors.border,alignItems:'center',justifyContent:'center',backgroundColor:colors.surface},error:{color:colors.danger,marginTop:spacing.sm},actions:{flexDirection:'row',justifyContent:'flex-end',gap:spacing.sm,marginTop:spacing.lg},primaryButton:{minHeight:50,paddingHorizontal:spacing.md,borderRadius:14,backgroundColor:colors.primary,justifyContent:'center',alignItems:'center',flexDirection:'row',gap:4},primaryText:{color:colors.onPrimary,fontWeight:'800'},secondaryButton:{minHeight:50,paddingHorizontal:spacing.md,borderRadius:14,borderWidth:1,borderColor:colors.border,backgroundColor:colors.surface,justifyContent:'center',alignItems:'center',flexDirection:'row',gap:4},secondaryText:{color:colors.textSecondary,fontWeight:'800'},disabled:{opacity:.5},center:{flex:1,backgroundColor:colors.background,alignItems:'center',justifyContent:'center',padding:spacing.xl,gap:spacing.md},emptyTitle:{color:colors.textPrimary,fontSize:18,fontWeight:'900'}})}
