@@ -42,9 +42,12 @@ export default function HomeScreen() {
   }, [tasks, today, todayKey]);
 
   const todayTasks = useMemo(() => tasks.filter((task) => {
-    if (task.status === 'ARCHIVED' || task.status === 'CANCELLED') return false;
-    return task.dueAt?.slice(0, 10) === todayKey || task.plannedDate === todayKey || task.status === 'INBOX' || task.status === 'IN_PROGRESS';
-  }).slice(0, 5), [tasks, todayKey]);
+    if (task.status === 'ARCHIVED' || task.status === 'CANCELLED' || task.status === 'COMPLETED') return false;
+    const overdue = Boolean(task.dueAt && new Date(task.dueAt).getTime() < today.getTime());
+    const dueToday = task.dueAt?.slice(0, 10) === todayKey;
+    const plannedToday = task.plannedDate === todayKey;
+    return overdue || dueToday || plannedToday || task.status === 'IN_PROGRESS';
+  }).slice(0, 5), [tasks, today, todayKey]);
   const recentMemories = memories.slice(0, 3);
 
   return <View style={styles.container}><FlatList data={todayTasks} keyExtractor={(item) => item.id} contentContainerStyle={styles.content}
