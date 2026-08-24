@@ -56,10 +56,12 @@ export default function InboxScreen() {
 function InboxRow({ task, busy, onPlan }: { task: Task; busy: boolean; onPlan: () => void }) {
   return (
     <View style={styles.row}>
-      <View style={styles.body}>
-        <Text style={styles.task}>{task.title}</Text>
-        <Text style={styles.meta}>{task.priority}</Text>
-      </View>
+      <Link href={{ pathname: '/task-editor', params: { id: task.id } }} asChild>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Open task ${task.title}`} style={styles.body}>
+          <Text style={styles.task}>{task.title}</Text>
+          <Text style={styles.meta}>{task.priority}</Text>
+        </Pressable>
+      </Link>
       <Pressable disabled={busy} onPress={onPlan} accessibilityRole="button" accessibilityLabel={`Plan ${task.title}`} style={styles.planButton}>
         {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.planText}>Plan</Text>}
       </Pressable>
@@ -80,7 +82,7 @@ const styles = StyleSheet.create({
   emptyList: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   empty: { color: colors.textSecondary, textAlign: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: spacing.md, marginBottom: spacing.sm },
-  body: { flex: 1 },
+  body: { flex: 1, minHeight: 44, justifyContent: 'center' },
   task: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
   meta: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
   planButton: { minHeight: 44, minWidth: 76, paddingHorizontal: spacing.md, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
