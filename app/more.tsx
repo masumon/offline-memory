@@ -9,6 +9,7 @@ const items = [
   { href: '/planning' as const, title: 'Planning', description: 'Organize inbox tasks into your daily plan.' },
   { href: '/reminders' as const, title: 'Reminders', description: 'Enable and review task reminders scheduled on this device.' },
   { href: '/memory' as const, title: 'Memory', description: 'Create, search and manage local memories.' },
+  { href: '/settings' as const, title: 'Settings', description: 'Offline-first notification, data and diagnostics controls.' },
   { href: '/backup' as const, title: 'Backup & Restore', description: 'Protect or restore your local data.' },
   { href: '/diagnostics' as const, title: 'Diagnostics', description: 'Check local database and notification health.' },
 ];
