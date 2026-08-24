@@ -136,11 +136,11 @@ export default function HomeScreen() {
 
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>More</Text>
-            </View>
-            <View style={styles.moreGrid}>
-              <HomeLink href="/memory" label="Memory" />
-              <HomeLink href="/backup" label="Backup" />
-              <HomeLink href="/diagnostics" label="Diagnostics" />
+              <Link href="/more" asChild>
+                <Pressable accessibilityRole="button" accessibilityLabel="Open more tools" style={styles.textAction}>
+                  <Text style={styles.textActionText}>Open →</Text>
+                </Pressable>
+              </Link>
             </View>
           </>
         }
@@ -151,10 +151,6 @@ export default function HomeScreen() {
 
 function FocusCard({ label, value }: { label: string; value: number }) {
   return <View style={styles.focusCard}><Text style={styles.focusValue}>{value}</Text><Text style={styles.focusLabel}>{label}</Text></View>;
-}
-
-function HomeLink({ href, label }: { href: '/memory' | '/backup' | '/diagnostics'; label: string }) {
-  return <Link href={href} asChild><Pressable accessibilityRole="button" accessibilityLabel={label} style={styles.moreButton}><Text style={styles.moreButtonText}>{label}</Text></Pressable></Link>;
 }
 
 function TaskRow({ task, onComplete }: { task: Task; onComplete: () => void }) {
@@ -206,7 +202,4 @@ const styles = StyleSheet.create({
   taskMeta: { color: colors.textMuted, fontSize: 11, marginTop: 4, letterSpacing: 0.4 },
   memoryCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: spacing.md, marginBottom: spacing.sm },
   memoryTitle: { color: colors.textPrimary, fontSize: 15, lineHeight: 21 },
-  moreGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  moreButton: { minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: spacing.md, justifyContent: 'center' },
-  moreButtonText: { color: colors.primary, fontWeight: '700' },
 });
