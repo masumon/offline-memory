@@ -48,7 +48,9 @@ export function PrimaryNav() {
               accessibilityState={{ selected: active }}
               accessibilityLabel={label}
               hitSlop={4}
-              onPress={() => router.push(item.href as never)}
+              onPress={() => {
+                if (!active) router.replace(item.href as never);
+              }}
               style={({ pressed }) => [styles.item, expanded && styles.itemExpanded, pressed && styles.pressed]}
             >
               <View style={[styles.iconWrap, active && { backgroundColor: colors.primary }]}>
