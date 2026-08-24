@@ -42,14 +42,13 @@ export function getThemeColors(mode: 'light' | 'dark'): ThemeColors {
   return mode === 'dark' ? darkColors : lightColors;
 }
 
-// Backward-compatible light palette for legacy screens while they are migrated.
 export const colors = lightColors;
 
-// Preserve the established scale because existing screens depend on these values.
+// 4dp-based spacing scale. Existing aliases are preserved for compatibility.
 export const spacing = {
   xxs: 4,
-  xs: 4,
-  sm: 8,
+  xs: 8,
+  sm: 12,
   md: 16,
   lg: 24,
   xl: 32,
