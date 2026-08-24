@@ -5,7 +5,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { planInboxTasks } from '../src/services/planning-service';
 import { useTaskStore } from '../src/store/task.store';
 import { useAppPreferences } from '../src/app/AppPreferences';
-import { AppButton, AppCard, AppState } from '../src/ui/AppSurface';
+import { AppCard, AppState } from '../src/ui/AppSurface';
 import { AppIcon } from '../src/ui/AppIcon';
 import { spacing, typography, type ThemeColors } from '../src/theme';
 import type { Task } from '../src/types/task-model';
