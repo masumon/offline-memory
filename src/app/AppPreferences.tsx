@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from 'react';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Appearance, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
 
 type Language = 'en' | 'bn';
@@ -33,6 +33,10 @@ export function AppPreferencesProvider({ children }: PropsWithChildren) {
     void load();
     return () => { active = false; };
   }, [db]);
+
+  useEffect(() => {
+    Appearance.setColorScheme(themeMode);
+  }, [themeMode]);
 
   const persist = useCallback(async (key: string, value: string) => {
     await db.runAsync('INSERT INTO app_preferences (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, value);
