@@ -11,81 +11,24 @@ import type { TaskPriority } from '../src/types';
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
 export default function TaskEditorScreen() {
-  const db = useSQLiteContext();
-  const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const { colors, language } = useAppPreferences();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const bn = language === 'bn';
-  const [title, setTitle] = useState('');
-  const [notes, setNotes] = useState('');
-  const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
-  const [plannedDate, setPlannedDate] = useState('');
-  const [dueAt, setDueAt] = useState('');
-  const [loaded, setLoaded] = useState(!id);
-  const [saving, setSaving] = useState(false);
-  const { tasks, load, create, update, complete, remove, error } = useTaskStore();
-  const task = tasks.find((item) => item.id === id);
-
+  const db = useSQLiteContext(); const router = useRouter(); const { id } = useLocalSearchParams<{ id?: string }>();
+  const { colors, language } = useAppPreferences(); const styles = useMemo(() => makeStyles(colors), [colors]); const bn = language === 'bn';
+  const [title, setTitle] = useState(''); const [notes, setNotes] = useState(''); const [priority, setPriority] = useState<TaskPriority>('MEDIUM'); const [plannedDate, setPlannedDate] = useState(''); const [dueAt, setDueAt] = useState(''); const [loaded, setLoaded] = useState(!id); const [saving, setSaving] = useState(false);
+  const { tasks, load, create, update, complete, remove, error } = useTaskStore(); const task = tasks.find((item) => item.id === id);
   useEffect(() => { if (!id) return; const run = async () => { if (!task) await load(db); setLoaded(true); }; void run(); }, [db, id, load, task]);
-  useEffect(() => {
-    if (!task) return;
-    const timer = setTimeout(() => {
-      setTitle(task.title);
-      setNotes(task.notes ?? '');
-      setPriority(task.priority);
-      setPlannedDate(task.plannedDate ?? '');
-      setDueAt(task.dueAt ?? '');
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [task]);
-
+  useEffect(() => { if (!task) return; const timer = setTimeout(() => { setTitle(task.title); setNotes(task.notes ?? ''); setPriority(task.priority); setPlannedDate(task.plannedDate ?? ''); setDueAt(task.dueAt ?? ''); }, 0); return () => clearTimeout(timer); }, [task]);
   const save = async () => { const value = title.trim(); if (!value || saving) return; setSaving(true); try { const input = { title: value, notes: notes.trim() || null, priority, plannedDate: plannedDate.trim() || null, dueAt: dueAt.trim() || null }; const result = id ? await update(db, id, input) : await create(db, input); if (result) router.replace('/planning'); } finally { setSaving(false); } };
   const confirmDelete = () => { if (!id || saving) return; Alert.alert(bn ? 'টাস্ক মুছে ফেলবেন?' : 'Delete task?', bn ? 'এই ডিভাইস থেকে টাস্কটি স্থায়ীভাবে মুছে যাবে।' : 'This permanently removes the task from this device.', [{ text: bn ? 'বাতিল' : 'Cancel', style: 'cancel' }, { text: bn ? 'মুছুন' : 'Delete', style: 'destructive', onPress: async () => { if (await remove(db, id)) router.replace('/planning'); } }]); };
-  const markComplete = async () => { if (!saving && id && await complete(db, id)) router.replace('/planning'); };
-  const archive = async () => { if (!saving && id && await update(db, id, { status: 'ARCHIVED' })) router.replace('/planning'); };
-  const cancelTask = async () => { if (!saving && id && await update(db, id, { status: 'CANCELLED' })) router.replace('/planning'); };
-  const reopenCompleted = async () => { if (!saving && id && await update(db, id, { status: 'IN_PROGRESS' })) router.replace('/planning'); };
-  const restoreCancelled = async () => { if (!saving && id && await update(db, id, { status: 'INBOX' })) router.replace('/planning'); };
-
+  const markComplete = async () => { if (!saving && id && await complete(db, id)) router.replace('/planning'); }; const archive = async () => { if (!saving && id && await update(db, id, { status: 'ARCHIVED' })) router.replace('/planning'); }; const cancelTask = async () => { if (!saving && id && await update(db, id, { status: 'CANCELLED' })) router.replace('/planning'); }; const reopenCompleted = async () => { if (!saving && id && await update(db, id, { status: 'IN_PROGRESS' })) router.replace('/planning'); }; const restoreCancelled = async () => { if (!saving && id && await update(db, id, { status: 'INBOX' })) router.replace('/planning'); };
   if (!loaded) return <View style={styles.center}><ActivityIndicator color={colors.primary} /><Text style={styles.emptyText}>{bn ? 'টাস্ক লোড হচ্ছে…' : 'Loading task…'}</Text></View>;
   if (id && !task) return <View style={styles.center}><AppIcon name="clipboard-alert-outline" size={42} color={colors.warning} /><Text style={styles.emptyTitle}>{bn ? 'টাস্ক পাওয়া যায়নি' : 'Task not found'}</Text><Link href="/planning" asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>{bn ? 'প্ল্যানিংয়ে ফিরুন' : 'Back to planning'}</Text></Pressable></Link></View>;
-
-  const status = task?.status;
-  const canComplete = Boolean(id && status && !['COMPLETED', 'CANCELLED', 'ARCHIVED'].includes(status));
-  const canCancel = Boolean(id && status && !['COMPLETED', 'CANCELLED', 'ARCHIVED'].includes(status));
-  const canArchive = Boolean(id && status !== 'ARCHIVED');
-
+  const status = task?.status; const canComplete = Boolean(id && status && !['COMPLETED', 'CANCELLED', 'ARCHIVED'].includes(status)); const canCancel = Boolean(id && status && !['COMPLETED', 'CANCELLED', 'ARCHIVED'].includes(status)); const canArchive = Boolean(id && status !== 'ARCHIVED');
+  const cancelLinkStyle = StyleSheet.flatten([styles.secondary, saving && styles.disabled]);
   return <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-    <View style={styles.header}>
-      <Link href="/planning" asChild><Pressable accessibilityRole="button" style={styles.back}><AppIcon name="arrow-left" size={20} color={colors.primary} /><Text style={styles.backText}>{bn ? 'প্ল্যানিং' : 'Planning'}</Text></Pressable></Link>
-      <View style={styles.headerBadge}><AppIcon name={id ? 'clipboard-text-outline' : 'clipboard-plus-outline'} size={16} color={colors.primary} /><Text style={styles.headerBadgeText}>{id ? (bn ? 'টাস্ক ডিটেইল' : 'TASK DETAIL') : (bn ? 'নতুন টাস্ক' : 'NEW TASK')}</Text></View>
-      <Text style={styles.title}>{id ? (bn ? 'টাস্কের বিস্তারিত' : 'Task details') : (bn ? 'টাস্ক তৈরি করুন' : 'Create task')}</Text>
-      <Text style={styles.subtitle}>{bn ? 'লোকালি টাস্কটি পরিকল্পনা, অগ্রাধিকার ও পরিচালনা করুন।' : 'Plan, prioritize and manage this task locally.'}</Text>
-    </View>
-    <View style={styles.formCard}>
-      <Text style={styles.label}>{bn ? 'শিরোনাম' : 'Title'}</Text>
-      <TextInput value={title} onChangeText={setTitle} placeholder={bn ? 'টাস্কের শিরোনাম' : 'Task title'} placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel={bn ? 'টাস্কের শিরোনাম' : 'Task title'} />
-      <Text style={styles.label}>{bn ? 'নোট' : 'Notes'}</Text>
-      <TextInput value={notes} onChangeText={setNotes} placeholder={bn ? 'ঐচ্ছিক নোট' : 'Optional notes'} placeholderTextColor={colors.textMuted} multiline style={styles.textarea} accessibilityLabel={bn ? 'টাস্কের নোট' : 'Task notes'} />
-      <Text style={styles.label}>{bn ? 'অগ্রাধিকার' : 'Priority'}</Text>
-      <View style={styles.chips}>{PRIORITIES.map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: priority === value }} accessibilityLabel={`${bn ? 'অগ্রাধিকার' : 'Priority'} ${value}`} onPress={() => setPriority(value)} style={[styles.chip, priority === value && styles.selected]}><Text style={[styles.chipText, priority === value && styles.selectedText]}>{value}</Text></Pressable>)}</View>
-      <Text style={styles.label}>{bn ? 'পরিকল্পিত তারিখ' : 'Planned date'}</Text>
-      <TextInput value={plannedDate} onChangeText={setPlannedDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel={bn ? 'পরিকল্পিত তারিখ' : 'Planned date'} />
-      <Text style={styles.label}>{bn ? 'ডিউ তারিখ/সময়' : 'Due date/time'}</Text>
-      <TextInput value={dueAt} onChangeText={setDueAt} placeholder="YYYY-MM-DDTHH:MM:SS" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel={bn ? 'ডিউ তারিখ ও সময়' : 'Due date and time'} />
-      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      <View style={styles.actions}>
-        <Link href="/planning" asChild><Pressable disabled={saving} style={[styles.secondary, saving && styles.disabled]}><AppIcon name="close" size={19} color={colors.textSecondary} /><Text style={styles.secondaryText}>{bn ? 'বাতিল' : 'Cancel'}</Text></Pressable></Link>
-        <Pressable disabled={!title.trim() || saving} onPress={() => void save()} style={[styles.primary, (!title.trim() || saving) && styles.disabled]}>{saving ? <ActivityIndicator color={colors.onPrimary} /> : <><AppIcon name={id ? 'content-save-outline' : 'plus'} size={19} color={colors.onPrimary} /><Text style={styles.primaryText}>{id ? (bn ? 'পরিবর্তন সংরক্ষণ' : 'Save changes') : (bn ? 'টাস্ক তৈরি' : 'Create task')}</Text></>}</Pressable>
-      </View>
-      {id ? <View style={styles.secondaryActions}>
-        {canComplete ? <Pressable disabled={saving} onPress={() => void markComplete()} style={[styles.secondary, saving && styles.disabled]}><AppIcon name="check-circle-outline" size={19} color={colors.success} /><Text style={styles.secondaryText}>{bn ? 'সম্পন্ন করুন' : 'Mark complete'}</Text></Pressable> : null}
-        {canCancel ? <Pressable disabled={saving} onPress={() => void cancelTask()} style={[styles.secondary, saving && styles.disabled]}><AppIcon name="cancel" size={19} color={colors.warning} /><Text style={styles.secondaryText}>{bn ? 'বাতিল করুন' : 'Cancel task'}</Text></Pressable> : null}
-        {canArchive ? <Pressable disabled={saving} onPress={() => void archive()} style={[styles.secondary, saving && styles.disabled]}><AppIcon name="archive-outline" size={19} color={colors.textSecondary} /><Text style={styles.secondaryText}>{bn ? 'আর্কাইভ' : 'Archive'}</Text></Pressable> : null}
-        {status === 'COMPLETED' ? <Pressable disabled={saving} onPress={() => void reopenCompleted()} style={[styles.secondary, saving && styles.disabled]}><AppIcon name="backup-restore" size={19} color={colors.primary} /><Text style={styles.secondaryText}>{bn ? 'আবার খুলুন' : 'Reopen task'}</Text></Pressable> : null}
-        {status === 'CANCELLED' ? <Pressable disabled={saving} onPress={() => void restoreCancelled()} style={[styles.secondary, saving && styles.disabled]}><AppIcon name="inbox-arrow-down-outline" size={19} color={colors.primary} /><Text style={styles.secondaryText}>{bn ? 'ইনবক্সে নিন' : 'Move to inbox'}</Text></Pressable> : null}
-      </View> : null}
+    <View style={styles.header}><Link href="/planning" asChild><Pressable accessibilityRole="button" accessibilityLabel={bn ? 'প্ল্যানিংয়ে ফিরুন' : 'Back to planning'} style={styles.back}><AppIcon name="arrow-left" size={20} color={colors.primary} /><Text style={styles.backText}>{bn ? 'প্ল্যানিং' : 'Planning'}</Text></Pressable></Link><View style={styles.headerBadge}><AppIcon name={id ? 'clipboard-text-outline' : 'clipboard-plus-outline'} size={16} color={colors.primary} /><Text style={styles.headerBadgeText}>{id ? (bn ? 'টাস্ক ডিটেইল' : 'TASK DETAIL') : (bn ? 'নতুন টাস্ক' : 'NEW TASK')}</Text></View><Text style={styles.title}>{id ? (bn ? 'টাস্কের বিস্তারিত' : 'Task details') : (bn ? 'টাস্ক তৈরি করুন' : 'Create task')}</Text><Text style={styles.subtitle}>{bn ? 'লোকালি টাস্কটি পরিকল্পনা, অগ্রাধিকার ও পরিচালনা করুন।' : 'Plan, prioritize and manage this task locally.'}</Text></View>
+    <View style={styles.formCard}><Text style={styles.label}>{bn ? 'শিরোনাম' : 'Title'}</Text><TextInput value={title} onChangeText={setTitle} placeholder={bn ? 'টাস্কের শিরোনাম' : 'Task title'} placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel={bn ? 'টাস্কের শিরোনাম' : 'Task title'} /><Text style={styles.label}>{bn ? 'নোট' : 'Notes'}</Text><TextInput value={notes} onChangeText={setNotes} placeholder={bn ? 'ঐচ্ছিক নোট' : 'Optional notes'} placeholderTextColor={colors.textMuted} multiline style={styles.textarea} accessibilityLabel={bn ? 'টাস্কের নোট' : 'Task notes'} /><Text style={styles.label}>{bn ? 'অগ্রাধিকার' : 'Priority'}</Text><View style={styles.chips}>{PRIORITIES.map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: priority === value }} accessibilityLabel={`${bn ? 'অগ্রাধিকার' : 'Priority'} ${value}`} onPress={() => setPriority(value)} style={[styles.chip, priority === value && styles.selected]}><Text style={[styles.chipText, priority === value && styles.selectedText]}>{value}</Text></Pressable>)}</View><Text style={styles.label}>{bn ? 'পরিকল্পিত তারিখ' : 'Planned date'}</Text><TextInput value={plannedDate} onChangeText={setPlannedDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel={bn ? 'পরিকল্পিত তারিখ' : 'Planned date'} /><Text style={styles.label}>{bn ? 'ডিউ তারিখ/সময়' : 'Due date/time'}</Text><TextInput value={dueAt} onChangeText={setDueAt} placeholder="YYYY-MM-DDTHH:MM:SS" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel={bn ? 'ডিউ তারিখ ও সময়' : 'Due date and time'} />{error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+      <View style={styles.actions}><Link href="/planning" asChild><Pressable disabled={saving} style={cancelLinkStyle} accessibilityRole="button" accessibilityLabel={bn ? 'বাতিল' : 'Cancel'}><AppIcon name="close" size={19} color={colors.textSecondary} /><Text style={styles.secondaryText}>{bn ? 'বাতিল' : 'Cancel'}</Text></Pressable></Link><Pressable disabled={!title.trim() || saving} onPress={() => void save()} accessibilityRole="button" accessibilityState={{ disabled: !title.trim() || saving, busy: saving }} style={[styles.primary, (!title.trim() || saving) && styles.disabled]}>{saving ? <ActivityIndicator color={colors.onPrimary} /> : <><AppIcon name={id ? 'content-save-outline' : 'plus'} size={19} color={colors.onPrimary} /><Text style={styles.primaryText}>{id ? (bn ? 'পরিবর্তন সংরক্ষণ' : 'Save changes') : (bn ? 'টাস্ক তৈরি' : 'Create task')}</Text></>}</Pressable></View>
+      {id ? <View style={styles.secondaryActions}>{canComplete ? <Pressable disabled={saving} onPress={() => void markComplete()} style={[styles.secondary, saving && styles.disabled]}><AppIcon name="check-circle-outline" size={19} color={colors.success} /><Text style={styles.secondaryText}>{bn ? 'সম্পন্ন করুন' : 'Mark complete'}</Text></Pressable> : null}{canCancel ? <Pressable disabled={saving} onPress={() => void cancelTask()} style={[styles.secondary, saving && styles.disabled]}><AppIcon name="cancel" size={19} color={colors.warning} /><Text style={styles.secondaryText}>{bn ? 'বাতিল করুন' : 'Cancel task'}</Text></Pressable> : null}{canArchive ? <Pressable disabled={saving} onPress={() => void archive()} style={[styles.secondary, saving && styles.disabled]}><AppIcon name="archive-outline" size={19} color={colors.textSecondary} /><Text style={styles.secondaryText}>{bn ? 'আর্কাইভ' : 'Archive'}</Text></Pressable> : null}{status === 'COMPLETED' ? <Pressable disabled={saving} onPress={() => void reopenCompleted()} style={[styles.secondary, saving && styles.disabled]}><AppIcon name="backup-restore" size={19} color={colors.primary} /><Text style={styles.secondaryText}>{bn ? 'আবার খুলুন' : 'Reopen task'}</Text></Pressable> : null}{status === 'CANCELLED' ? <Pressable disabled={saving} onPress={() => void restoreCancelled()} style={[styles.secondary, saving && styles.disabled]}><AppIcon name="inbox-arrow-down-outline" size={19} color={colors.primary} /><Text style={styles.secondaryText}>{bn ? 'ইনবক্সে নিন' : 'Move to inbox'}</Text></Pressable> : null}</View> : null}
       {id ? <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'টাস্ক স্থায়ীভাবে মুছুন' : 'Delete task permanently'} disabled={saving} onPress={confirmDelete} style={[styles.dangerButton, saving && styles.disabled]}><AppIcon name="delete-outline" size={20} color={colors.danger} /><Text style={styles.dangerText}>{bn ? 'স্থায়ীভাবে মুছুন' : 'Delete permanently'}</Text></Pressable> : null}
     </View>
   </ScrollView>;
