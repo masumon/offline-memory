@@ -5,7 +5,9 @@ module.exports = function (api) {
     presets: ['babel-preset-expo'],
     overrides: [
       {
-        test: /node_modules[\\/]@react-native[\\/]jest-preset[\\/]jest[\\/]setup\.js$/,
+        test: (filename) => Boolean(
+          filename && /node_modules[\\/]@react-native[\\/]jest-preset[\\/]jest[\\/]setup\.js$/.test(filename),
+        ),
         presets: [['@babel/preset-typescript', { ignoreExtensions: true }]],
       },
     ],
