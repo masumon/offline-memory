@@ -18,17 +18,26 @@ export default function RemindersScreen() {
   const loadTasks = useTaskStore((state) => state.load);
 
   const refresh = useCallback(async () => {
+    await Promise.resolve();
     setError(null);
     try {
-      setStatus(await getNotificationStatus());
+      const nextStatus = await getNotificationStatus();
+      setStatus(nextStatus);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to read reminder status');
     }
   }, []);
 
   useEffect(() => {
-    void loadTasks(db);
-    void refresh();
+    let cancelled = false;
+    const run = async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+      await loadTasks(db);
+      if (!cancelled) await refresh();
+    };
+    void run();
+    return () => { cancelled = true; };
   }, [db, loadTasks, refresh]);
 
   const enableReminders = async () => {
@@ -77,11 +86,11 @@ export default function RemindersScreen() {
               : 'Allow notifications to schedule task reminders.'}
         </Text>
         {!status?.granted ? (
-          <Pressable disabled={busy} onPress={() => void enableReminders()} accessibilityRole="button" style={styles.primaryButton}>
+          <Pressable disabled={busy} onPress={() => void enableReminders()} accessibilityRole="button" accessibilityLabel="Enable and schedule reminders" style={styles.primaryButton}>
             {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>Enable & schedule reminders</Text>}
           </Pressable>
         ) : (
-          <Pressable disabled={busy} onPress={() => void enableReminders()} accessibilityRole="button" style={styles.secondaryButton}>
+          <Pressable disabled={busy} onPress={() => void enableReminders()} accessibilityRole="button" accessibilityLabel="Refresh scheduled reminders" style={styles.secondaryButton}>
             {busy ? <ActivityIndicator /> : <Text style={styles.secondaryText}>Refresh scheduled reminders</Text>}
           </Pressable>
         )}
@@ -107,28 +116,5 @@ export default function RemindersScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: colors.background, padding: spacing.xl },
-  header: { paddingTop: spacing.lg, marginBottom: spacing.xl },
-  back: { minHeight: 42, justifyContent: 'center', marginBottom: spacing.lg },
-  backText: { color: colors.primary, fontSize: 16, fontWeight: '700' },
-  eyebrow: { color: colors.primary, fontSize: typography.label.fontSize, fontWeight: '700', letterSpacing: 1.2 },
-  title: { color: colors.textPrimary, fontSize: 32, fontWeight: '800', marginTop: spacing.sm },
-  subtitle: { color: colors.textSecondary, fontSize: 15, lineHeight: 22, marginTop: spacing.sm },
-  error: { color: colors.danger, fontSize: 14, lineHeight: 21, marginBottom: spacing.md },
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: spacing.lg, marginBottom: spacing.xl },
-  cardTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '800' },
-  cardText: { color: colors.textSecondary, fontSize: 14, lineHeight: 21, marginTop: spacing.sm, marginBottom: spacing.lg },
-  primaryButton: { minHeight: 50, borderRadius: 14, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.lg },
-  primaryText: { color: colors.onPrimary, fontWeight: '800' },
-  secondaryButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.lg },
-  secondaryText: { color: colors.primary, fontWeight: '800' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
-  sectionTitle: { color: colors.textPrimary, fontSize: 19, fontWeight: '800' },
-  count: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
-  loader: { marginVertical: spacing.xl },
-  empty: { color: colors.textSecondary, fontSize: 14, lineHeight: 21, textAlign: 'center', paddingVertical: spacing.lg },
-  reminderRow: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: spacing.md, marginBottom: spacing.sm },
-  reminderBody: { gap: spacing.xs },
-  reminderTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: '700' },
-  reminderMeta: { color: colors.textMuted, fontSize: 12 },
+  container: { flexGrow: 1, backgroundColor: colors.background, padding: spacing.xl }, header: { paddingTop: spacing.lg, marginBottom: spacing.xl }, back: { minHeight: 42, justifyContent: 'center', marginBottom: spacing.lg }, backText: { color: colors.primary, fontSize: 16, fontWeight: '700' }, eyebrow: { color: colors.primary, fontSize: typography.label.fontSize, fontWeight: '700', letterSpacing: 1.2 }, title: { color: colors.textPrimary, fontSize: 32, fontWeight: '800', marginTop: spacing.sm }, subtitle: { color: colors.textSecondary, fontSize: 15, lineHeight: 22, marginTop: spacing.sm }, error: { color: colors.danger, fontSize: 14, lineHeight: 21, marginBottom: spacing.md }, card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: spacing.lg, marginBottom: spacing.xl }, cardTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '800' }, cardText: { color: colors.textSecondary, fontSize: 14, lineHeight: 21, marginTop: spacing.sm, marginBottom: spacing.lg }, primaryButton: { minHeight: 50, borderRadius: 14, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.lg }, primaryText: { color: colors.onPrimary, fontWeight: '800' }, secondaryButton: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.lg }, secondaryText: { color: colors.primary, fontWeight: '800' }, sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm }, sectionTitle: { color: colors.textPrimary, fontSize: 19, fontWeight: '800' }, count: { color: colors.textMuted, fontSize: 13, fontWeight: '700' }, loader: { marginVertical: spacing.xl }, empty: { color: colors.textSecondary, fontSize: 14, lineHeight: 21, textAlign: 'center', paddingVertical: spacing.lg }, reminderRow: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: spacing.md, marginBottom: spacing.sm }, reminderBody: { gap: spacing.xs }, reminderTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: '700' }, reminderMeta: { color: colors.textMuted, fontSize: 12 },
 });
