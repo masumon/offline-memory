@@ -6,8 +6,6 @@ import { addMemory, findMemories } from './memory-service';
 import { addTask, completeTask, findTasksByExactTitle, listTasks, rescheduleTask } from './task-service';
 import { executeAiAction, type ActionExecutionResult } from './ai-action-executor';
 
-type ExtractTask<T extends ActionExecutionResult['type']> = Extract<ActionExecutionResult, { type: T }>;
-
 function dueIso(date: string | undefined, minutes: number | undefined): string | null {
   if (!date) return null;
   const value = new Date(`${date}T00:00:00`);
@@ -16,20 +14,14 @@ function dueIso(date: string | undefined, minutes: number | undefined): string |
   return value.toISOString();
 }
 
-async function resolveTask(db: SQLiteDatabase, title: string) {
+async function resolveTask(db: SQLiteDatabase, title: string): Promise<Task> {
   const matches = (await findTasksByExactTitle(db, title)).filter((task) => task.status !== 'ARCHIVED' && task.status !== 'CANCELLED');
   if (matches.length === 0) throw new Error(`No active task found with title: ${title}`);
   if (matches.length > 1) throw new Error(`Multiple active tasks match: ${title}`);
-  return matches[0];
+  const task = matches[0];
+  if (!task) throw new Error(`No active task found with title: ${title}`);
+  return task;
 }
-
-type LocalResult =
-  | { type: 'TASK_CREATED'; task: Task }
-  | { type: 'TASK_COMPLETED'; task: Task }
-  | { type: 'TASKS_LISTED'; tasks: Task[] }
-  | { type: 'TASK_RESCHEDULED'; task: Task }
-  | { type: 'MEMORY_CREATED'; memory: Memory }
-  | { type: 'MEMORIES_FOUND'; memories: Memory[] };
 
 export type AssistantExecutionResult =
   | { type: 'TASK_CREATED'; message: string; task: Task }
