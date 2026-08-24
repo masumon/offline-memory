@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { filterMemories, restoreStoredMemory } from '../src/services/memory-service';
 import { listMemories, updateMemory } from '../src/services/memory-repository';
+import { filterMemories, restoreStoredMemory } from '../src/services/memory-service';
 
 jest.mock('../src/services/memory-repository', () => ({
   archiveMemory: jest.fn(), createMemory: jest.fn(), deleteMemory: jest.fn(), getMemory: jest.fn(),

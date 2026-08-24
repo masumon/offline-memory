@@ -41,13 +41,15 @@
     "jest-expo": "57.0.4",
     "typescript": "~6.0.3"
   },
-  "jest": {
-    "preset": "jest-expo/universal",
-    "silent": true,
-    "watchPlugins": []
-  },
   "overrides": {
     "react": "19.2.3",
     "react-dom": "19.2.3"
+  },
+  "jest": {
+    "preset": "jest-expo/universal",
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@Expo(-vector-icons)?)/)"
+    ],
+    "watchPlugins": []
   }
 }
