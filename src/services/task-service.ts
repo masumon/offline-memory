@@ -20,7 +20,8 @@ function dateKeyFromIso(value: string): string {
 }
 
 function validatePlannedDate(value: string | null | undefined): string | null | undefined {
-  if (value === undefined || value === null || value === '') return value;
+  if (value === undefined || value === null) return value;
+  if (value === '') return null;
   if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) throw new Error('Planned date must use YYYY-MM-DD format');
   const date = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
@@ -30,7 +31,8 @@ function validatePlannedDate(value: string | null | undefined): string | null | 
 }
 
 function validateDueAt(value: string | null | undefined): string | null | undefined {
-  if (value === undefined || value === null || value === '') return value;
+  if (value === undefined || value === null) return value;
+  if (value === '') return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) throw new Error('Due date/time must be a valid date and time');
   return value;
