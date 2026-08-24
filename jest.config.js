@@ -10,9 +10,12 @@ const expoTransformIgnorePatterns = [
 
 module.exports = {
   ...universalConfig,
-  projects: universalConfig.projects.map((project) => ({
-    ...project,
-    setupFiles: [require.resolve('./jest.setup.js'), ...(project.setupFiles || [])],
-    transformIgnorePatterns: expoTransformIgnorePatterns,
-  })),
+  projects: universalConfig.projects.map((project) => {
+    const { watchPlugins: _projectWatchPlugins, ...projectConfig } = project;
+    return {
+      ...projectConfig,
+      setupFiles: [require.resolve('./jest.setup.js'), ...(projectConfig.setupFiles || [])],
+      transformIgnorePatterns: expoTransformIgnorePatterns,
+    };
+  }),
 };
