@@ -8,6 +8,21 @@ Offline Memory reduces the cognitive load of remembering tasks. Core functionali
 
 The local intelligence layer uses deterministic logic, NLP, context handling, planning, and orchestration rather than external LLM APIs.
 
+## Product UX direction
+
+Offline Memory is designed as a Bengali/English, mobile-first productivity and personal-memory experience with a Bangladesh-inspired visual identity.
+
+- Bengali and English UI copy across primary product surfaces
+- Light and Dark/Night themes with persisted local preference
+- Professional five-item primary bottom navigation: Home, Planning, Memory, Inbox, More
+- Safe-area-aware layouts and accessible touch targets for varied Android screen sizes
+- Consistent cards, buttons, icons, spacing, typography, loading, empty, error and retry states
+- Offline/on-device status cues and privacy-first messaging
+- Branded splash treatment and Android adaptive-icon color system
+- Existing application functionality remains behind the UI/application-service boundary
+
+The visual system uses a restrained Bangladesh-inspired green as the primary brand color, with a warm gold accent used sparingly for emphasis. Red is reserved for destructive or urgent states rather than decorative branding.
+
 ## Current foundation
 
 - Android-first React Native application
