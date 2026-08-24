@@ -8,7 +8,9 @@ import { SchedulerBootstrap } from './SchedulerBootstrap';
 
 export function AppProviders({ children }: PropsWithChildren) {
   useEffect(() => {
-    void initializeNotifications();
+    void initializeNotifications().catch(() => {
+      // Notification setup is optional at startup; the Reminders screen can retry it explicitly.
+    });
   }, []);
 
   return (

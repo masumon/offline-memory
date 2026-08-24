@@ -18,14 +18,21 @@ export async function collectRuntimeHealth(db: SQLiteDatabase): Promise<RuntimeH
     databaseReadable = false;
   }
 
-  const permission = await Notifications.getPermissionsAsync();
-  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-  const notifications = permission.granted ? 'granted' : permission.canAskAgain ? 'undetermined' : 'denied';
-
-  return {
-    platform: Platform.OS,
-    notifications,
-    scheduledNotificationCount: scheduled.length,
-    databaseReadable,
-  };
+  try {
+    const permission = await Notifications.getPermissionsAsync();
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    return {
+      platform: Platform.OS,
+      notifications: permission.granted ? 'granted' : permission.canAskAgain ? 'undetermined' : 'denied',
+      scheduledNotificationCount: scheduled.length,
+      databaseReadable,
+    };
+  } catch {
+    return {
+      platform: Platform.OS,
+      notifications: 'undetermined',
+      scheduledNotificationCount: 0,
+      databaseReadable,
+    };
+  }
 }

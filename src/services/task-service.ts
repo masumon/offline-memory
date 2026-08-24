@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { CreateTaskInput, Task, UpdateTaskInput } from '../types/task-model';
 import type { TaskStatus } from '../types';
-import { createTask, deleteTask, findTasksByExactTitle, getTask, listTasks, updateTask } from './task-repository';
+import { createTask, deleteTask, findTasksByExactTitle, getTask, listTasks, searchTasks, updateTask } from './task-repository';
 
 const ALLOWED_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
   INBOX: ['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'ARCHIVED'],
@@ -19,9 +19,33 @@ function dateKeyFromIso(value: string): string {
   return date.toISOString().slice(0, 10);
 }
 
+function validatePlannedDate(value: string | null | undefined): string | null | undefined {
+  if (value === undefined || value === null) return value;
+  if (value === '') return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) throw new Error('Planned date must use YYYY-MM-DD format');
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new Error('Planned date must be a valid calendar date');
+  }
+  return value;
+}
+
+function validateDueAt(value: string | null | undefined): string | null | undefined {
+  if (value === undefined || value === null) return value;
+  if (value === '') return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error('Due date/time must be a valid date and time');
+  return value;
+}
+
 export async function addTask(db: SQLiteDatabase, input: CreateTaskInput): Promise<Task> {
-  const plannedDate = input.plannedDate ?? (input.dueAt ? dateKeyFromIso(input.dueAt) : null);
-  return createTask(db, { ...input, plannedDate });
+  const dueAt = validateDueAt(input.dueAt);
+  const plannedDate = input.plannedDate !== undefined
+    ? validatePlannedDate(input.plannedDate)
+    : dueAt
+      ? dateKeyFromIso(dueAt)
+      : null;
+  return createTask(db, { ...input, dueAt, plannedDate });
 }
 
 export async function editTask(db: SQLiteDatabase, id: string, input: UpdateTaskInput): Promise<Task | null> {
@@ -32,12 +56,13 @@ export async function editTask(db: SQLiteDatabase, id: string, input: UpdateTask
       throw new Error(`Invalid task status transition: ${current.status} -> ${input.status}`);
     }
   }
+  const dueAt = input.dueAt !== undefined ? validateDueAt(input.dueAt) : undefined;
   const plannedDate = input.plannedDate !== undefined
-    ? input.plannedDate
-    : input.dueAt !== undefined && input.dueAt !== null
-      ? dateKeyFromIso(input.dueAt)
+    ? validatePlannedDate(input.plannedDate)
+    : dueAt !== undefined && dueAt !== null
+      ? dateKeyFromIso(dueAt)
       : undefined;
-  return updateTask(db, id, { ...input, plannedDate });
+  return updateTask(db, id, { ...input, dueAt, plannedDate });
 }
 
 export async function completeTask(db: SQLiteDatabase, id: string): Promise<Task | null> {
@@ -51,4 +76,4 @@ export async function rescheduleTask(db: SQLiteDatabase, id: string, dueAt: stri
 
 export async function removeTask(db: SQLiteDatabase, id: string): Promise<boolean> { return deleteTask(db, id); }
 
-export { findTasksByExactTitle, getTask, listTasks, ALLOWED_TRANSITIONS };
+export { findTasksByExactTitle, getTask, listTasks, searchTasks, ALLOWED_TRANSITIONS };

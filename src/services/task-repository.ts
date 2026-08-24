@@ -45,6 +45,17 @@ export async function findTasksByExactTitle(db: SQLiteDatabase, title: string): 
   return rows.map(toTask);
 }
 
+export async function searchTasks(db: SQLiteDatabase, query: string, limit = 100): Promise<Task[]> {
+  const normalized = query.normalize('NFKC').trim().toLocaleLowerCase();
+  if (!normalized) return [];
+  const safeLimit = Math.max(1, Math.min(Math.floor(limit), 500));
+  const needle = `%${normalized}%`;
+  const rows = await db.getAllAsync<TaskRow>(`${SELECT}
+    WHERE LOWER(title) LIKE ? OR LOWER(COALESCE(notes, '')) LIKE ?
+    ORDER BY CASE WHEN LOWER(title) LIKE ? THEN 0 ELSE 1 END, updated_at DESC LIMIT ?`, needle, needle, needle, safeLimit);
+  return rows.map(toTask);
+}
+
 export async function findDueTasks(db: SQLiteDatabase, fromIso: string, toIso: string, limit = 500): Promise<Task[]> {
   const safeLimit = Math.max(1, Math.min(Math.floor(limit), 500));
   const rows = await db.getAllAsync<TaskRow>(`${SELECT}

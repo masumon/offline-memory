@@ -9,20 +9,25 @@ export async function runNotificationScheduler(
   now = new Date(),
   horizonMinutes = DEFAULT_HORIZON_MINUTES,
 ): Promise<number> {
-  if (notificationAdapter.reconcileScheduledTaskNotifications) {
-    await notificationAdapter.reconcileScheduledTaskNotifications(db, now);
-  }
-  const candidates = await getNotificationCandidates(db, now, horizonMinutes);
-  let scheduled = 0;
-  for (const candidate of candidates) {
-    try {
-      const notificationId = await notificationAdapter.scheduleTaskNotification(db, candidate);
-      if (notificationId) scheduled += 1;
-    } catch {
-      // One failed platform operation must not block other reminders.
+  try {
+    if (notificationAdapter.reconcileScheduledTaskNotifications) {
+      await notificationAdapter.reconcileScheduledTaskNotifications(db, now);
     }
+    const candidates = await getNotificationCandidates(db, now, horizonMinutes);
+    let scheduled = 0;
+    for (const candidate of candidates) {
+      try {
+        const notificationId = await notificationAdapter.scheduleTaskNotification(db, candidate);
+        if (notificationId) scheduled += 1;
+      } catch {
+        // One failed platform operation must not block other reminders.
+      }
+    }
+    return scheduled;
+  } catch {
+    // Background scheduling is best-effort and must never destabilize the app.
+    return 0;
   }
-  return scheduled;
 }
 
 export { DEFAULT_HORIZON_MINUTES };

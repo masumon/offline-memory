@@ -17,6 +17,9 @@ export function SchedulerBootstrap() {
       running.current = true;
       try {
         await runNotificationScheduler(db);
+      } catch {
+        // Background scheduling must never create an unhandled rejection or block the app.
+        // The next interval/foreground transition retries the reconciliation.
       } finally {
         running.current = false;
       }

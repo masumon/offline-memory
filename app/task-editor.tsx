@@ -6,7 +6,7 @@ import { useTaskStore } from '../src/store/task.store';
 import { colors, spacing, typography } from '../src/theme';
 import type { TaskPriority } from '../src/types';
 
-const PRIORITIES: TaskPriority[] = ['LOW', 'NORMAL', 'HIGH', 'URGENT'];
+const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
 export default function TaskEditorScreen() {
   const db = useSQLiteContext();
@@ -14,7 +14,7 @@ export default function TaskEditorScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
-  const [priority, setPriority] = useState<TaskPriority>('NORMAL');
+  const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
   const [plannedDate, setPlannedDate] = useState('');
   const [dueAt, setDueAt] = useState('');
   const [loaded, setLoaded] = useState(!id);
@@ -42,9 +42,16 @@ export default function TaskEditorScreen() {
   const markComplete = async () => { if (id && await complete(db, id)) router.replace('/planning'); };
   const archive = async () => { if (id && await update(db, id, { status: 'ARCHIVED' })) router.replace('/planning'); };
   const cancelTask = async () => { if (id && await update(db, id, { status: 'CANCELLED' })) router.replace('/planning'); };
+  const reopenCompleted = async () => { if (id && await update(db, id, { status: 'IN_PROGRESS' })) router.replace('/planning'); };
+  const restoreCancelled = async () => { if (id && await update(db, id, { status: 'INBOX' })) router.replace('/planning'); };
 
   if (!loaded) return <View style={styles.center}><Text style={styles.emptyText}>Loading task…</Text></View>;
   if (id && !task) return <View style={styles.center}><Text style={styles.emptyTitle}>Task not found</Text><Link href="/planning" asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>Back to planning</Text></Pressable></Link></View>;
+
+  const status = task?.status;
+  const canComplete = Boolean(id && status && !['COMPLETED', 'CANCELLED', 'ARCHIVED'].includes(status));
+  const canCancel = Boolean(id && status && !['COMPLETED', 'CANCELLED', 'ARCHIVED'].includes(status));
+  const canArchive = Boolean(id && status !== 'ARCHIVED');
 
   return <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><Link href="/planning" asChild><Pressable accessibilityRole="button" style={styles.back}><Text style={styles.backText}>‹ Planning</Text></Pressable></Link><Text style={styles.eyebrow}>{id ? 'TASK DETAIL' : 'NEW TASK'}</Text><Text style={styles.title}>{id ? 'Task details' : 'Create task'}</Text><Text style={styles.subtitle}>Plan, prioritize and manage this task locally.</Text></View>
@@ -56,7 +63,13 @@ export default function TaskEditorScreen() {
       <Text style={styles.label}>Due date/time</Text><TextInput value={dueAt} onChangeText={setDueAt} placeholder="ISO date/time, e.g. 2026-08-25T09:00:00" placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel="Due date and time" />
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       <View style={styles.actions}><Link href="/planning" asChild><Pressable style={styles.secondary}><Text style={styles.secondaryText}>Cancel</Text></Pressable></Link><Pressable disabled={!title.trim()} onPress={() => void save()} style={[styles.primary, !title.trim() && styles.disabled]}><Text style={styles.primaryText}>{id ? 'Save changes' : 'Create task'}</Text></Pressable></View>
-      {id ? <View style={styles.secondaryActions}><Pressable onPress={() => void markComplete()} style={styles.secondary}><Text style={styles.secondaryText}>Mark complete</Text></Pressable><Pressable onPress={() => void cancelTask()} style={styles.secondary}><Text style={styles.secondaryText}>Cancel task</Text></Pressable><Pressable onPress={() => void archive()} style={styles.secondary}><Text style={styles.secondaryText}>Archive</Text></Pressable></View> : null}
+      {id ? <View style={styles.secondaryActions}>
+        {canComplete ? <Pressable onPress={() => void markComplete()} style={styles.secondary}><Text style={styles.secondaryText}>Mark complete</Text></Pressable> : null}
+        {canCancel ? <Pressable onPress={() => void cancelTask()} style={styles.secondary}><Text style={styles.secondaryText}>Cancel task</Text></Pressable> : null}
+        {canArchive ? <Pressable onPress={() => void archive()} style={styles.secondary}><Text style={styles.secondaryText}>Archive</Text></Pressable> : null}
+        {status === 'COMPLETED' ? <Pressable onPress={() => void reopenCompleted()} style={styles.secondary}><Text style={styles.secondaryText}>Reopen task</Text></Pressable> : null}
+        {status === 'CANCELLED' ? <Pressable onPress={() => void restoreCancelled()} style={styles.secondary}><Text style={styles.secondaryText}>Move to inbox</Text></Pressable> : null}
+      </View> : null}
       {id ? <Pressable onPress={confirmDelete} style={styles.dangerButton}><Text style={styles.dangerText}>Delete permanently</Text></Pressable> : null}
     </View>
   </ScrollView>;
