@@ -5,7 +5,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useTaskStore } from '../src/store/task.store';
 import { useAppPreferences } from '../src/app/AppPreferences';
 import { AppIcon } from '../src/ui/AppIcon';
-import { elevation, spacing, typography, type ThemeColors } from '../src/theme';
+import { elevation, spacing, type ThemeColors } from '../src/theme';
 import type { TaskPriority } from '../src/types';
 
 const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
@@ -28,7 +28,17 @@ export default function TaskEditorScreen() {
   const task = tasks.find((item) => item.id === id);
 
   useEffect(() => { if (!id) return; const run = async () => { if (!task) await load(db); setLoaded(true); }; void run(); }, [db, id, load, task]);
-  useEffect(() => { if (!task) return; setTitle(task.title); setNotes(task.notes ?? ''); setPriority(task.priority); setPlannedDate(task.plannedDate ?? ''); setDueAt(task.dueAt ?? ''); }, [task]);
+  useEffect(() => {
+    if (!task) return;
+    const timer = setTimeout(() => {
+      setTitle(task.title);
+      setNotes(task.notes ?? '');
+      setPriority(task.priority);
+      setPlannedDate(task.plannedDate ?? '');
+      setDueAt(task.dueAt ?? '');
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [task]);
 
   const save = async () => { const value = title.trim(); if (!value || saving) return; setSaving(true); try { const input = { title: value, notes: notes.trim() || null, priority, plannedDate: plannedDate.trim() || null, dueAt: dueAt.trim() || null }; const result = id ? await update(db, id, input) : await create(db, input); if (result) router.replace('/planning'); } finally { setSaving(false); } };
   const confirmDelete = () => { if (!id || saving) return; Alert.alert(bn ? 'টাস্ক মুছে ফেলবেন?' : 'Delete task?', bn ? 'এই ডিভাইস থেকে টাস্কটি স্থায়ীভাবে মুছে যাবে।' : 'This permanently removes the task from this device.', [{ text: bn ? 'বাতিল' : 'Cancel', style: 'cancel' }, { text: bn ? 'মুছুন' : 'Delete', style: 'destructive', onPress: async () => { if (await remove(db, id)) router.replace('/planning'); } }]); };
@@ -53,7 +63,6 @@ export default function TaskEditorScreen() {
       <Text style={styles.title}>{id ? (bn ? 'টাস্কের বিস্তারিত' : 'Task details') : (bn ? 'টাস্ক তৈরি করুন' : 'Create task')}</Text>
       <Text style={styles.subtitle}>{bn ? 'লোকালি টাস্কটি পরিকল্পনা, অগ্রাধিকার ও পরিচালনা করুন।' : 'Plan, prioritize and manage this task locally.'}</Text>
     </View>
-
     <View style={styles.formCard}>
       <Text style={styles.label}>{bn ? 'শিরোনাম' : 'Title'}</Text>
       <TextInput value={title} onChangeText={setTitle} placeholder={bn ? 'টাস্কের শিরোনাম' : 'Task title'} placeholderTextColor={colors.textMuted} style={styles.input} accessibilityLabel={bn ? 'টাস্কের শিরোনাম' : 'Task title'} />
