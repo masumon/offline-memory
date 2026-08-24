@@ -25,11 +25,15 @@ export function AppPreferencesProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     let active = true;
     const load = async () => {
-      const rows = await db.getAllAsync<{ key: string; value: string }>("SELECT key, value FROM app_preferences WHERE key IN ('language', 'themeMode')");
-      if (!active) return;
-      for (const row of rows) {
-        if (row.key === 'language' && (row.value === 'en' || row.value === 'bn')) setLanguageState(row.value);
-        if (row.key === 'themeMode' && (row.value === 'light' || row.value === 'dark')) setThemeModeState(row.value);
+      try {
+        const rows = await db.getAllAsync<{ key: string; value: string }>("SELECT key, value FROM app_preferences WHERE key IN ('language', 'themeMode')");
+        if (!active) return;
+        for (const row of rows) {
+          if (row.key === 'language' && (row.value === 'en' || row.value === 'bn')) setLanguageState(row.value);
+          if (row.key === 'themeMode' && (row.value === 'light' || row.value === 'dark')) setThemeModeState(row.value);
+        }
+      } catch {
+        // Preferences are non-critical; safe defaults remain active.
       }
     };
     void load();
@@ -45,14 +49,26 @@ export function AppPreferencesProvider({ children }: PropsWithChildren) {
   }, [db]);
 
   const setLanguage = useCallback(async (value: Language) => {
+    const previous = language;
     setLanguageState(value);
-    await persist('language', value);
-  }, [persist]);
+    try {
+      await persist('language', value);
+    } catch {
+      setLanguageState(previous);
+      throw new Error('Could not save language preference');
+    }
+  }, [language, persist]);
 
   const setThemeMode = useCallback(async (value: ThemeMode) => {
+    const previous = themeMode;
     setThemeModeState(value);
-    await persist('themeMode', value);
-  }, [persist]);
+    try {
+      await persist('themeMode', value);
+    } catch {
+      setThemeModeState(previous);
+      throw new Error('Could not save theme preference');
+    }
+  }, [persist, themeMode]);
 
   const colors = useMemo(() => getThemeColors(themeMode), [themeMode]);
   const value = useMemo(() => ({ language, themeMode, colors, setLanguage, setThemeMode }), [language, themeMode, colors, setLanguage, setThemeMode]);
