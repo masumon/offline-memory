@@ -12,13 +12,19 @@ export default function DiagnosticsScreen() {
   const [report, setReport] = useState<DiagnosticsReport | null>(null);
   const [runtime, setRuntime] = useState<RuntimeHealth | null>(null);
   const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const check = async () => {
     setRunning(true);
+    setError(null);
     try {
       const [diagnostics, health] = await Promise.all([runDiagnostics(db), collectRuntimeHealth(db)]);
       setReport(diagnostics);
       setRuntime(health);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to run device diagnostics');
+      setReport(null);
+      setRuntime(null);
     } finally {
       setRunning(false);
     }
@@ -30,11 +36,12 @@ export default function DiagnosticsScreen() {
       <Text style={styles.eyebrow}>M8 · QA</Text>
       <Text style={styles.title}>Device diagnostics</Text>
       <Text style={styles.subtitle}>Verify the local database and Android reminder layer without sending data to a server.</Text>
-      <Pressable disabled={running} accessibilityRole="button" accessibilityLabel="Run device diagnostics" onPress={() => void check()} style={styles.primaryButton}>
+      <Pressable disabled={running} accessibilityRole="button" accessibilityLabel="Run device diagnostics" onPress={() => void check()} style={[styles.primaryButton, running && styles.disabled]}>
         {running ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>Run diagnostics</Text>}
       </Pressable>
+      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       {runtime ? <View style={styles.runtime}><Text style={styles.runtimeTitle}>Runtime</Text><Text style={styles.runtimeText}>Platform: {runtime.platform}</Text><Text style={styles.runtimeText}>Database: {runtime.databaseReadable ? 'Readable' : 'Unavailable'}</Text><Text style={styles.runtimeText}>Notifications: {runtime.notifications}</Text><Text style={styles.runtimeText}>Scheduled reminders: {runtime.scheduledNotificationCount}</Text></View> : null}
-      {report ? <View style={styles.results}><Text style={[styles.summary, report.ok ? styles.ok : styles.fail]}>{report.ok ? 'All checks passed' : 'Action required'}</Text>{report.checks.map((item) => <View key={item.id} style={styles.card}><Text style={styles.cardTitle}>{item.ok ? '✓' : '!'} {item.label}</Text><Text style={styles.cardText}>{item.detail}</Text></View>)}<Text style={styles.timestamp}>Checked {new Date(report.generatedAt).toLocaleString()}</Text></View> : <Text style={styles.hint}>Run the check after installing the Android build to validate the device environment.</Text>}
+      {report ? <View style={styles.results}><Text style={[styles.summary, report.ok ? styles.ok : styles.fail]}>{report.ok ? 'All checks passed' : 'Action required'}</Text>{report.checks.map((item) => <View key={item.id} style={styles.card}><Text style={styles.cardTitle}>{item.ok ? '✓' : '!'} {item.label}</Text><Text style={styles.cardText}>{item.detail}</Text></View>)}<Text style={styles.timestamp}>Checked {new Date(report.generatedAt).toLocaleString()}</Text></View> : !error ? <Text style={styles.hint}>Run the check after installing the Android build to validate the device environment.</Text> : null}
     </ScrollView>
   );
 }
@@ -47,6 +54,8 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textSecondary, fontSize: 15, lineHeight: 22, marginTop: spacing.sm },
   primaryButton: { minHeight: 50, borderRadius: 14, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginTop: spacing.xl },
   primaryText: { color: colors.onPrimary, fontWeight: '800' },
+  disabled: { opacity: 0.6 },
+  error: { color: colors.danger, fontSize: 14, lineHeight: 21, marginTop: spacing.md },
   runtime: { marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16 },
   runtimeTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '800', marginBottom: spacing.sm },
   runtimeText: { color: colors.textSecondary, fontSize: 14, lineHeight: 22 },
