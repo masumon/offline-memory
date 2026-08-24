@@ -20,6 +20,11 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "root": "app"
+      }
     }
   }
 }
