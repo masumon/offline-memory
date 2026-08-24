@@ -6,60 +6,9 @@ import { searchAll, type UnifiedSearchResult } from '../src/services/unified-sea
 import { colors, spacing, typography } from '../src/theme';
 
 export default function SearchScreen() {
-  const db = useSQLiteContext();
-  const [query, setQuery] = useState('');
-  const [result, setResult] = useState<UnifiedSearchResult>({ tasks: [], memories: [] });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const value = query.trim();
-    if (!value) { setResult({ tasks: [], memories: [] }); setError(null); return; }
-    const timer = setTimeout(() => {
-      setLoading(true); setError(null);
-      void searchAll(db, value).then(setResult).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to search local data')).finally(() => setLoading(false));
-    }, 180);
-    return () => clearTimeout(timer);
-  }, [db, query]);
-
-  return <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-    <View style={styles.header}>
-      <Link href="/" asChild><Pressable accessibilityRole="button" style={styles.back}><Text style={styles.backText}>‹ Home</Text></Pressable></Link>
-      <Text style={styles.eyebrow}>SEARCH</Text>
-      <Text style={styles.title}>Find anything</Text>
-      <Text style={styles.subtitle}>Search tasks and active memories stored on this device.</Text>
-    </View>
-    <TextInput value={query} onChangeText={setQuery} placeholder="Search tasks and memories" placeholderTextColor={colors.textMuted} autoFocus style={styles.input} accessibilityLabel="Search tasks and memories" />
-    {loading ? <ActivityIndicator style={styles.loader} /> : null}
-    {error ? <Text style={styles.error}>{error}</Text> : null}
-    {query.trim() && !loading && !result.tasks.length && !result.memories.length && !error ? <Text style={styles.empty}>No matching local data.</Text> : null}
-    {result.tasks.length ? <Section title={`Tasks · ${result.tasks.length}`}>
-      {result.tasks.map((task) => <Link key={task.id} href="/planning" asChild><Pressable accessibilityRole="button" style={styles.resultCard}><Text style={styles.resultTitle}>{task.title}</Text><Text style={styles.meta}>{task.status} · {task.priority}</Text></Pressable></Link>)}
-    </Section> : null}
-    {result.memories.length ? <Section title={`Memories · ${result.memories.length}`}>
-      {result.memories.map((memory) => <Link key={memory.id} href={{ pathname: '/memory-editor', params: { id: memory.id } }} asChild><Pressable accessibilityRole="button" style={styles.resultCard}><Text style={styles.resultTitle} numberOfLines={3}>{memory.content}</Text><Text style={styles.meta}>{memory.kind} · importance {memory.importance}</Text></Pressable></Link>)}
-    </Section> : null}
-  </ScrollView>;
+  const db = useSQLiteContext(); const [query, setQuery] = useState(''); const [result, setResult] = useState<UnifiedSearchResult>({ tasks: [], memories: [] }); const [loading, setLoading] = useState(false); const [error, setError] = useState<string | null>(null);
+  useEffect(() => { const value = query.trim(); if (!value) { setResult({ tasks: [], memories: [] }); setError(null); return; } const timer = setTimeout(() => { setLoading(true); setError(null); void searchAll(db, value).then(setResult).catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to search local data')).finally(() => setLoading(false)); }, 180); return () => clearTimeout(timer); }, [db, query]);
+  return <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><View style={styles.header}><Link href="/" asChild><Pressable accessibilityRole="button" style={styles.back}><Text style={styles.backText}>‹ Home</Text></Pressable></Link><Text style={styles.eyebrow}>SEARCH</Text><View style={styles.titleRow}><View style={styles.titleCopy}><Text style={styles.title}>Find anything</Text><Text style={styles.subtitle}>Search tasks and active memories stored on this device.</Text></View><Link href="/task-editor" asChild><Pressable accessibilityRole="button" accessibilityLabel="Create new task" style={styles.addButton}><Text style={styles.addText}>Task</Text></Pressable></Link></View></View><TextInput value={query} onChangeText={setQuery} placeholder="Search tasks and memories" placeholderTextColor={colors.textMuted} autoFocus style={styles.input} accessibilityLabel="Search tasks and memories"/>{loading ? <ActivityIndicator style={styles.loader}/> : null}{error ? <Text style={styles.error}>{error}</Text> : null}{query.trim() && !loading && !result.tasks.length && !result.memories.length && !error ? <Text style={styles.empty}>No matching local data.</Text> : null}{result.tasks.length ? <Section title={`Tasks · ${result.tasks.length}`}>{result.tasks.map((task) => <Link key={task.id} href={{ pathname: '/task-editor', params: { id: task.id } }} asChild><Pressable accessibilityRole="button" accessibilityLabel={`Open task ${task.title}`} style={styles.resultCard}><Text style={styles.resultTitle}>{task.title}</Text><Text style={styles.meta}>{task.status} · {task.priority}</Text></Pressable></Link>)}</Section> : null}{result.memories.length ? <Section title={`Memories · ${result.memories.length}`}>{result.memories.map((memory) => <Link key={memory.id} href={{ pathname: '/memory-editor', params: { id: memory.id } }} asChild><Pressable accessibilityRole="button" accessibilityLabel={`Open memory ${memory.content.slice(0, 60)}`} style={styles.resultCard}><Text style={styles.resultTitle} numberOfLines={3}>{memory.content}</Text><Text style={styles.meta}>{memory.kind} · importance {memory.importance}</Text></Pressable></Link>)}</Section> : null}</ScrollView>;
 }
-
 function Section({ title, children }: { title: string; children: ReactNode }) { return <View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text>{children}</View>; }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.xl, paddingBottom: spacing.xl * 2 },
-  header: { paddingTop: spacing.lg, marginBottom: spacing.lg },
-  back: { minHeight: 42, justifyContent: 'center', marginBottom: spacing.lg },
-  backText: { color: colors.primary, fontSize: 16, fontWeight: '700' },
-  eyebrow: { color: colors.primary, fontSize: typography.label.fontSize, fontWeight: '700', letterSpacing: 1.2 },
-  title: { color: colors.textPrimary, fontSize: 34, fontWeight: '800', marginTop: spacing.sm },
-  subtitle: { color: colors.textSecondary, fontSize: 15, lineHeight: 22, marginTop: spacing.sm },
-  input: { minHeight: 52, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, color: colors.textPrimary, paddingHorizontal: spacing.md, fontSize: 16 },
-  loader: { marginTop: spacing.lg },
-  error: { color: colors.danger, marginTop: spacing.md },
-  empty: { color: colors.textSecondary, textAlign: 'center', paddingVertical: spacing.xl },
-  section: { marginTop: spacing.xl },
-  sectionTitle: { color: colors.textPrimary, fontSize: 19, fontWeight: '800', marginBottom: spacing.sm },
-  resultCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: spacing.md, marginBottom: spacing.sm },
-  resultTitle: { color: colors.textPrimary, fontSize: 15, lineHeight: 21, fontWeight: '600' },
-  meta: { color: colors.textMuted, fontSize: 11, marginTop: spacing.xs },
-});
+const styles=StyleSheet.create({container:{flex:1,backgroundColor:colors.background},content:{padding:spacing.xl,paddingBottom:spacing.xl*2},header:{paddingTop:spacing.lg,marginBottom:spacing.lg},back:{minHeight:42,justifyContent:'center',marginBottom:spacing.lg},backText:{color:colors.primary,fontSize:16,fontWeight:'700'},eyebrow:{color:colors.primary,fontSize:typography.label.fontSize,fontWeight:'700',letterSpacing:1.2},titleRow:{flexDirection:'row',alignItems:'center',gap:spacing.md},titleCopy:{flex:1},title:{color:colors.textPrimary,fontSize:34,fontWeight:'800',marginTop:spacing.sm},subtitle:{color:colors.textSecondary,fontSize:15,lineHeight:22,marginTop:spacing.sm},addButton:{minHeight:44,minWidth:62,paddingHorizontal:spacing.md,borderRadius:12,backgroundColor:colors.primary,justifyContent:'center',alignItems:'center'},addText:{color:colors.onPrimary,fontWeight:'800'},input:{minHeight:52,borderWidth:1,borderColor:colors.border,borderRadius:14,backgroundColor:colors.surface,color:colors.textPrimary,paddingHorizontal:spacing.md,fontSize:16},loader:{marginTop:spacing.lg},error:{color:colors.danger,marginTop:spacing.md},empty:{color:colors.textSecondary,textAlign:'center',paddingVertical:spacing.xl},section:{marginTop:spacing.xl},sectionTitle:{color:colors.textPrimary,fontSize:19,fontWeight:'800',marginBottom:spacing.sm},resultCard:{backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:16,padding:spacing.md,marginBottom:spacing.sm},resultTitle:{color:colors.textPrimary,fontSize:15,lineHeight:21,fontWeight:'600'},meta:{color:colors.textMuted,fontSize:11,marginTop:spacing.xs}});
