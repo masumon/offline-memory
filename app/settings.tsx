@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-nat
 import { useMemo } from 'react';
 import { useAppPreferences } from '../src/app/AppPreferences';
 import { AppIcon } from '../src/ui/AppIcon';
+import { AppCard } from '../src/ui/AppSurface';
 import { elevation, spacing, typography, type ThemeColors } from '../src/theme';
 
 const items = [
@@ -31,28 +32,28 @@ export default function SettingsScreen() {
         <Text style={styles.subtitle}>{copy.subtitle}</Text>
       </View>
 
-      <View style={styles.localCard}>
+      <AppCard style={styles.localCard}>
         <View style={styles.localIcon}><AppIcon name="shield-check-outline" size={25} color={colors.success} /></View>
         <View style={styles.localCopy}><Text style={styles.localTitle}>{copy.localTitle}</Text><Text style={styles.localText}>{copy.localText}</Text></View>
         <Text style={styles.localStatus}>{copy.online}</Text>
-      </View>
+      </AppCard>
 
       <Text style={styles.section}>{copy.appearance}</Text>
-      <View style={styles.preferenceCard}>
+      <AppCard style={styles.preferenceCard}>
         <View style={styles.preferenceRow}>
           <View style={styles.rowIcon}><AppIcon name={dark ? 'weather-night' : 'weather-sunny'} size={22} color={colors.primary} /></View>
           <View style={styles.preferenceCopy}><Text style={styles.cardTitle}>{copy.darkMode}</Text><Text style={styles.cardDescription}>{copy.darkDescription}</Text></View>
           <Switch value={dark} onValueChange={(value) => void setThemeMode(value ? 'dark' : 'light')} accessibilityLabel={copy.darkMode} trackColor={{ false: colors.border, true: colors.primary }} thumbColor={dark ? colors.onPrimary : '#FFFFFF'} />
         </View>
-      </View>
+      </AppCard>
 
-      <View style={styles.preferenceCard}>
+      <AppCard style={styles.preferenceCard}>
         <View style={styles.rowHeading}><View style={styles.rowIcon}><AppIcon name="translate" size={22} color={colors.primary} /></View><Text style={styles.cardTitle}>{copy.language}</Text></View>
         <View style={styles.segmented}>
           <Pressable accessibilityRole="button" accessibilityState={{ selected: language === 'bn' }} onPress={() => void setLanguage('bn')} style={[styles.segment, language === 'bn' && styles.segmentActive]}><Text style={[styles.segmentText, language === 'bn' && styles.segmentTextActive]}>{copy.bengali}</Text></Pressable>
           <Pressable accessibilityRole="button" accessibilityState={{ selected: language === 'en' }} onPress={() => void setLanguage('en')} style={[styles.segment, language === 'en' && styles.segmentActive]}><Text style={[styles.segmentText, language === 'en' && styles.segmentTextActive]}>{copy.english}</Text></Pressable>
         </View>
-      </View>
+      </AppCard>
 
       <Text style={styles.section}>{copy.section}</Text>
       <View style={styles.list}>{items.map((item) => <Link key={item.href} href={item.href} asChild><Pressable accessibilityRole="button" style={styles.card}><View style={styles.cardIcon}><AppIcon name={item.icon} size={22} color={colors.primary} /></View><View style={styles.cardCopy}><Text style={styles.cardTitle}>{bn ? item.bnTitle : item.title}</Text><Text style={styles.cardDescription}>{bn ? item.bnDescription : item.description}</Text></View><AppIcon name="chevron-right" size={22} color={colors.textMuted} /></Pressable></Link>)}</View>
@@ -62,6 +63,6 @@ export default function SettingsScreen() {
 
 function makeStyles(colors: ThemeColors) {
   return StyleSheet.create({
-    container:{flex:1,backgroundColor:colors.background},content:{paddingHorizontal:spacing.lg,paddingTop:spacing.md,paddingBottom:spacing.xxl},header:{paddingTop:spacing.sm,marginBottom:spacing.lg},back:{minHeight:44,flexDirection:'row',alignItems:'center',gap:4,marginBottom:spacing.md},backText:{color:colors.primary,fontSize:16,fontWeight:'800'},eyebrow:{color:colors.primary,fontSize:typography.label.fontSize,fontWeight:'900',letterSpacing:1.4},title:{color:colors.textPrimary,fontSize:36,fontWeight:'900',marginTop:spacing.sm},subtitle:{color:colors.textSecondary,fontSize:15,lineHeight:22,marginTop:spacing.sm},localCard:{borderWidth:1,borderColor:colors.border,borderRadius:20,backgroundColor:colors.surface,padding:spacing.lg,marginBottom:spacing.lg,...elevation.card},localIcon:{width:48,height:48,borderRadius:16,backgroundColor:colors.surfaceMuted,alignItems:'center',justifyContent:'center'},localCopy:{marginTop:spacing.md},localTitle:{color:colors.textPrimary,fontSize:18,fontWeight:'900'},localText:{color:colors.textSecondary,fontSize:13,lineHeight:20,marginTop:spacing.xs},localStatus:{color:colors.success,fontSize:11,fontWeight:'800',marginTop:spacing.md},section:{color:colors.textMuted,fontSize:11,fontWeight:'900',letterSpacing:1.2,marginBottom:spacing.sm,marginTop:spacing.sm},preferenceCard:{backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:18,padding:spacing.md,marginBottom:spacing.sm,...elevation.card},preferenceRow:{minHeight:64,flexDirection:'row',alignItems:'center',gap:spacing.md},preferenceCopy:{flex:1},rowHeading:{flexDirection:'row',alignItems:'center',gap:spacing.sm},rowIcon:{width:40,height:40,borderRadius:12,backgroundColor:colors.surfaceMuted,alignItems:'center',justifyContent:'center'},card:{minHeight:82,flexDirection:'row',alignItems:'center',gap:spacing.md,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:18,padding:spacing.md,...elevation.card},cardIcon:{width:44,height:44,borderRadius:14,backgroundColor:colors.surfaceMuted,alignItems:'center',justifyContent:'center'},cardCopy:{flex:1},cardTitle:{color:colors.textPrimary,fontSize:16,fontWeight:'800'},cardDescription:{color:colors.textSecondary,fontSize:13,lineHeight:19,marginTop:spacing.xs},list:{gap:spacing.sm},segmented:{flexDirection:'row',gap:spacing.xs,marginTop:spacing.md,padding:4,borderRadius:14,backgroundColor:colors.surfaceMuted},segment:{flex:1,minHeight:44,borderRadius:10,alignItems:'center',justifyContent:'center'},segmentActive:{backgroundColor:colors.primary},segmentText:{color:colors.textSecondary,fontSize:13,fontWeight:'800'},segmentTextActive:{color:colors.onPrimary}
+    container:{flex:1,backgroundColor:colors.background},content:{paddingHorizontal:spacing.lg,paddingTop:spacing.md,paddingBottom:spacing.xxl},header:{paddingTop:spacing.sm,marginBottom:spacing.lg},back:{minHeight:44,flexDirection:'row',alignItems:'center',gap:4,marginBottom:spacing.md},backText:{color:colors.primary,fontSize:16,fontWeight:'800'},eyebrow:{color:colors.primary,fontSize:typography.label.fontSize,fontWeight:'900',letterSpacing:1.4},title:{color:colors.textPrimary,fontSize:36,fontWeight:'900',marginTop:spacing.sm},subtitle:{color:colors.textSecondary,fontSize:15,lineHeight:22,marginTop:spacing.sm},localCard:{marginBottom:spacing.lg},localIcon:{width:48,height:48,borderRadius:16,backgroundColor:colors.surfaceMuted,alignItems:'center',justifyContent:'center'},localCopy:{marginTop:spacing.md},localTitle:{color:colors.textPrimary,fontSize:18,fontWeight:'900'},localText:{color:colors.textSecondary,fontSize:13,lineHeight:20,marginTop:spacing.xs},localStatus:{color:colors.success,fontSize:11,fontWeight:'800',marginTop:spacing.md},section:{color:colors.textMuted,fontSize:11,fontWeight:'900',letterSpacing:1.2,marginBottom:spacing.sm,marginTop:spacing.sm},preferenceCard:{marginBottom:spacing.sm},preferenceRow:{minHeight:64,flexDirection:'row',alignItems:'center',gap:spacing.md},preferenceCopy:{flex:1},rowHeading:{flexDirection:'row',alignItems:'center',gap:spacing.sm},rowIcon:{width:40,height:40,borderRadius:12,backgroundColor:colors.surfaceMuted,alignItems:'center',justifyContent:'center'},card:{minHeight:82,flexDirection:'row',alignItems:'center',gap:spacing.md,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:18,padding:spacing.md,...elevation.card},cardIcon:{width:44,height:44,borderRadius:14,backgroundColor:colors.surfaceMuted,alignItems:'center',justifyContent:'center'},cardCopy:{flex:1},cardTitle:{color:colors.textPrimary,fontSize:16,fontWeight:'800'},cardDescription:{color:colors.textSecondary,fontSize:13,lineHeight:19,marginTop:spacing.xs},list:{gap:spacing.sm},segmented:{flexDirection:'row',gap:spacing.xs,marginTop:spacing.md,padding:4,borderRadius:14,backgroundColor:colors.surfaceMuted},segment:{flex:1,minHeight:44,borderRadius:10,alignItems:'center',justifyContent:'center'},segmentActive:{backgroundColor:colors.primary},segmentText:{color:colors.textSecondary,fontSize:13,fontWeight:'800'},segmentTextActive:{color:colors.onPrimary}
   });
 }
