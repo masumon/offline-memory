@@ -46,13 +46,16 @@ export default function HomeScreen() {
     return { overdue: overdue.length, dueToday: dueToday.length, highPriority: highPriority.length };
   }, [tasks, today, todayKey]);
 
-  const recentTasks = tasks.filter((task) => task.status !== 'ARCHIVED').slice(0, 5);
+  const todayTasks = useMemo(() => tasks.filter((task) => {
+    if (task.status === 'ARCHIVED' || task.status === 'CANCELLED') return false;
+    return task.dueAt?.slice(0, 10) === todayKey || task.plannedDate === todayKey || task.status === 'INBOX' || task.status === 'IN_PROGRESS';
+  }).slice(0, 5), [tasks, todayKey]);
   const recentMemories = memories.slice(0, 3);
 
   return (
     <View style={styles.container}>
       <FlatList
-        data={recentTasks}
+        data={todayTasks}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
         ListHeaderComponent={
@@ -74,11 +77,11 @@ export default function HomeScreen() {
                 value={title}
                 onChangeText={setTitle}
                 onSubmitEditing={() => void handleCreate()}
-                placeholder="What do you need to do or remember?"
+                placeholder="What do you need to do?"
                 placeholderTextColor={colors.textMuted}
                 returnKeyType="done"
                 style={styles.input}
-                accessibilityLabel="Quick capture"
+                accessibilityLabel="Quick capture task"
               />
               <Pressable accessibilityRole="button" accessibilityLabel="Add task" onPress={() => void handleCreate()} style={styles.addButton}>
                 <Text style={styles.addButtonText}>Add</Text>
@@ -113,7 +116,7 @@ export default function HomeScreen() {
         }
         renderItem={({ item }) => <TaskRow task={item} onComplete={() => void complete(db, item.id)} />}
         ListEmptyComponent={
-          isLoading ? <ActivityIndicator style={styles.loader} /> : <Text style={styles.empty}>No tasks yet. Use Quick Capture above to add your first task.</Text>
+          isLoading ? <ActivityIndicator style={styles.loader} /> : <Text style={styles.empty}>No tasks for today. Use Quick Capture above to add one.</Text>
         }
         ListFooterComponent={
           <>
@@ -192,7 +195,6 @@ const styles = StyleSheet.create({
   focusValue: { color: colors.textPrimary, fontSize: 24, fontWeight: '800' },
   focusLabel: { color: colors.textSecondary, fontSize: 12, marginTop: spacing.xs },
   loader: { marginVertical: spacing.lg },
-  list: { paddingBottom: spacing.sm },
   empty: { color: colors.textSecondary, textAlign: 'center', fontSize: 14, paddingVertical: spacing.lg },
   taskRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: spacing.md, marginBottom: spacing.sm },
   checkbox: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
