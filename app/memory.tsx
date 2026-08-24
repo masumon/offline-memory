@@ -9,15 +9,17 @@ import type { Memory } from '../src/types/memory-model';
 export default function MemoryScreen() {
   const db = useSQLiteContext();
   const [query, setQuery] = useState('');
-  const { memories, isLoading, error, load, search, archive, remove } = useMemoryStore();
+  const [showArchived, setShowArchived] = useState(false);
+  const { memories, isLoading, error, load, loadArchived, search, archive, restore, remove } = useMemoryStore();
 
-  useEffect(() => { void load(db); }, [db, load]);
+  useEffect(() => { void (showArchived ? loadArchived(db) : load(db)); }, [db, load, loadArchived, showArchived]);
   useEffect(() => {
+    if (showArchived) return;
     const value = query.trim();
     if (!value) { void load(db); return; }
     const timer = setTimeout(() => void search(db, value), 180);
     return () => clearTimeout(timer);
-  }, [db, query, load, search]);
+  }, [db, query, load, search, showArchived]);
 
   const confirmDelete = (memory: Memory) => Alert.alert(
     'Delete memory?',
@@ -33,27 +35,31 @@ export default function MemoryScreen() {
           <Text style={styles.eyebrow}>MEMORY</Text>
         </View>
         <View style={styles.titleRow}>
-          <View style={styles.titleCopy}><Text style={styles.title}>Your memory</Text><Text style={styles.subtitle}>Private notes and facts stay on this device.</Text></View>
-          <Link href="/memory-editor" asChild><Pressable accessibilityRole="button" accessibilityLabel="Add memory" style={styles.addButton}><Text style={styles.addButtonText}>Add</Text></Pressable></Link>
+          <View style={styles.titleCopy}><Text style={styles.title}>{showArchived ? 'Archived memories' : 'Your memory'}</Text><Text style={styles.subtitle}>Private notes and facts stay on this device.</Text></View>
+          {!showArchived ? <Link href="/memory-editor" asChild><Pressable accessibilityRole="button" accessibilityLabel="Add memory" style={styles.addButton}><Text style={styles.addButtonText}>Add</Text></Pressable></Link> : null}
         </View>
       </View>
 
-      <TextInput value={query} onChangeText={setQuery} placeholder="Search memories" placeholderTextColor={colors.textMuted} accessibilityLabel="Search memories" returnKeyType="search" style={styles.search} />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {!isLoading && memories.length ? <Text style={styles.resultCount}>{query.trim() ? `${memories.length} matching memories` : `${memories.length} active memories`}</Text> : null}
+      {!showArchived ? <TextInput value={query} onChangeText={setQuery} placeholder="Search memories" placeholderTextColor={colors.textMuted} accessibilityLabel="Search memories" returnKeyType="search" style={styles.search} /> : null}
+      <View style={styles.viewToggle}>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected: !showArchived }} onPress={() => { setQuery(''); setShowArchived(false); }} style={[styles.toggleButton, !showArchived && styles.toggleSelected]}><Text style={[styles.toggleText, !showArchived && styles.toggleSelectedText]}>Active</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected: showArchived }} onPress={() => { setQuery(''); setShowArchived(true); }} style={[styles.toggleButton, showArchived && styles.toggleSelected]}><Text style={[styles.toggleText, showArchived && styles.toggleSelectedText]}>Archived</Text></Pressable>
+      </View>
+      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+      {!isLoading && memories.length ? <Text style={styles.resultCount}>{query.trim() ? `${memories.length} matching memories` : `${memories.length} ${showArchived ? 'archived' : 'active'} memories`}</Text> : null}
 
       {isLoading ? <ActivityIndicator style={styles.loader} /> : <FlatList
         data={memories}
         keyExtractor={(item) => item.id}
         contentContainerStyle={memories.length ? styles.list : styles.emptyList}
-        ListEmptyComponent={<View style={styles.emptyState}><Text style={styles.emptyTitle}>{query ? 'No matching memories' : 'No memories yet'}</Text><Text style={styles.emptyText}>{query ? 'Try another search term.' : 'Capture something important to remember later.'}</Text>{!query ? <Link href="/memory-editor" asChild><Pressable accessibilityRole="button" style={styles.emptyAction}><Text style={styles.emptyActionText}>Create your first memory</Text></Pressable></Link> : null}</View>}
-        renderItem={({ item }) => <MemoryRow memory={item} onArchive={() => void archive(db, item.id)} onDelete={() => confirmDelete(item)} />}
+        ListEmptyComponent={<View style={styles.emptyState}><Text style={styles.emptyTitle}>{showArchived ? 'No archived memories' : query ? 'No matching memories' : 'No memories yet'}</Text><Text style={styles.emptyText}>{showArchived ? 'Archived memories can be restored whenever you need them.' : query ? 'Try another search term.' : 'Capture something important to remember later.'}</Text>{!showArchived && !query ? <Link href="/memory-editor" asChild><Pressable accessibilityRole="button" style={styles.emptyAction}><Text style={styles.emptyActionText}>Create your first memory</Text></Pressable></Link> : null}</View>}
+        renderItem={({ item }) => <MemoryRow memory={item} archived={showArchived} onArchive={() => void archive(db, item.id)} onRestore={() => void restore(db, item.id)} onDelete={() => confirmDelete(item)} />}
       />}
     </View>
   );
 }
 
-function MemoryRow({ memory, onArchive, onDelete }: { memory: Memory; onArchive: () => void; onDelete: () => void }) {
+function MemoryRow({ memory, archived, onArchive, onRestore, onDelete }: { memory: Memory; archived: boolean; onArchive: () => void; onRestore: () => void; onDelete: () => void }) {
   return <View style={styles.memoryRow}>
     <Link href={{ pathname: '/memory-editor', params: { id: memory.id } }} asChild>
       <Pressable accessibilityRole="button" accessibilityLabel={`Open memory: ${memory.content.slice(0, 60)}`} style={styles.memoryBody}>
@@ -64,7 +70,7 @@ function MemoryRow({ memory, onArchive, onDelete }: { memory: Memory; onArchive:
     </Link>
     <View style={styles.rowActions}>
       <Link href={{ pathname: '/memory-editor', params: { id: memory.id } }} asChild><Pressable accessibilityRole="button" style={styles.actionButton}><Text style={styles.actionText}>Edit</Text></Pressable></Link>
-      <Pressable accessibilityRole="button" accessibilityLabel="Archive memory" onPress={onArchive} style={styles.actionButton}><Text style={styles.actionText}>Archive</Text></Pressable>
+      {archived ? <Pressable accessibilityRole="button" accessibilityLabel="Restore memory" onPress={onRestore} style={styles.actionButton}><Text style={styles.actionText}>Restore</Text></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Archive memory" onPress={onArchive} style={styles.actionButton}><Text style={styles.actionText}>Archive</Text></Pressable>}
       <Pressable accessibilityRole="button" accessibilityLabel="Delete memory" onPress={onDelete} style={styles.actionButton}><Text style={styles.deleteText}>Delete</Text></Pressable>
     </View>
   </View>;
@@ -84,6 +90,11 @@ const styles = StyleSheet.create({
   addButton: { minHeight: 48, minWidth: 76, paddingHorizontal: spacing.md, borderRadius: 14, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   addButtonText: { color: colors.onPrimary, fontWeight: '700' },
   search: { minHeight: 50, marginHorizontal: spacing.xl, marginVertical: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, color: colors.textPrimary, paddingHorizontal: spacing.md, fontSize: 16 },
+  viewToggle: { flexDirection: 'row', marginHorizontal: spacing.xl, marginBottom: spacing.md, padding: 3, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  toggleButton: { flex: 1, minHeight: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  toggleSelected: { backgroundColor: colors.primary },
+  toggleText: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
+  toggleSelectedText: { color: colors.onPrimary },
   resultCount: { color: colors.textMuted, fontSize: 12, paddingHorizontal: spacing.xl, marginBottom: spacing.sm },
   error: { color: colors.danger, paddingHorizontal: spacing.xl, marginBottom: spacing.sm },
   loader: { marginTop: spacing.xl },
