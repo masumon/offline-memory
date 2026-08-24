@@ -51,7 +51,10 @@ export default function PlanningScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View><Text style={styles.eyebrow}>DAILY PLANNING</Text><Text style={styles.title}>Plan {plan.date}</Text></View>
-          <Link href="/" asChild><Pressable accessibilityRole="button" style={styles.link}><Text style={styles.linkText}>Today</Text></Pressable></Link>
+          <View style={styles.headerActions}>
+            <Link href="/inbox" asChild><Pressable accessibilityRole="button" accessibilityLabel="Open inbox" style={styles.link}><Text style={styles.linkText}>Inbox</Text></Pressable></Link>
+            <Link href="/" asChild><Pressable accessibilityRole="button" accessibilityLabel="Go to home" style={styles.link}><Text style={styles.linkText}>Today</Text></Pressable></Link>
+          </View>
         </View>
         <Text style={styles.subtitle}>Move inbox tasks into a day without creating reminder times.</Text>
       </View>
@@ -72,7 +75,7 @@ export default function PlanningScreen() {
         renderItem={({ item }) => (
           <View style={styles.row}>
             <View style={styles.body}><Text style={styles.task}>{item.title}</Text><Text style={styles.meta}>{item.priority}</Text></View>
-            <Pressable disabled={busyId === item.id} onPress={() => void planTask(item.id)} style={styles.planButton} accessibilityRole="button">
+            <Pressable disabled={busyId === item.id} onPress={() => void planTask(item.id)} style={styles.planButton} accessibilityRole="button" accessibilityLabel={`Plan ${item.title}`}>
               {busyId === item.id ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.planText}>Plan</Text>}
             </Pressable>
           </View>
@@ -91,10 +94,11 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
   header: { padding: spacing.xl, paddingTop: spacing.xxl },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   eyebrow: { color: colors.primary, fontSize: 12, fontWeight: '800', letterSpacing: 1.2 },
   title: { color: colors.textPrimary, fontSize: 30, fontWeight: '800', marginTop: spacing.sm },
   subtitle: { color: colors.textSecondary, marginTop: spacing.sm, lineHeight: 21 },
-  link: { minHeight: 42, justifyContent: 'center', paddingHorizontal: spacing.md },
+  link: { minHeight: 42, justifyContent: 'center', paddingHorizontal: spacing.sm },
   linkText: { color: colors.primary, fontWeight: '800' },
   error: { color: colors.danger, paddingHorizontal: spacing.xl, marginBottom: spacing.sm },
   list: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl },
