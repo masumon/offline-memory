@@ -34,7 +34,7 @@ export const darkColors = {
   overlay: 'rgba(2, 6, 23, 0.32)',
 } as const;
 
-export type ThemeColors = typeof lightColors;
+export type ThemeColors = typeof lightColors | typeof darkColors;
 
 export function getThemeColors(mode: 'light' | 'dark'): ThemeColors {
   return mode === 'dark' ? darkColors : lightColors;
