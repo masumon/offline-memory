@@ -8,9 +8,9 @@ Offline Memory reduces the cognitive load of remembering tasks. Core functionali
 
 The local intelligence layer uses deterministic logic, NLP, context handling, planning, and orchestration rather than external LLM APIs.
 
-## Product UX direction
+## Final product UX direction
 
-Offline Memory is designed as a Bengali/English, mobile-first productivity and personal-memory experience with a Bangladesh-inspired visual identity.
+Offline Memory is a Bengali/English, mobile-first productivity and personal-memory experience with a restrained Bangladesh-inspired visual identity.
 
 - Bengali and English UI copy across primary product surfaces
 - Light and Dark/Night themes with persisted local preference
@@ -19,9 +19,17 @@ Offline Memory is designed as a Bengali/English, mobile-first productivity and p
 - Consistent cards, buttons, icons, spacing, typography, loading, empty, error and retry states
 - Offline/on-device status cues and privacy-first messaging
 - Branded splash treatment and Android adaptive-icon color system
+- Primary brand direction uses Bangladesh-inspired green; warm gold is reserved for emphasis and red for destructive/urgent states
 - Existing application functionality remains behind the UI/application-service boundary
 
-The visual system uses a restrained Bangladesh-inspired green as the primary brand color, with a warm gold accent used sparingly for emphasis. Red is reserved for destructive or urgent states rather than decorative branding.
+### UX principles
+
+1. **Offline first:** core tasks, memory, search, planning, NLP, reminders and backup/restore do not depend on a cloud backend.
+2. **Bengali first-class support:** Bengali is treated as a primary product language rather than a translated afterthought.
+3. **Responsive mobile layout:** content respects safe areas, touch targets and compact Android screens without sacrificing readability.
+4. **Clear state communication:** asynchronous actions expose loading, success, empty, error and retry states rather than silently failing.
+5. **Consistent interaction language:** icons, cards, buttons, destructive actions and navigation follow the same visual hierarchy across screens.
+6. **Privacy by architecture:** personal data and local intelligence stay on-device unless the user explicitly exports a backup.
 
 ## Current foundation
 
@@ -30,7 +38,8 @@ The visual system uses a restrained Bangladesh-inspired green as the primary bra
 - Expo Router
 - TypeScript with strict compiler settings
 - Local SQLite database, WAL mode and foreign-key enforcement
-- Versioned SQLite migrations through schema version 6
+- Versioned SQLite migrations through schema version 7
+- Persisted local language and theme preferences through the migration layer
 - Task engine with inbox, planning date, due time, priorities and status transitions
 - Local Android notification scheduling with persisted delivery identity and stale-notification reconciliation
 - Deterministic bilingual local NLP with Bengali digit/date/time handling
@@ -51,7 +60,7 @@ UI
   -> Local Notifications
 ```
 
-The UI does not access SQLite directly, and the local AI layer does not mutate the database directly. Actions pass through validated application services.
+The UI does not access SQLite domain data directly, and the local AI layer does not mutate the database directly. Actions pass through validated application services.
 
 ## Development phases
 
@@ -93,6 +102,6 @@ The application is intentionally designed without a cloud database or external A
 
 ## Verification policy
 
-Static repository verification and code-level audits are performed continuously. Full Android/device verification is a separate gate and must not be represented as PASS when an Android runtime is unavailable.
+Static repository verification and code-level audits are performed continuously. Full Android/device verification is a separate final gate and must not be represented as PASS when an Android runtime is unavailable.
 
 CI/CD and GitHub Actions are intentionally out of scope for the current implementation workflow.
