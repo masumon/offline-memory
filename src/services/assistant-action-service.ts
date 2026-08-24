@@ -1,14 +1,18 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { OrchestratedAction } from '../ai/orchestrator';
 import { executeAiAction, type ActionExecutionResult } from './ai-action-executor';
+import type { Memory } from '../types/memory-model';
+import type { Task } from '../types/task-model';
+
+type ExtractTask<T extends ActionExecutionResult['type']> = Extract<ActionExecutionResult, { type: T }>;
 
 export type AssistantExecutionResult =
-  | { type: 'TASK_CREATED'; message: string; task: ActionExecutionResult extends infer T ? Extract<T, { type: 'TASK_CREATED' }>['task'] : never }
-  | { type: 'TASK_COMPLETED'; message: string; task: ActionExecutionResult extends infer T ? Extract<T, { type: 'TASK_COMPLETED' }>['task'] : never }
-  | { type: 'TASK_LIST'; message: string; tasks: ActionExecutionResult extends infer T ? Extract<T, { type: 'TASKS_LISTED' }>['tasks'] : never }
-  | { type: 'TASK_RESCHEDULED'; message: string; task: ActionExecutionResult extends infer T ? Extract<T, { type: 'TASK_RESCHEDULED' }>['task'] : never }
-  | { type: 'MEMORY_CREATED'; message: string; memory: ActionExecutionResult extends infer T ? Extract<T, { type: 'MEMORY_CREATED' }>['memory'] : never }
-  | { type: 'MEMORY_SEARCH'; message: string; memories: ActionExecutionResult extends infer T ? Extract<T, { type: 'MEMORIES_FOUND' }>['memories'] : never };
+  | { type: 'TASK_CREATED'; message: string; task: ExtractTask<'TASK_CREATED'>['task'] }
+  | { type: 'TASK_COMPLETED'; message: string; task: ExtractTask<'TASK_COMPLETED'>['task'] }
+  | { type: 'TASK_LIST'; message: string; tasks: ExtractTask<'TASKS_LISTED'>['tasks'] }
+  | { type: 'TASK_RESCHEDULED'; message: string; task: ExtractTask<'TASK_RESCHEDULED'>['task'] }
+  | { type: 'MEMORY_CREATED'; message: string; memory: ExtractTask<'MEMORY_CREATED'>['memory'] }
+  | { type: 'MEMORY_SEARCH'; message: string; memories: ExtractTask<'MEMORIES_FOUND'>['memories'] };
 
 export async function executeAssistantAction(
   db: SQLiteDatabase,
@@ -30,3 +34,5 @@ export async function executeAssistantAction(
       return { type: 'MEMORY_SEARCH', message: `${result.memories.length} memory result(s) found locally.`, memories: result.memories };
   }
 }
+
+export type { Memory, Task };
