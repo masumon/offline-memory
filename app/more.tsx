@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, spacing, typography } from '../src/theme';
 
 const items = [
+  { href: '/inbox' as const, title: 'Inbox', description: 'Review captured tasks and move them into planning.' },
   { href: '/planning' as const, title: 'Planning', description: 'Organize inbox tasks into your daily plan.' },
   { href: '/memory' as const, title: 'Memory', description: 'Create, search and manage local memories.' },
   { href: '/backup' as const, title: 'Backup & Restore', description: 'Protect or restore your local data.' },
