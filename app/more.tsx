@@ -1,21 +1,35 @@
 import { Link } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, spacing, typography } from '../src/theme';
+import { useMemo } from 'react';
+import { useAppPreferences } from '../src/app/AppPreferences';
+import { AppIcon } from '../src/ui/AppIcon';
+import { elevation, spacing, typography, type ThemeColors } from '../src/theme';
 
 const items = [
-  { href: '/search' as const, title: 'Search', description: 'Search tasks and active memories stored locally.' },
-  { href: '/assistant' as const, title: 'Local Assistant', description: 'Preview deterministic local task and memory commands.' },
-  { href: '/inbox' as const, title: 'Inbox', description: 'Review captured tasks and move them into planning.' },
-  { href: '/planning' as const, title: 'Planning', description: 'Organize inbox tasks into your daily plan.' },
-  { href: '/reminders' as const, title: 'Reminders', description: 'Enable and review task reminders scheduled on this device.' },
-  { href: '/memory' as const, title: 'Memory', description: 'Create, search and manage local memories.' },
-  { href: '/settings' as const, title: 'Settings', description: 'Offline-first notification, data and diagnostics controls.' },
-  { href: '/backup' as const, title: 'Backup & Restore', description: 'Protect or restore your local data.' },
-  { href: '/diagnostics' as const, title: 'Diagnostics', description: 'Check local database and notification health.' },
+  { href: '/search' as const, icon: 'magnify' as const, title: 'Search', bnTitle: 'সার্চ', description: 'Search tasks and active memories stored locally.', bnDescription: 'লোকালি সংরক্ষিত টাস্ক ও মেমোরি খুঁজুন।' },
+  { href: '/assistant' as const, icon: 'robot-outline' as const, title: 'Local Assistant', bnTitle: 'লোকাল অ্যাসিস্ট্যান্ট', description: 'Use deterministic local task and memory commands.', bnDescription: 'লোকাল টাস্ক ও মেমোরি কমান্ড ব্যবহার করুন।' },
+  { href: '/inbox' as const, icon: 'inbox-arrow-down-outline' as const, title: 'Inbox', bnTitle: 'ইনবক্স', description: 'Review captured tasks and move them into planning.', bnDescription: 'ক্যাপচার করা টাস্ক দেখে প্ল্যানিংয়ে নিন।' },
+  { href: '/planning' as const, icon: 'calendar-check-outline' as const, title: 'Planning', bnTitle: 'প্ল্যানিং', description: 'Organize inbox tasks into your daily plan.', bnDescription: 'ইনবক্স টাস্ককে দৈনিক পরিকল্পনায় সাজান।' },
+  { href: '/reminders' as const, icon: 'bell-outline' as const, title: 'Reminders', bnTitle: 'রিমাইন্ডার', description: 'Manage task reminders scheduled on this device.', bnDescription: 'এই ডিভাইসের টাস্ক রিমাইন্ডার নিয়ন্ত্রণ করুন।' },
+  { href: '/memory' as const, icon: 'brain' as const, title: 'Memory', bnTitle: 'মেমোরি', description: 'Create, search and manage local memories.', bnDescription: 'লোকাল মেমোরি তৈরি, খোঁজা ও পরিচালনা করুন।' },
+  { href: '/settings' as const, icon: 'cog-outline' as const, title: 'Settings', bnTitle: 'সেটিংস', description: 'Control language, appearance, notifications and data.', bnDescription: 'ভাষা, চেহারা, নোটিফিকেশন ও ডেটা নিয়ন্ত্রণ করুন।' },
+  { href: '/backup' as const, icon: 'database-export-outline' as const, title: 'Backup & Restore', bnTitle: 'ব্যাকআপ ও রিস্টোর', description: 'Protect or restore your local data.', bnDescription: 'আপনার লোকাল ডেটা সুরক্ষিত বা রিস্টোর করুন।' },
+  { href: '/diagnostics' as const, icon: 'heart-pulse' as const, title: 'Diagnostics', bnTitle: 'ডায়াগনস্টিকস', description: 'Check local database and notification health.', bnDescription: 'ডেটাবেস ও নোটিফিকেশন স্বাস্থ্য পরীক্ষা করুন।' },
 ];
 
 export default function MoreScreen() {
-  return <ScrollView contentContainerStyle={styles.container}><View style={styles.header}><Link href="/" asChild><Pressable accessibilityRole="button" accessibilityLabel="Go to home" style={styles.back}><Text style={styles.backText}>‹ Home</Text></Pressable></Link><Text style={styles.eyebrow}>MORE</Text><Text style={styles.title}>More</Text><Text style={styles.subtitle}>Supporting tools and data controls for Offline Memory.</Text></View><View style={styles.list}>{items.map((item) => <Link key={item.href} href={item.href} asChild><Pressable accessibilityRole="button" accessibilityLabel={item.title} style={styles.card}><Text style={styles.cardTitle}>{item.title}</Text><Text style={styles.cardDescription}>{item.description}</Text></Pressable></Link>)}</View></ScrollView>;
+  const { language, colors } = useAppPreferences();
+  const bn = language === 'bn';
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  return <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <View style={styles.header}>
+      <Link href="/" asChild><Pressable accessibilityRole="button" style={styles.back}><AppIcon name="arrow-left" size={20} color={colors.primary} /><Text style={styles.backText}>{bn ? 'হোম' : 'Home'}</Text></Pressable></Link>
+      <Text style={styles.eyebrow}>{bn ? 'টুলস ও ডেটা' : 'TOOLS & DATA'}</Text>
+      <Text style={styles.title}>{bn ? 'আরও' : 'More'}</Text>
+      <Text style={styles.subtitle}>{bn ? 'Offline Memory-এর সব সহায়ক টুল ও ডেটা কন্ট্রোল।' : 'Supporting tools and data controls for Offline Memory.'}</Text>
+    </View>
+    <View style={styles.list}>{items.map((item) => <Link key={item.href} href={item.href} asChild><Pressable accessibilityRole="button" accessibilityLabel={bn ? item.bnTitle : item.title} style={styles.card}><View style={styles.iconWrap}><AppIcon name={item.icon} size={23} color={colors.primary} /></View><View style={styles.copy}><Text style={styles.cardTitle}>{bn ? item.bnTitle : item.title}</Text><Text style={styles.cardDescription}>{bn ? item.bnDescription : item.description}</Text></View><AppIcon name="chevron-right" size={22} color={colors.textMuted} /></Pressable></Link>)}</View>
+  </ScrollView>;
 }
 
-const styles = StyleSheet.create({container:{flexGrow:1,backgroundColor:colors.background,padding:spacing.xl},header:{paddingTop:spacing.lg,marginBottom:spacing.xl},back:{minHeight:42,justifyContent:'center',marginBottom:spacing.lg},backText:{color:colors.primary,fontSize:16,fontWeight:'700'},eyebrow:{color:colors.primary,fontSize:typography.label.fontSize,fontWeight:'700',letterSpacing:1.2},title:{color:colors.textPrimary,fontSize:36,fontWeight:'800',marginTop:spacing.sm},subtitle:{color:colors.textSecondary,fontSize:15,lineHeight:22,marginTop:spacing.sm},list:{gap:spacing.sm},card:{minHeight:86,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:16,padding:spacing.lg,justifyContent:'center'},cardTitle:{color:colors.textPrimary,fontSize:17,fontWeight:'800'},cardDescription:{color:colors.textSecondary,fontSize:13,lineHeight:19,marginTop:spacing.xs}});
+function makeStyles(colors: ThemeColors) { return StyleSheet.create({container:{flex:1,backgroundColor:colors.background},content:{paddingHorizontal:spacing.lg,paddingTop:spacing.md,paddingBottom:spacing.xxl},header:{paddingTop:spacing.sm,marginBottom:spacing.lg},back:{minHeight:44,flexDirection:'row',alignItems:'center',gap:4,marginBottom:spacing.md},backText:{color:colors.primary,fontSize:16,fontWeight:'800'},eyebrow:{color:colors.primary,fontSize:typography.label.fontSize,fontWeight:'900',letterSpacing:1.2},title:{color:colors.textPrimary,fontSize:36,fontWeight:'900',marginTop:spacing.sm},subtitle:{color:colors.textSecondary,fontSize:15,lineHeight:22,marginTop:spacing.sm},list:{gap:spacing.sm},card:{minHeight:88,flexDirection:'row',alignItems:'center',gap:spacing.md,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:18,padding:spacing.md,...elevation.card},iconWrap:{width:48,height:48,borderRadius:15,backgroundColor:colors.surfaceMuted,alignItems:'center',justifyContent:'center'},copy:{flex:1},cardTitle:{color:colors.textPrimary,fontSize:16,fontWeight:'800'},cardDescription:{color:colors.textSecondary,fontSize:13,lineHeight:19,marginTop:spacing.xs}}); }
