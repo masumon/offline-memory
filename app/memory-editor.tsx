@@ -17,6 +17,7 @@ export default function MemoryEditorScreen() {
   const [kind, setKind] = useState<MemoryKind>('NOTE');
   const [importance, setImportance] = useState(3);
   const [initializing, setInitializing] = useState(Boolean(id));
+  const [saving, setSaving] = useState(false);
   const { memories, load, create, update, error } = useMemoryStore();
 
   const existing = useMemo(() => memories.find((memory) => memory.id === id), [id, memories]);
@@ -45,12 +46,17 @@ export default function MemoryEditorScreen() {
 
   const handleSave = async () => {
     const value = content.trim();
-    if (!value) return;
-    const tags = tagsInput.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30);
-    const memory = id
-      ? await update(db, id, { content: value, tags, kind, importance })
-      : await create(db, { content: value, tags, kind, importance });
-    if (memory) router.replace('/memory');
+    if (!value || saving) return;
+    setSaving(true);
+    try {
+      const tags = tagsInput.split(',').map((tag) => tag.trim()).filter(Boolean).slice(0, 30);
+      const memory = id
+        ? await update(db, id, { content: value, tags, kind, importance })
+        : await create(db, { content: value, tags, kind, importance });
+      if (memory) router.replace('/memory');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (initializing) return <View style={styles.center}><ActivityIndicator /></View>;
@@ -72,8 +78,8 @@ export default function MemoryEditorScreen() {
       <View style={styles.chipRow}>{MEMORY_KINDS.map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: kind === value }} accessibilityLabel={`Memory type ${value}`} onPress={() => setKind(value)} style={[styles.chip, kind === value && styles.chipSelected]}><Text style={[styles.chipText, kind === value && styles.chipTextSelected]}>{value}</Text></Pressable>)}</View>
       <Text style={styles.label}>Importance</Text>
       <View style={styles.importanceRow}>{[1, 2, 3, 4, 5].map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: importance === value }} accessibilityLabel={`Importance ${value}`} onPress={() => setImportance(value)} style={[styles.importanceButton, importance === value && styles.chipSelected]}><Text style={[styles.chipText, importance === value && styles.chipTextSelected]}>{value}</Text></Pressable>)}</View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View style={styles.actions}><Link href="/memory" asChild><Pressable style={styles.secondaryButton}><Text style={styles.secondaryText}>Cancel</Text></Pressable></Link><Pressable accessibilityRole="button" accessibilityLabel={id ? 'Update memory' : 'Save memory'} disabled={!content.trim()} onPress={() => void handleSave()} style={[styles.primaryButton, !content.trim() && styles.disabled]}><Text style={styles.primaryText}>{id ? 'Update' : 'Save memory'}</Text></Pressable></View>
+      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+      <View style={styles.actions}><Link href="/memory" asChild><Pressable disabled={saving} style={[styles.secondaryButton, saving && styles.disabled]}><Text style={styles.secondaryText}>Cancel</Text></Pressable></Link><Pressable accessibilityRole="button" accessibilityLabel={id ? 'Update memory' : 'Save memory'} disabled={!content.trim() || saving} onPress={() => void handleSave()} style={[styles.primaryButton, (!content.trim() || saving) && styles.disabled]}>{saving ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>{id ? 'Update' : 'Save memory'}</Text>}</Pressable></View>
     </View>
   </ScrollView>;
 }
