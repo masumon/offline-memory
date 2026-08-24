@@ -2,89 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-
 import { planInboxTasks } from '../src/services/planning-service';
 import { useTaskStore } from '../src/store/task.store';
-import { colors, spacing } from '../src/theme';
+import { useAppPreferences } from '../src/app/AppPreferences';
+import { AppIcon } from '../src/ui/AppIcon';
+import { elevation, spacing, type ThemeColors } from '../src/theme';
 import type { Task } from '../src/types/task-model';
 
 export default function InboxScreen() {
-  const db = useSQLiteContext();
-  const { tasks, isLoading, error, load } = useTaskStore();
-  const [busyId, setBusyId] = useState<string | null>(null);
-
+  const db = useSQLiteContext(); const { colors, language } = useAppPreferences(); const bn = language === 'bn'; const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { tasks, isLoading, error, load } = useTaskStore(); const [busyId, setBusyId] = useState<string | null>(null);
   useEffect(() => { void load(db); }, [db, load]);
-
   const inbox = useMemo(() => tasks.filter((task) => task.status === 'INBOX'), [tasks]);
-
-  const planTask = useCallback(async (id: string) => {
-    setBusyId(id);
-    try {
-      await planInboxTasks(db, [id]);
-      await load(db);
-    } finally {
-      setBusyId(null);
-    }
-  }, [db, load]);
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Link href="/" asChild>
-          <Pressable accessibilityRole="button" accessibilityLabel="Go to home" style={styles.back}>
-            <Text style={styles.backText}>‹ Home</Text>
-          </Pressable>
-        </Link>
-        <Text style={styles.eyebrow}>CAPTURE</Text>
-        <Text style={styles.title}>Inbox</Text>
-        <Text style={styles.subtitle}>Things you captured but have not planned yet.</Text>
-      </View>
-
-      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-
-      <FlatList
-        data={inbox}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={inbox.length ? styles.list : styles.emptyList}
-        ListEmptyComponent={isLoading ? <ActivityIndicator /> : <Text style={styles.empty}>Your inbox is clear.</Text>}
-        renderItem={({ item }) => <InboxRow task={item} busy={busyId === item.id} onPlan={() => void planTask(item.id)} />}
-      />
-    </View>
-  );
+  const planTask = useCallback(async (id: string) => { setBusyId(id); try { await planInboxTasks(db, [id]); await load(db); } finally { setBusyId(null); } }, [db, load]);
+  const copy = bn ? { back:'হোম', eyebrow:'ক্যাপচার', title:'ইনবক্স', subtitle:'যে টাস্কগুলো ক্যাপচার করেছেন কিন্তু এখনও পরিকল্পনা করেননি।', clear:'আপনার ইনবক্স পরিষ্কার।', plan:'প্ল্যান' } : { back:'Home', eyebrow:'CAPTURE', title:'Inbox', subtitle:'Things you captured but have not planned yet.', clear:'Your inbox is clear.', plan:'Plan' };
+  return <View style={styles.container}><View style={styles.header}><Link href="/" asChild><Pressable accessibilityRole="button" style={styles.back}><AppIcon name="arrow-left" size={20} color={colors.primary}/><Text style={styles.backText}>{copy.back}</Text></Pressable></Link><View style={styles.titleRow}><View style={styles.titleIcon}><AppIcon name="inbox-arrow-down-outline" size={25} color={colors.primary}/></View><View style={styles.titleCopy}><Text style={styles.eyebrow}>{copy.eyebrow}</Text><Text style={styles.title}>{copy.title}</Text></View><View style={styles.count}><Text style={styles.countText}>{inbox.length}</Text></View></View><Text style={styles.subtitle}>{copy.subtitle}</Text></View>{error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}<FlatList data={inbox} keyExtractor={(item)=>item.id} contentContainerStyle={inbox.length?styles.list:styles.emptyList} ListEmptyComponent={isLoading?<ActivityIndicator color={colors.primary}/>:<><AppIcon name="inbox-check-outline" size={44} color={colors.success}/><Text style={styles.empty}>{copy.clear}</Text></>} renderItem={({item})=><InboxRow task={item} busy={busyId===item.id} onPlan={()=>void planTask(item.id)} colors={colors} styles={styles} planLabel={copy.plan}/>} /></View>;
 }
-
-function InboxRow({ task, busy, onPlan }: { task: Task; busy: boolean; onPlan: () => void }) {
-  return (
-    <View style={styles.row}>
-      <Link href={{ pathname: '/task-editor', params: { id: task.id } }} asChild>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Open task ${task.title}`} style={styles.body}>
-          <Text style={styles.task}>{task.title}</Text>
-          <Text style={styles.meta}>{task.priority}</Text>
-        </Pressable>
-      </Link>
-      <Pressable disabled={busy} onPress={onPlan} accessibilityRole="button" accessibilityLabel={`Plan ${task.title}`} style={styles.planButton}>
-        {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.planText}>Plan</Text>}
-      </Pressable>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  header: { padding: spacing.xl, paddingTop: spacing.xl },
-  back: { minHeight: 42, justifyContent: 'center', marginBottom: spacing.lg },
-  backText: { color: colors.primary, fontSize: 16, fontWeight: '700' },
-  eyebrow: { color: colors.primary, fontSize: 12, fontWeight: '800', letterSpacing: 1.2 },
-  title: { color: colors.textPrimary, fontSize: 36, fontWeight: '800', marginTop: spacing.sm },
-  subtitle: { color: colors.textSecondary, fontSize: 15, lineHeight: 22, marginTop: spacing.sm },
-  error: { color: colors.danger, paddingHorizontal: spacing.xl, marginBottom: spacing.sm },
-  list: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl },
-  emptyList: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  empty: { color: colors.textSecondary, textAlign: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: spacing.md, marginBottom: spacing.sm },
-  body: { flex: 1, minHeight: 44, justifyContent: 'center' },
-  task: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
-  meta: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
-  planButton: { minHeight: 44, minWidth: 76, paddingHorizontal: spacing.md, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  planText: { color: colors.onPrimary, fontWeight: '800' },
-});
+function InboxRow({task,busy,onPlan,colors,styles,planLabel}:{task:Task;busy:boolean;onPlan:()=>void;colors:ThemeColors;styles:ReturnType<typeof makeStyles>;planLabel:string}){return <View style={styles.row}><Link href={{pathname:'/task-editor',params:{id:task.id}}} asChild><Pressable accessibilityRole="button" accessibilityLabel={`Open task ${task.title}`} style={styles.body}><View style={styles.taskIcon}><AppIcon name="clipboard-text-outline" size={20} color={colors.primary}/></View><View style={styles.taskCopy}><Text style={styles.task}>{task.title}</Text><Text style={styles.meta}>{task.priority}</Text></View><AppIcon name="chevron-right" size={20} color={colors.textMuted}/></Pressable></Link><Pressable disabled={busy} onPress={onPlan} accessibilityRole="button" accessibilityLabel={`${planLabel} ${task.title}`} style={[styles.planButton,busy&&styles.disabled]}>{busy?<ActivityIndicator color={colors.onPrimary}/>:<><AppIcon name="calendar-check-outline" size={17} color={colors.onPrimary}/><Text style={styles.planText}>{planLabel}</Text></>}</Pressable></View>}
+function makeStyles(colors:ThemeColors){return StyleSheet.create({container:{flex:1,backgroundColor:colors.background},header:{paddingHorizontal:spacing.lg,paddingTop:spacing.md,paddingBottom:spacing.lg},back:{minHeight:44,flexDirection:'row',alignItems:'center',gap:4,marginBottom:spacing.lg},backText:{color:colors.primary,fontSize:16,fontWeight:'800'},titleRow:{flexDirection:'row',alignItems:'center',gap:spacing.md},titleIcon:{width:50,height:50,borderRadius:16,backgroundColor:colors.surfaceMuted,alignItems:'center',justifyContent:'center'},titleCopy:{flex:1},eyebrow:{color:colors.primary,fontSize:12,fontWeight:'900',letterSpacing:1.2},title:{color:colors.textPrimary,fontSize:34,fontWeight:'900',marginTop:2},count:{minWidth:34,height:34,borderRadius:17,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center',paddingHorizontal:8},countText:{color:colors.onPrimary,fontWeight:'900'},subtitle:{color:colors.textSecondary,fontSize:15,lineHeight:22,marginTop:spacing.md},error:{color:colors.danger,paddingHorizontal:spacing.lg,marginBottom:spacing.sm},list:{paddingHorizontal:spacing.lg,paddingBottom:spacing.xl},emptyList:{flexGrow:1,alignItems:'center',justifyContent:'center',padding:spacing.xl,gap:spacing.sm},empty:{color:colors.textSecondary,textAlign:'center',fontSize:14},row:{flexDirection:'row',alignItems:'center',gap:spacing.sm,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:16,padding:spacing.sm,marginBottom:spacing.sm,...elevation.card},body:{flex:1,minHeight:52,flexDirection:'row',alignItems:'center',gap:spacing.sm,paddingHorizontal:4},taskIcon:{width:40,height:40,borderRadius:12,backgroundColor:colors.surfaceMuted,alignItems:'center',justifyContent:'center'},taskCopy:{flex:1},task:{color:colors.textPrimary,fontSize:15,fontWeight:'700'},meta:{color:colors.textMuted,fontSize:11,marginTop:4},planButton:{minHeight:44,minWidth:78,paddingHorizontal:spacing.sm,borderRadius:12,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center',flexDirection:'row',gap:3},planText:{color:colors.onPrimary,fontWeight:'800'},disabled:{opacity:.5}})}
