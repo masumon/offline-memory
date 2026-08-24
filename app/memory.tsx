@@ -1,117 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { Link } from 'expo-router';
 import { useMemoryStore } from '../src/store/memory.store';
-import { colors, spacing, typography } from '../src/theme';
+import { useAppPreferences } from '../src/app/AppPreferences';
+import { AppIcon } from '../src/ui/AppIcon';
+import { elevation, spacing, type ThemeColors } from '../src/theme';
 import type { Memory } from '../src/types/memory-model';
 
 export default function MemoryScreen() {
-  const db = useSQLiteContext();
-  const [query, setQuery] = useState('');
-  const [showArchived, setShowArchived] = useState(false);
-  const { memories, isLoading, error, load, loadArchived, search, archive, restore, remove } = useMemoryStore();
-
-  useEffect(() => { void (showArchived ? loadArchived(db) : load(db)); }, [db, load, loadArchived, showArchived]);
-  useEffect(() => {
-    if (showArchived) return;
-    const value = query.trim();
-    if (!value) { void load(db); return; }
-    const timer = setTimeout(() => void search(db, value), 180);
-    return () => clearTimeout(timer);
-  }, [db, query, load, search, showArchived]);
-
-  const confirmDelete = (memory: Memory) => Alert.alert(
-    'Delete memory?',
-    'This permanently removes the memory from this device.',
-    [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => void remove(db, memory.id) }],
-  );
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <Link href="/" asChild><Pressable accessibilityRole="button" accessibilityLabel="Back to home" style={styles.backButton}><Text style={styles.back}>Home</Text></Pressable></Link>
-          <Text style={styles.eyebrow}>MEMORY</Text>
-        </View>
-        <View style={styles.titleRow}>
-          <View style={styles.titleCopy}><Text style={styles.title}>{showArchived ? 'Archived memories' : 'Your memory'}</Text><Text style={styles.subtitle}>Private notes and facts stay on this device.</Text></View>
-          {!showArchived ? <Link href="/memory-editor" asChild><Pressable accessibilityRole="button" accessibilityLabel="Add memory" style={styles.addButton}><Text style={styles.addButtonText}>Add</Text></Pressable></Link> : null}
-        </View>
-      </View>
-
-      {!showArchived ? <TextInput value={query} onChangeText={setQuery} placeholder="Search memories" placeholderTextColor={colors.textMuted} accessibilityLabel="Search memories" returnKeyType="search" style={styles.search} /> : null}
-      <View style={styles.viewToggle}>
-        <Pressable accessibilityRole="button" accessibilityState={{ selected: !showArchived }} onPress={() => { setQuery(''); setShowArchived(false); }} style={[styles.toggleButton, !showArchived && styles.toggleSelected]}><Text style={[styles.toggleText, !showArchived && styles.toggleSelectedText]}>Active</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityState={{ selected: showArchived }} onPress={() => { setQuery(''); setShowArchived(true); }} style={[styles.toggleButton, showArchived && styles.toggleSelected]}><Text style={[styles.toggleText, showArchived && styles.toggleSelectedText]}>Archived</Text></Pressable>
-      </View>
-      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      {!isLoading && memories.length ? <Text style={styles.resultCount}>{query.trim() ? `${memories.length} matching memories` : `${memories.length} ${showArchived ? 'archived' : 'active'} memories`}</Text> : null}
-
-      {isLoading ? <ActivityIndicator style={styles.loader} /> : <FlatList
-        data={memories}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={memories.length ? styles.list : styles.emptyList}
-        ListEmptyComponent={<View style={styles.emptyState}><Text style={styles.emptyTitle}>{showArchived ? 'No archived memories' : query ? 'No matching memories' : 'No memories yet'}</Text><Text style={styles.emptyText}>{showArchived ? 'Archived memories can be restored whenever you need them.' : query ? 'Try another search term.' : 'Capture something important to remember later.'}</Text>{!showArchived && !query ? <Link href="/memory-editor" asChild><Pressable accessibilityRole="button" style={styles.emptyAction}><Text style={styles.emptyActionText}>Create your first memory</Text></Pressable></Link> : null}</View>}
-        renderItem={({ item }) => <MemoryRow memory={item} archived={showArchived} onArchive={() => void archive(db, item.id)} onRestore={() => void restore(db, item.id)} onDelete={() => confirmDelete(item)} />}
-      />}
-    </View>
-  );
+  const db=useSQLiteContext(); const {colors,language}=useAppPreferences(); const bn=language==='bn'; const styles=useMemo(()=>makeStyles(colors),[colors]); const [query,setQuery]=useState(''); const [showArchived,setShowArchived]=useState(false); const {memories,isLoading,error,load,loadArchived,search,archive,restore,remove}=useMemoryStore();
+  useEffect(()=>{void(showArchived?loadArchived(db):load(db));},[db,load,loadArchived,showArchived]); useEffect(()=>{if(showArchived)return;const value=query.trim();if(!value){void load(db);return;}const timer=setTimeout(()=>void search(db,value),180);return()=>clearTimeout(timer);},[db,query,load,search,showArchived]);
+  const confirmDelete=(memory:Memory)=>Alert.alert(bn?'মেমোরি মুছবেন?':'Delete memory?',bn?'এই ডিভাইস থেকে মেমোরিটি স্থায়ীভাবে মুছে যাবে।':'This permanently removes the memory from this device.',[{text:bn?'বাতিল':'Cancel',style:'cancel'},{text:bn?'মুছুন':'Delete',style:'destructive',onPress:()=>void remove(db,memory.id)}]);
+  const copy=bn?{back:'হোম',active:'সক্রিয়',archived:'আর্কাইভ',title:'আপনার মেমোরি',archiveTitle:'আর্কাইভ করা মেমোরি',subtitle:'ব্যক্তিগত নোট ও গুরুত্বপূর্ণ তথ্য এই ডিভাইসেই থাকে।',search:'মেমোরি খুঁজুন',add:'যোগ',empty:'এখনও কোনো মেমোরি নেই',emptyText:'পরে মনে রাখার মতো গুরুত্বপূর্ণ কিছু ক্যাপচার করুন।',noMatch:'কোনো মিল পাওয়া যায়নি',restoreText:'প্রয়োজনে আর্কাইভ করা মেমোরি ফিরিয়ে আনুন।',first:'প্রথম মেমোরি তৈরি করুন',edit:'এডিট',restore:'রিস্টোর',archive:'আর্কাইভ',delete:'মুছুন'}:{back:'Home',active:'Active',archived:'Archived',title:'Your memory',archiveTitle:'Archived memories',subtitle:'Private notes and facts stay on this device.',search:'Search memories',add:'Add',empty:'No memories yet',emptyText:'Capture something important to remember later.',noMatch:'No matching memories',restoreText:'Archived memories can be restored whenever you need them.',first:'Create your first memory',edit:'Edit',restore:'Restore',archive:'Archive',delete:'Delete'};
+  return <View style={styles.container}><View style={styles.header}><Link href="/" asChild><Pressable accessibilityRole="button" style={styles.backButton}><AppIcon name="arrow-left" size={20} color={colors.primary}/><Text style={styles.back}>{copy.back}</Text></Pressable></Link><View style={styles.titleRow}><View style={styles.titleIcon}><AppIcon name="brain" size={26} color={colors.primary}/></View><View style={styles.titleCopy}><Text style={styles.eyebrow}>MEMORY</Text><Text style={styles.title}>{showArchived?copy.archiveTitle:copy.title}</Text><Text style={styles.subtitle}>{copy.subtitle}</Text></View>{!showArchived?<Link href="/memory-editor" asChild><Pressable accessibilityRole="button" accessibilityLabel={copy.add} style={styles.addButton}><AppIcon name="plus" size={19} color={colors.onPrimary}/><Text style={styles.addButtonText}>{copy.add}</Text></Pressable></Link>:null}</View></View>{!showArchived?<View style={styles.searchBox}><AppIcon name="magnify" size={21} color={colors.textMuted}/><TextInput value={query} onChangeText={setQuery} placeholder={copy.search} placeholderTextColor={colors.textMuted} accessibilityLabel={copy.search} returnKeyType="search" style={styles.search}/>{query?<Pressable onPress={()=>setQuery('')} accessibilityRole="button" accessibilityLabel="Clear search"><AppIcon name="close-circle" size={20} color={colors.textMuted}/></Pressable>:null}</View>:null}<View style={styles.viewToggle}><Pressable accessibilityRole="button" accessibilityState={{selected:!showArchived}} onPress={()=>{setQuery('');setShowArchived(false)}} style={[styles.toggleButton,!showArchived&&styles.toggleSelected]}><AppIcon name="brain" size={17} color={!showArchived?colors.onPrimary:colors.textSecondary}/><Text style={[styles.toggleText,!showArchived&&styles.toggleSelectedText]}>{copy.active}</Text></Pressable><Pressable accessibilityRole="button" accessibilityState={{selected:showArchived}} onPress={()=>{setQuery('');setShowArchived(true)}} style={[styles.toggleButton,showArchived&&styles.toggleSelected]}><AppIcon name="archive-outline" size={17} color={showArchived?colors.onPrimary:colors.textSecondary}/><Text style={[styles.toggleText,showArchived&&styles.toggleSelectedText]}>{copy.archived}</Text></Pressable></View>{error?<Text accessibilityRole="alert" style={styles.error}>{error}</Text>:null}{!isLoading&&memories.length?<Text style={styles.resultCount}>{memories.length} {showArchived?copy.archived.toLowerCase():bn?'সক্রিয় মেমোরি':'active memories'}</Text>:null}{isLoading?<ActivityIndicator color={colors.primary} style={styles.loader}/>:<FlatList data={memories} keyExtractor={(item)=>item.id} contentContainerStyle={memories.length?styles.list:styles.emptyList} ListEmptyComponent={<View style={styles.emptyState}><AppIcon name={showArchived?'archive-off-outline':'brain'} size={46} color={colors.textMuted}/><Text style={styles.emptyTitle}>{showArchived?copy.archived:query?copy.noMatch:copy.empty}</Text><Text style={styles.emptyText}>{showArchived?copy.restoreText:query?copy.noMatch:copy.emptyText}</Text>{!showArchived&&!query?<Link href="/memory-editor" asChild><Pressable accessibilityRole="button" style={styles.emptyAction}><AppIcon name="plus" size={18} color={colors.onPrimary}/><Text style={styles.emptyActionText}>{copy.first}</Text></Pressable></Link>:null}</View>} renderItem={({item})=><MemoryRow memory={item} archived={showArchived} onArchive={()=>void archive(db,item.id)} onRestore={()=>void restore(db,item.id)} onDelete={()=>confirmDelete(item)} styles={styles} colors={colors} copy={copy}/>} />}</View>;
 }
-
-function MemoryRow({ memory, archived, onArchive, onRestore, onDelete }: { memory: Memory; archived: boolean; onArchive: () => void; onRestore: () => void; onDelete: () => void }) {
-  return <View style={styles.memoryRow}>
-    <Link href={{ pathname: '/memory-editor', params: { id: memory.id } }} asChild>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Open memory: ${memory.content.slice(0, 60)}`} style={styles.memoryBody}>
-        {memory.title ? <Text style={styles.memoryTitle}>{memory.title}</Text> : null}
-        <Text style={styles.memoryContent} numberOfLines={4}>{memory.content}</Text>
-        <Text style={styles.memoryMeta}>{memory.kind} · importance {memory.importance}{memory.tags.length ? ` · ${memory.tags.join(', ')}` : ''}</Text>
-      </Pressable>
-    </Link>
-    <View style={styles.rowActions}>
-      <Link href={{ pathname: '/memory-editor', params: { id: memory.id } }} asChild><Pressable accessibilityRole="button" style={styles.actionButton}><Text style={styles.actionText}>Edit</Text></Pressable></Link>
-      {archived ? <Pressable accessibilityRole="button" accessibilityLabel="Restore memory" onPress={onRestore} style={styles.actionButton}><Text style={styles.actionText}>Restore</Text></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Archive memory" onPress={onArchive} style={styles.actionButton}><Text style={styles.actionText}>Archive</Text></Pressable>}
-      <Pressable accessibilityRole="button" accessibilityLabel="Delete memory" onPress={onDelete} style={styles.actionButton}><Text style={styles.deleteText}>Delete</Text></Pressable>
-    </View>
-  </View>;
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingTop: spacing.xl },
-  header: { paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  backButton: { minHeight: 40, justifyContent: 'center' },
-  back: { color: colors.primary, fontWeight: '700' },
-  eyebrow: { color: colors.primary, fontSize: typography.label.fontSize, fontWeight: '700', letterSpacing: 1.2 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm },
-  titleCopy: { flex: 1 },
-  title: { color: colors.textPrimary, fontSize: 32, fontWeight: '800' },
-  subtitle: { color: colors.textSecondary, fontSize: 14, marginTop: spacing.xs },
-  addButton: { minHeight: 48, minWidth: 76, paddingHorizontal: spacing.md, borderRadius: 14, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  addButtonText: { color: colors.onPrimary, fontWeight: '700' },
-  search: { minHeight: 50, marginHorizontal: spacing.xl, marginVertical: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: colors.surface, color: colors.textPrimary, paddingHorizontal: spacing.md, fontSize: 16 },
-  viewToggle: { flexDirection: 'row', marginHorizontal: spacing.xl, marginBottom: spacing.md, padding: 3, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  toggleButton: { flex: 1, minHeight: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  toggleSelected: { backgroundColor: colors.primary },
-  toggleText: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
-  toggleSelectedText: { color: colors.onPrimary },
-  resultCount: { color: colors.textMuted, fontSize: 12, paddingHorizontal: spacing.xl, marginBottom: spacing.sm },
-  error: { color: colors.danger, paddingHorizontal: spacing.xl, marginBottom: spacing.sm },
-  loader: { marginTop: spacing.xl },
-  list: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl * 2 },
-  emptyList: { flexGrow: 1, paddingHorizontal: spacing.xl },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  emptyTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '800', textAlign: 'center' },
-  emptyText: { color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xs, lineHeight: 20 },
-  emptyAction: { minHeight: 48, marginTop: spacing.md, paddingHorizontal: spacing.lg, borderRadius: 14, backgroundColor: colors.primary, justifyContent: 'center' },
-  emptyActionText: { color: colors.onPrimary, fontWeight: '700' },
-  memoryRow: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: spacing.md, marginBottom: spacing.sm },
-  memoryBody: { gap: spacing.xs },
-  memoryTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
-  memoryContent: { color: colors.textPrimary, fontSize: 15, lineHeight: 22 },
-  memoryMeta: { color: colors.textMuted, fontSize: 11, letterSpacing: 0.3 },
-  rowActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
-  actionButton: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.xs },
-  actionText: { color: colors.primary, fontSize: 13, fontWeight: '700' },
-  deleteText: { color: colors.danger, fontSize: 13, fontWeight: '700' },
-});
+function MemoryRow({memory,archived,onArchive,onRestore,onDelete,styles,colors,copy}:{memory:Memory;archived:boolean;onArchive:()=>void;onRestore:()=>void;onDelete:()=>void;styles:ReturnType<typeof makeStyles>;colors:ThemeColors;copy:Record<string,string>}){return <View style={styles.memoryRow}><Link href={{pathname:'/memory-editor',params:{id:memory.id}}} asChild><Pressable accessibilityRole="button" accessibilityLabel={`Open memory: ${memory.content.slice(0,60)}`} style={styles.memoryBody}>{memory.title?<Text style={styles.memoryTitle}>{memory.title}</Text>:null}<Text style={styles.memoryContent} numberOfLines={4}>{memory.content}</Text><Text style={styles.memoryMeta}>{memory.kind} · importance {memory.importance}{memory.tags.length?` · ${memory.tags.join(', ')}`:''}</Text></Pressable></Link><View style={styles.rowActions}><Link href={{pathname:'/memory-editor',params:{id:memory.id}}} asChild><Pressable accessibilityRole="button" style={styles.actionButton}><AppIcon name="pencil-outline" size={17} color={colors.primary}/><Text style={styles.actionText}>{copy.edit}</Text></Pressable></Link>{archived?<Pressable accessibilityRole="button" onPress={onRestore} style={styles.actionButton}><AppIcon name="backup-restore" size={17} color={colors.primary}/><Text style={styles.actionText}>{copy.restore}</Text></Pressable>:<Pressable accessibilityRole="button" onPress={onArchive} style={styles.actionButton}><AppIcon name="archive-outline" size={17} color={colors.primary}/><Text style={styles.actionText}>{copy.archive}</Text></Pressable>}<Pressable accessibilityRole="button" onPress={onDelete} style={styles.actionButton}><AppIcon name="delete-outline" size={17} color={colors.danger}/><Text style={styles.deleteText}>{copy.delete}</Text></Pressable></View></View>}
+function makeStyles(colors:ThemeColors){return StyleSheet.create({container:{flex:1,backgroundColor:colors.background,paddingTop:spacing.md},header:{paddingHorizontal:spacing.lg,paddingTop:spacing.sm,paddingBottom:spacing.lg},backButton:{minHeight:44,flexDirection:'row',alignItems:'center',gap:4,marginBottom:spacing.lg},back:{color:colors.primary,fontWeight:'800'},titleRow:{flexDirection:'row',alignItems:'center',gap:spacing.md},titleIcon:{width:50,height:50,borderRadius:16,backgroundColor:colors.surfaceMuted,alignItems:'center',justifyContent:'center'},titleCopy:{flex:1},eyebrow:{color:colors.primary,fontSize:12,fontWeight:'900',letterSpacing:1.2},title:{color:colors.textPrimary,fontSize:30,fontWeight:'900',marginTop:2},subtitle:{color:colors.textSecondary,fontSize:14,lineHeight:20,marginTop:spacing.xs},addButton:{minHeight:44,paddingHorizontal:spacing.sm,borderRadius:13,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center',flexDirection:'row',gap:3},addButtonText:{color:colors.onPrimary,fontWeight:'800'},searchBox:{minHeight:54,flexDirection:'row',alignItems:'center',gap:spacing.sm,marginHorizontal:spacing.lg,marginBottom:spacing.md,paddingHorizontal:spacing.md,borderWidth:1,borderColor:colors.border,borderRadius:15,backgroundColor:colors.surface,...elevation.card},search:{flex:1,minHeight:50,color:colors.textPrimary,fontSize:16},viewToggle:{flexDirection:'row',marginHorizontal:spacing.lg,marginBottom:spacing.md,padding:3,borderRadius:14,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border},toggleButton:{flex:1,minHeight:42,borderRadius:11,alignItems:'center',justifyContent:'center',flexDirection:'row',gap:4},toggleSelected:{backgroundColor:colors.primary},toggleText:{color:colors.textSecondary,fontSize:13,fontWeight:'800'},toggleSelectedText:{color:colors.onPrimary},resultCount:{color:colors.textMuted,fontSize:12,paddingHorizontal:spacing.lg,marginBottom:spacing.sm},error:{color:colors.danger,paddingHorizontal:spacing.lg},loader:{marginTop:spacing.xl},list:{paddingHorizontal:spacing.lg,paddingBottom:spacing.xxl},emptyList:{flexGrow:1,paddingHorizontal:spacing.lg},emptyState:{flex:1,alignItems:'center',justifyContent:'center',padding:spacing.xl},emptyTitle:{color:colors.textPrimary,fontSize:18,fontWeight:'900',textAlign:'center'},emptyText:{color:colors.textSecondary,textAlign:'center',marginTop:spacing.xs,lineHeight:20},emptyAction:{minHeight:48,marginTop:spacing.md,paddingHorizontal:spacing.md,borderRadius:14,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center',flexDirection:'row',gap:4},emptyActionText:{color:colors.onPrimary,fontWeight:'800'},memoryRow:{backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border,borderRadius:16,padding:spacing.md,marginBottom:spacing.sm,...elevation.card},memoryBody:{gap:spacing.xs},memoryTitle:{color:colors.textPrimary,fontSize:16,fontWeight:'800'},memoryContent:{color:colors.textPrimary,fontSize:15,lineHeight:22},memoryMeta:{color:colors.textMuted,fontSize:11},rowActions:{flexDirection:'row',flexWrap:'wrap',gap:spacing.sm,marginTop:spacing.sm},actionButton:{minHeight:40,flexDirection:'row',alignItems:'center',gap:3,paddingHorizontal:spacing.xs},actionText:{color:colors.primary,fontSize:13,fontWeight:'800'},deleteText:{color:colors.danger,fontSize:13,fontWeight:'800'}})}
