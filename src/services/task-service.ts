@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { CreateTaskInput, Task, UpdateTaskInput } from '../types/task-model';
 import type { TaskStatus } from '../types';
-import { createTask, deleteTask, findTasksByExactTitle, getTask, listTasks, updateTask } from './task-repository';
+import { createTask, deleteTask, findTasksByExactTitle, getTask, listTasks, searchTasks, updateTask } from './task-repository';
 
 const ALLOWED_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
   INBOX: ['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'ARCHIVED'],
@@ -74,4 +74,4 @@ export async function rescheduleTask(db: SQLiteDatabase, id: string, dueAt: stri
 
 export async function removeTask(db: SQLiteDatabase, id: string): Promise<boolean> { return deleteTask(db, id); }
 
-export { findTasksByExactTitle, getTask, listTasks, ALLOWED_TRANSITIONS };
+export { findTasksByExactTitle, getTask, listTasks, searchTasks, ALLOWED_TRANSITIONS };
