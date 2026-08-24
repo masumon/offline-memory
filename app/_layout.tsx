@@ -15,7 +15,7 @@ function AppNavigator() {
   const showPrimaryNav = primaryRoutes.includes(pathname);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <StatusBar barStyle={dark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
       <Stack
         screenOptions={{
