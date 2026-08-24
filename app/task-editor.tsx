@@ -6,7 +6,7 @@ import { useTaskStore } from '../src/store/task.store';
 import { colors, spacing, typography } from '../src/theme';
 import type { TaskPriority } from '../src/types';
 
-const PRIORITIES: TaskPriority[] = ['LOW', 'NORMAL', 'HIGH', 'URGENT'];
+const PRIORITIES: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
 export default function TaskEditorScreen() {
   const db = useSQLiteContext();
@@ -14,7 +14,7 @@ export default function TaskEditorScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
-  const [priority, setPriority] = useState<TaskPriority>('NORMAL');
+  const [priority, setPriority] = useState<TaskPriority>('MEDIUM');
   const [plannedDate, setPlannedDate] = useState('');
   const [dueAt, setDueAt] = useState('');
   const [loaded, setLoaded] = useState(!id);
