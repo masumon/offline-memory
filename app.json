@@ -4,13 +4,17 @@
     "slug": "offline-memory",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "scheme": "offlinememory",
+    "splash": {
+      "backgroundColor": "#006A4E",
+      "resizeMode": "contain"
+    },
     "android": {
       "package": "com.masumon.offlinememory",
       "permissions": ["SCHEDULE_EXACT_ALARM"],
       "adaptiveIcon": {
-        "backgroundColor": "#0F172A"
+        "backgroundColor": "#006A4E"
       }
     },
     "plugins": [
