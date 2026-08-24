@@ -1,9 +1,9 @@
 import { Link } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-
 import { colors, spacing, typography } from '../src/theme';
 
 const items = [
+  { href: '/search' as const, title: 'Search', description: 'Search tasks and active memories stored locally.' },
   { href: '/inbox' as const, title: 'Inbox', description: 'Review captured tasks and move them into planning.' },
   { href: '/planning' as const, title: 'Planning', description: 'Organize inbox tasks into your daily plan.' },
   { href: '/reminders' as const, title: 'Reminders', description: 'Enable and review task reminders scheduled on this device.' },
@@ -16,26 +16,12 @@ export default function MoreScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Link href="/" asChild>
-          <Pressable accessibilityRole="button" accessibilityLabel="Go to home" style={styles.back}>
-            <Text style={styles.backText}>‹ Home</Text>
-          </Pressable>
-        </Link>
+        <Link href="/" asChild><Pressable accessibilityRole="button" accessibilityLabel="Go to home" style={styles.back}><Text style={styles.backText}>‹ Home</Text></Pressable></Link>
         <Text style={styles.eyebrow}>MORE</Text>
         <Text style={styles.title}>More</Text>
         <Text style={styles.subtitle}>Supporting tools and data controls for Offline Memory.</Text>
       </View>
-
-      <View style={styles.list}>
-        {items.map((item) => (
-          <Link key={item.href} href={item.href} asChild>
-            <Pressable accessibilityRole="button" accessibilityLabel={item.title} style={styles.card}>
-              <Text style={styles.cardTitle}>{item.title}</Text>
-              <Text style={styles.cardDescription}>{item.description}</Text>
-            </Pressable>
-          </Link>
-        ))}
-      </View>
+      <View style={styles.list}>{items.map((item) => <Link key={item.href} href={item.href} asChild><Pressable accessibilityRole="button" accessibilityLabel={item.title} style={styles.card}><Text style={styles.cardTitle}>{item.title}</Text><Text style={styles.cardDescription}>{item.description}</Text></Pressable></Link>)}</View>
     </ScrollView>
   );
 }
