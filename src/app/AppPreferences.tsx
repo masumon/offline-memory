@@ -55,7 +55,6 @@ export function AppPreferencesProvider({ children }: PropsWithChildren) {
       await persist('language', value);
     } catch {
       setLanguageState(previous);
-      throw new Error('Could not save language preference');
     }
   }, [language, persist]);
 
@@ -66,7 +65,6 @@ export function AppPreferencesProvider({ children }: PropsWithChildren) {
       await persist('themeMode', value);
     } catch {
       setThemeModeState(previous);
-      throw new Error('Could not save theme preference');
     }
   }, [persist, themeMode]);
 
