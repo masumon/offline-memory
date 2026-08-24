@@ -6,6 +6,7 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
+    "pretypecheck": "expo customize tsconfig.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "jest"
