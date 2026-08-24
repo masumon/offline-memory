@@ -1,4 +1,5 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ComponentProps, type ReactNode, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import type { ComponentProps, ReactNode } from 'react';
 import { AppIcon } from './AppIcon';
 import { elevation, radius, spacing, typography } from '../theme';
 import { useAppPreferences } from '../app/AppPreferences';
