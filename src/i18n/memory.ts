@@ -1,0 +1,14 @@
+type Language = 'en' | 'bn';
+
+export function memoryCopy(language: Language) {
+  const bn = language === 'bn';
+  return {
+    back: bn ? 'মেমোরি' : 'Memory', backTo: bn ? 'মেমোরিতে ফিরুন' : 'Back to memories', loading: bn ? 'মেমোরি লোড হচ্ছে…' : 'Loading memory…', notFound: bn ? 'মেমোরি পাওয়া যায়নি' : 'Memory not found',
+    newEyebrow: bn ? 'নতুন মেমোরি' : 'NEW MEMORY', editEyebrow: bn ? 'মেমোরি এডিট' : 'EDIT MEMORY', newTitle: bn ? 'কিছু মনে রাখুন' : 'Remember something', editTitle: bn ? 'মেমোরি এডিট করুন' : 'Edit memory', subtitle: bn ? 'এই ডিভাইসে ব্যক্তিগতভাবে সংরক্ষিত।' : 'Stored on this device.',
+    memory: bn ? 'মেমোরি' : 'Memory', placeholder: bn ? 'যা মনে রাখতে চান লিখুন…' : 'Write what you want to remember...', tags: bn ? 'ট্যাগ' : 'Tags', tagsPlaceholder: bn ? 'কাজ, পরিবার, আইডিয়া' : 'work, family, idea', type: bn ? 'ধরন' : 'Type', importance: bn ? 'গুরুত্ব' : 'Importance', cancel: bn ? 'বাতিল' : 'Cancel', save: bn ? 'মেমোরি সংরক্ষণ' : 'Save memory', update: bn ? 'আপডেট' : 'Update', notFoundBack: bn ? 'মেমোরিতে ফিরুন' : 'Back to memories', archive: bn ? 'আর্কাইভ' : 'Archive', delete: bn ? 'স্থায়ীভাবে মুছুন' : 'Delete permanently', attachments: bn ? 'সংযুক্ত ফাইল' : 'Attachments', addFiles: bn ? 'ফাইল যোগ' : 'Add files', draftHint: bn ? 'সেভ করার আগেই ফাইল নির্বাচন করুন।' : 'Select files before the memory is saved.', removeFile: bn ? 'ফাইল সরান' : 'Remove file',
+    saveFailed: bn ? 'মেমোরি সংরক্ষণ করা যায়নি' : 'The memory could not be saved', updated: bn ? 'মেমোরি আপডেট হয়েছে' : 'Memory updated', created: bn ? 'মেমোরি তৈরি হয়েছে' : 'Memory created', archived: bn ? 'মেমোরি আর্কাইভ হয়েছে' : 'Memory archived', attachmentFailed: (count:number) => bn ? `${count}টি সংযুক্ত ফাইল সংরক্ষণ করা যায়নি; মেমোরিটি নিরাপদভাবে ফিরিয়ে দেওয়া হয়েছে।` : `${count} attachment(s) could not be saved; the memory was safely rolled back.`, stagedReady:(count:number)=>bn?`${count}টি ফাইল প্রস্তুত হয়েছে; সংরক্ষণ করলে যুক্ত হবে`:`${count} file(s) ready; they will be attached when you save`, stagedFailed:(count:number)=>bn?`${count}টি ফাইল প্রস্তুত করা যায়নি`:`Unable to prepare ${count} selected file(s)`, unablePrepare:bn?'ফাইল প্রস্তুত করা যায়নি':'Unable to prepare files', unableRemove:bn?'ফাইল সরানো যায়নি':'Unable to remove staged file', error:bn?'মেমোরি সংরক্ষণ করা যায়নি':'The memory could not be saved.',
+    deleteTitle:bn?'মেমোরি মুছবেন?':'Delete memory?', deleteDescription:bn?'এই মেমোরিটি এই ডিভাইস থেকে স্থায়ীভাবে মুছে যাবে।':'This permanently removes this memory from the device.', deleteConfirm:bn?'মুছুন':'Delete', deleteCancel:bn?'বাতিল':'Cancel',
+    kindLabels:{NOTE:bn?'নোট':'Note',FACT:bn?'তথ্য':'Fact',PREFERENCE:bn?'পছন্দ':'Preference',EVENT:bn?'ঘটনা':'Event',REFLECTION:bn?'ভাবনা':'Reflection'},
+    fileType:(mime:string)=>mime.startsWith('video/')?(bn?'ভিডিও':'Video'):mime.includes('pdf')?'PDF':mime.startsWith('image/')?(bn?'ছবি':'Image'):(bn?'ফাইল':'File'),
+  };
+}
