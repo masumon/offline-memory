@@ -47,6 +47,14 @@ New exports use the attachment-aware Offline Memory Backup Archive v2. The archi
 
 Device diagnostics now also reconcile attachment metadata against the local attachment directory. Missing physical files remove their stale database rows, and unreferenced files are cleaned up. The reconciliation report is surfaced in the Diagnostics screen for later device verification.
 
+## Surgical audit implementation branch
+
+`feature/surgical-audit-complete` is the single working feature branch for the remaining Surgical Audit implementation. All new commits for this audit pass are intentionally kept on this branch so the work can be reviewed as one coherent change set before any merge into `main`.
+
+Existing completed branches are not replayed when their changes are already present in `main`. The implementation follows the Surgical Audit priority order and skips already-completed code instead of duplicating it.
+
+Local verification is deliberately deferred. This branch does not claim Android runtime, APK installation, emulator, landscape, split-screen, accessibility-runtime, notification-runtime, splash, or launcher visual PASS until the user runs the local verification gate.
+
 ## Architecture
 
 ```text
