@@ -9,3 +9,11 @@ console.warn = (...args) => {
   }
   originalWarn(...args);
 };
+
+jest.mock('expo-notifications', () => ({
+  SchedulableTriggerInputTypes: { DATE: 'date' },
+  AndroidNotificationPriority: { HIGH: 'HIGH', MAX: 'MAX', DEFAULT: 'DEFAULT', LOW: 'LOW', MIN: 'MIN' },
+  getAllScheduledNotificationsAsync: jest.fn().mockResolvedValue([]),
+  scheduleNotificationAsync: jest.fn().mockResolvedValue('os-notification-1'),
+  cancelScheduledNotificationAsync: jest.fn().mockResolvedValue(undefined),
+}));
