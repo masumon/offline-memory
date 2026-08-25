@@ -3,13 +3,25 @@ import { Directory } from 'expo-file-system';
 import { reconcileAttachmentStorage } from '../src/services/attachment-reconciliation-service';
 
 jest.mock('expo-file-system', () => {
+  class MockFile {
+    uri: string;
+    exists: boolean;
+    delete = jest.fn();
+    constructor(uri: string) {
+      this.uri = uri;
+      this.exists = uri.endsWith('valid.bin');
+    }
+  }
   const files = [
-    Object.assign({ uri: 'file:///documents/attachments/valid.bin', exists: true }, { delete: jest.fn() }),
-    Object.assign({ uri: 'file:///documents/attachments/orphan.bin', exists: true }, { delete: jest.fn() }),
+    new MockFile('file:///documents/attachments/valid.bin'),
+    new MockFile('file:///documents/attachments/orphan.bin'),
   ];
-  class MockFile { uri:string; exists:boolean; delete=jest.fn(); constructor(uri:string){this.uri=uri;this.exists=uri.endsWith('valid.bin');} }
-  class MockDirectory { exists=true; list=jest.fn(()=>files); constructor(..._parts:string[]){} }
-  return { File: MockFile, Directory: MockDirectory, Paths: { document: {} } };
+  class MockDirectory {
+    exists = true;
+    list = jest.fn(() => files);
+    constructor(..._parts: string[]) {}
+  }
+  return { File: MockFile, Directory: MockDirectory, Paths: { document: 'file:///documents' } };
 });
 
 describe('attachment reconciliation', () => {
