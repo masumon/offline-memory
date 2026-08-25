@@ -3,7 +3,7 @@
     "name": "Offline Memory",
     "slug": "offline-memory",
     "version": "0.1.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "automatic",
     "scheme": "offlinememory",
     "splash": {
