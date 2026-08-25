@@ -24,3 +24,17 @@ jest.mock('expo-sharing', () => ({
   isAvailableAsync: jest.fn(async () => true),
   shareAsync: jest.fn(async () => {}),
 }));
+
+// React Native's Platform is required by notification/runtime services in Node/Jest.
+// Preserve the real module while guaranteeing a deterministic native platform value.
+jest.mock('react-native', () => {
+  const actualReactNative = jest.requireActual('react-native');
+  return {
+    ...actualReactNative,
+    Platform: {
+      ...actualReactNative.Platform,
+      OS: 'android',
+      select: jest.fn((dict) => dict.android || dict.default),
+    },
+  };
+});
