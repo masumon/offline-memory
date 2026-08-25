@@ -1,4 +1,4 @@
-import { formatBangladeshDate, formatBangladeshDateTime, formatBangladeshTime } from '../src/i18n/date-time';
+import { formatBangladeshDate, formatBangladeshDateTime, formatBangladeshRelativeDate, formatBangladeshTime } from '../src/i18n/date-time';
 
 describe('Bangladesh date and time formatting', () => {
   const value = '2026-08-26T15:30:00.000Z';
@@ -20,5 +20,16 @@ describe('Bangladesh date and time formatting', () => {
     expect(formatBangladeshDateTime(value, 'en')).toContain('21');
     expect(formatBangladeshTime(value, 'bn')).toContain('২১');
     expect(formatBangladeshTime(value, 'en')).toContain('21');
+  });
+
+  it('uses the Bangladesh calendar day for relative dates', () => {
+    const now = new Date('2026-08-26T17:30:00.000Z');
+    const afterMidnightInDhaka = new Date('2026-08-26T18:30:00.000Z');
+    expect(formatBangladeshRelativeDate(afterMidnightInDhaka, 'en', now)).toBe('Tomorrow');
+    expect(formatBangladeshRelativeDate(afterMidnightInDhaka, 'bn', now)).toBe('আগামীকাল');
+  });
+
+  it('formats clock time in Asia/Dhaka independently of device timezone', () => {
+    expect(formatBangladeshTime('2026-08-26T18:00:00.000Z', 'en')).toMatch(/00:00/);
   });
 });
