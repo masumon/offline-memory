@@ -6,6 +6,8 @@ export const colors=lightColors;
 export const spacing={xxs:4,xs:4,sm:8,smd:12,md:16,lg:24,xl:32,xxl:48,mdPlus:20,lgPlus:40} as const;
 export const layout={compactHorizontal:16,regularHorizontal:24,contentMaxWidth:760,expandedNavWidth:104,compactNavHeight:86,minTouchTarget:48,iconButtonSize:48} as const;
 export const breakpoints={compactWindow:600,mediumWindow:840,expandedNavigation:840,wideContent:900,largeWindow:1200} as const;
+export type WindowSizeClass='compact'|'medium'|'expanded';
+export function getWindowSizeClass(width:number):WindowSizeClass{if(width<breakpoints.compactWindow)return 'compact';if(width<breakpoints.mediumWindow)return 'medium';return 'expanded';}
 export const typography={label:{fontSize:12,lineHeight:16},body:{fontSize:16,lineHeight:24},bodySmall:{fontSize:14,lineHeight:21},title:{fontSize:30,lineHeight:38},heading:{fontSize:22,lineHeight:29},display:{fontSize:36,lineHeight:44},caption:{fontSize:11,lineHeight:16}} as const;
 export const radius={sm:8,md:12,lg:18,xl:24,pill:999} as const;
 export const control={inputHeight:52,buttonHeight:48,rowMinHeight:64,iconSize:22,iconButtonSize:48} as const;
