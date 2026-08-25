@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { ComponentProps, ReactNode } from 'react';
 import { AppIcon } from './AppIcon';
-import { elevation, radius, spacing, typography } from '../theme';
+import { control, elevation, layout, radius, spacing, typography } from '../theme';
 import { useAppPreferences } from '../app/AppPreferences';
 
 type AppCardProps = { children: ReactNode; style?: StyleProp<ViewStyle>; elevated?: boolean };
@@ -73,7 +73,7 @@ export function AppButton({
       ]}
     >
       {loading ? <ActivityIndicator color={foreground} /> : null}
-      {!loading && icon ? <AppIcon name={icon} size={19} color={foreground} /> : null}
+      {!loading && icon ? <AppIcon name={icon} size={control.iconSize - 3} color={foreground} /> : null}
       {!loading ? (
         <Text
           numberOfLines={2}
@@ -127,8 +127,8 @@ export function AppState({
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: radius.lg, padding: spacing.md },
   button: {
-    minHeight: 48,
-    minWidth: 48,
+    minHeight: control.buttonHeight,
+    minWidth: layout.minTouchTarget,
     maxWidth: '100%',
     borderWidth: 1,
     borderRadius: radius.md,
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   },
   buttonText: { ...typography.bodySmall, fontWeight: '800', flexShrink: 1, textAlign: 'center' },
   state: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.xl, gap: spacing.sm },
-  stateIcon: { width: 56, height: 56, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  stateIcon: { width: spacing.lgPlus + spacing.smd, height: spacing.lgPlus + spacing.smd, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
   stateTitle: { fontSize: 18, lineHeight: 24, fontWeight: '900', textAlign: 'center' },
   stateDescription: { ...typography.bodySmall, maxWidth: 420, textAlign: 'center' },
 });
