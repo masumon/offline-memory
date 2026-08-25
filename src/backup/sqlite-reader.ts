@@ -7,18 +7,20 @@ export interface SQLiteBackupData {
   subtasks: Record<string, unknown>[];
   memories: Record<string, unknown>[];
   notificationDeliveries: Record<string, unknown>[];
+  attachments: Record<string, unknown>[];
   schemaVersion: number;
 }
 
 export async function readSQLiteBackupData(db: SQLiteDatabase): Promise<SQLiteBackupData> {
-  const [appMetadata, appPreferences, tasks, subtasks, memories, notificationDeliveries, versionRow] = await Promise.all([
+  const [appMetadata, appPreferences, tasks, subtasks, memories, notificationDeliveries, attachments, versionRow] = await Promise.all([
     db.getAllAsync<Record<string, unknown>>('SELECT key, value, updated_at FROM app_metadata ORDER BY key ASC'),
     db.getAllAsync<Record<string, unknown>>('SELECT key, value FROM app_preferences ORDER BY key ASC'),
     db.getAllAsync<Record<string, unknown>>('SELECT * FROM tasks ORDER BY id ASC'),
     db.getAllAsync<Record<string, unknown>>('SELECT * FROM subtasks ORDER BY task_id ASC, position ASC, id ASC'),
     db.getAllAsync<Record<string, unknown>>('SELECT * FROM memories ORDER BY id ASC'),
     db.getAllAsync<Record<string, unknown>>('SELECT task_id, due_at, delivered_at FROM notification_deliveries ORDER BY task_id ASC, due_at ASC'),
+    db.getAllAsync<Record<string, unknown>>('SELECT id, owner_type, owner_id, name, mime_type, size, uri, created_at FROM attachments ORDER BY owner_type ASC, owner_id ASC, created_at ASC, id ASC'),
     db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;'),
   ]);
-  return { appMetadata, appPreferences, tasks, subtasks, memories, notificationDeliveries, schemaVersion: versionRow?.user_version ?? 0 };
+  return { appMetadata, appPreferences, tasks, subtasks, memories, notificationDeliveries, attachments, schemaVersion: versionRow?.user_version ?? 0 };
 }
