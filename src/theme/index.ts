@@ -44,7 +44,7 @@ export function getThemeColors(mode: 'light' | 'dark'): ThemeColors {
 
 export const colors = lightColors;
 
-// Established aliases are preserved; smd fills the 12dp step of the AIOS scale.
+// Canonical AIOS spacing scale. Established aliases are preserved for compatibility.
 export const spacing = {
   xxs: 4,
   xs: 4,
@@ -54,6 +54,9 @@ export const spacing = {
   lg: 24,
   xl: 32,
   xxl: 48,
+  // Explicit scale steps used by controls and icon containers.
+  mdPlus: 20,
+  lgPlus: 40,
 } as const;
 
 export const layout = {
