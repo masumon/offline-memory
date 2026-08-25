@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppPreferences } from '../app/AppPreferences';
 import { AppIcon } from './AppIcon';
-import { elevation, radius, spacing } from '../theme';
+import { breakpoints, elevation, layout, radius, spacing } from '../theme';
 
 const items = [
   { href: '/', icon: 'home' as const, en: 'Home', bn: 'হোম' },
@@ -14,8 +14,6 @@ const items = [
   { href: '/more', icon: 'dots-horizontal' as const, en: 'More', bn: 'আরও' },
 ];
 
-const EXPANDED_BREAKPOINT = 720;
-
 export function PrimaryNav() {
   const router = useRouter();
   const pathname = usePathname();
@@ -23,7 +21,7 @@ export function PrimaryNav() {
   const { width } = useWindowDimensions();
   const { colors, language } = useAppPreferences();
   const bn = language === 'bn';
-  const expanded = width >= EXPANDED_BREAKPOINT;
+  const expanded = width >= breakpoints.expandedNavigation;
 
   return (
     <View pointerEvents="box-none" style={[styles.host, expanded && styles.hostExpanded]}>
@@ -34,7 +32,8 @@ export function PrimaryNav() {
           {
             backgroundColor: colors.surface,
             borderColor: colors.border,
-            paddingBottom: expanded ? spacing.lg : Math.max(insets.bottom, spacing.sm),
+            height: expanded ? undefined : layout.compactNavHeight + insets.bottom,
+            paddingBottom: expanded ? spacing.lg : insets.bottom,
           },
         ]}
       >
@@ -83,7 +82,7 @@ export function PrimaryNav() {
 
 const styles = StyleSheet.create({
   host: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  hostExpanded: { top: 0, right: undefined, width: 104, bottom: 0 },
+  hostExpanded: { top: 0, right: undefined, width: layout.expandedNavWidth, bottom: 0 },
   bar: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -123,8 +122,8 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
   iconWrap: {
-    width: 40,
-    height: 32,
+    width: spacing.lgPlus,
+    height: spacing.mdPlus + spacing.xs,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
