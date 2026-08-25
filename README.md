@@ -4,7 +4,7 @@ A professional, fully offline Android personal memory and productivity applicati
 
 ## Product direction
 
-Offline Memory is a Bengali/English, mobile-first productivity and personal-memory experience with a restrained Bangladesh-inspired visual identity. Core functionality is offline-first and uses deterministic local NLP/orchestration rather than external LLM APIs.
+Offline Memory is a Bengali/English, mobile-first productivity and personal-memory experience with a restrained Bangladesh-inspired visual identity. Core functionality is offline-first and uses deterministic bilingual local NLP/orchestration rather than external LLM APIs.
 
 ## Current foundation
 
@@ -18,7 +18,7 @@ Offline Memory is a Bengali/English, mobile-first productivity and personal-memo
 - Shared theme tokens, cards, buttons, icon buttons, badges, states and `AppIcon` abstraction
 - Bangladesh-localized date/time pickers and centralized Bengali/English date-time formatting
 - Attachment support for images, videos, PDFs and arbitrary document/file types with local lifecycle cleanup
-- Attachment-aware ZIP backup export and restore, while retaining compatibility with validated legacy JSON backups
+- Attachment-aware ZIP backup export and restore, including app language/theme preferences, while retaining compatibility with validated legacy JSON backups
 - Android adaptive launcher icon foreground/background/monochrome resources
 - Branded Android splash resource
 - Responsive content constraints for larger windows so settings/tools remain readable instead of stretching indefinitely
@@ -35,6 +35,10 @@ The final UI follows `AIOS.md` and uses:
 - A minimum comfortable touch-target strategy and no device-model-specific layout assumptions
 - Local vector/icon assets instead of required remote images for core flows
 - Local file metadata, thumbnails for images, file-type icons, share/remove actions and localized attachment feedback
+
+## Backup format
+
+New exports use the attachment-aware Offline Memory Backup Archive v2. The archive contains the validated database payload, app language/theme preferences, attachment metadata and the corresponding binary attachment files. Legacy validated Offline Memory Backup v1 JSON files remain restorable.
 
 ## Architecture
 
@@ -65,7 +69,7 @@ For the complete Windows local gate:
 npm run verify:local
 ```
 
-The script runs typecheck, lint, the full Jest suite, then installs and launches the existing debug APK when an online Android emulator/device and APK are available. It deliberately does not claim Android runtime PASS when no runtime evidence exists.
+The script runs typecheck, lint, the full Jest suite, then builds a fresh Android debug APK and installs/launches it when an online Android emulator/device is available. It deliberately does not claim Android runtime PASS when no runtime evidence exists.
 
 Individual checks remain available:
 
