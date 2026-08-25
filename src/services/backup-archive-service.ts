@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { zipSync } from 'fflate';
+import { strFromU8, unzipSync, zipSync } from 'fflate';
 import * as FileSystem from 'expo-file-system/legacy';
 import { readSQLiteBackupData } from '../backup/sqlite-reader';
 
@@ -42,7 +42,7 @@ type AttachmentRow = {
   created_at: string;
 };
 
-function base64ToBytes(value: string): Uint8Array {
+export function base64ToBytes(value: string): Uint8Array {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   const clean = value.replace(/\s/gu, '');
   if (clean.length % 4 !== 0 || /[^A-Za-z0-9+/=]/u.test(clean)) throw new Error('Invalid attachment data');
@@ -63,7 +63,7 @@ function base64ToBytes(value: string): Uint8Array {
   return output;
 }
 
-function bytesToBase64(value: Uint8Array): string {
+export function bytesToBase64(value: Uint8Array): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   let output = '';
   for (let index = 0; index < value.length; index += 3) {
@@ -89,8 +89,10 @@ export async function createBackupArchive(db: SQLiteDatabase, createdAt = new Da
   if (!Number.isFinite(Date.parse(createdAt))) throw new Error('Backup createdAt must be a valid ISO date');
   const data = await readSQLiteBackupData(db) as unknown as Record<string, unknown>;
   const attachments = await db.getAllAsync<AttachmentRow>('SELECT id,owner_type,owner_id,name,mime_type,size,uri,created_at FROM attachments ORDER BY id ASC');
-  const taskIds = new Set((data.tasks as Array<Record<string, unknown>>).map((row) => String(row.id)));
-  const memoryIds = new Set((data.memories as Array<Record<string, unknown>>).map((row) => String(row.id)));
+  const taskRows = Array.isArray(data.tasks) ? data.tasks as Array<Record<string, unknown>> : [];
+  const memoryRows = Array.isArray(data.memories) ? data.memories as Array<Record<string, unknown>> : [];
+  const taskIds = new Set(taskRows.map((row) => String(row.id)));
+  const memoryIds = new Set(memoryRows.map((row) => String(row.id)));
   const files: Record<string, Uint8Array | [Uint8Array, { level: number }]> = {};
   const metadata: BackupArchiveAttachment[] = [];
 
@@ -109,6 +111,35 @@ export async function createBackupArchive(db: SQLiteDatabase, createdAt = new Da
   files['manifest.json'] = [manifestJson(manifest), { level: 6 }];
   const bytes = zipSync(files);
   return { bytes, createdAt, attachmentCount: metadata.length };
+}
+
+export function parseBackupArchive(bytes: Uint8Array): BackupArchiveManifest {
+  const files = unzipSync(bytes);
+  const manifestBytes = files['manifest.json'];
+  if (!manifestBytes) throw new Error('Backup archive manifest is missing');
+  let value: unknown;
+  try { value = JSON.parse(strFromU8(manifestBytes)); } catch { throw new Error('Backup archive manifest is invalid'); }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Backup archive manifest must be an object');
+  const manifest = value as Partial<BackupArchiveManifest>;
+  if (manifest.format !== BACKUP_ARCHIVE_FORMAT) throw new Error('Unsupported backup archive format');
+  if (manifest.version !== BACKUP_ARCHIVE_VERSION) throw new Error('Unsupported backup archive version');
+  if (typeof manifest.createdAt !== 'string' || !Number.isFinite(Date.parse(manifest.createdAt))) throw new Error('Backup archive createdAt must be valid');
+  if (!manifest.data || typeof manifest.data !== 'object' || Array.isArray(manifest.data)) throw new Error('Backup archive data must be an object');
+  if (!Array.isArray(manifest.attachments)) throw new Error('Backup archive attachments must be an array');
+  const seen = new Set<string>();
+  for (const item of manifest.attachments) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error('Invalid backup attachment metadata');
+    const attachment = item as BackupArchiveAttachment;
+    if (!attachment.id || seen.has(attachment.id)) throw new Error(`Duplicate backup attachment id: ${String(attachment.id)}`);
+    seen.add(attachment.id);
+    if (attachment.ownerType !== 'TASK' && attachment.ownerType !== 'MEMORY') throw new Error('Invalid backup attachment owner type');
+    if (!attachment.ownerId || !attachment.name || !attachment.mimeType || typeof attachment.createdAt !== 'string') throw new Error('Invalid backup attachment metadata');
+    if (attachment.size !== null && (!Number.isInteger(attachment.size) || attachment.size < 0)) throw new Error('Invalid backup attachment size');
+    const file = files[`attachments/${attachment.id}`];
+    if (!file) throw new Error(`Backup attachment data is missing: ${attachment.id}`);
+    if (attachment.size !== null && file.byteLength !== attachment.size) throw new Error(`Backup attachment size mismatch: ${attachment.id}`);
+  }
+  return manifest as BackupArchiveManifest;
 }
 
 export function encodeBackupArchive(bytes: Uint8Array): string { return bytesToBase64(bytes); }
