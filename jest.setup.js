@@ -17,3 +17,10 @@ jest.mock('expo-notifications', () => ({
   scheduleNotificationAsync: jest.fn().mockResolvedValue('os-notification-1'),
   cancelScheduledNotificationAsync: jest.fn().mockResolvedValue(undefined),
 }));
+
+// Expo Sharing pulls browser-only react-native-web modules into Node/Jest.
+// Keep the native implementation completely out of the Jest module graph.
+jest.mock('expo-sharing', () => ({
+  isAvailableAsync: jest.fn(async () => true),
+  shareAsync: jest.fn(async () => {}),
+}));
