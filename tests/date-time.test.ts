@@ -18,7 +18,7 @@ describe('Bangladesh date and time formatting', () => {
   it('keeps date-time and time formatting deterministic for both languages', () => {
     expect(formatBangladeshDateTime(value, 'bn')).toContain('২১');
     expect(formatBangladeshDateTime(value, 'en')).toContain('21');
-    expect(formatBangladeshTime(value, 'bn')).toContain('21');
+    expect(formatBangladeshTime(value, 'bn')).toContain('২১');
     expect(formatBangladeshTime(value, 'en')).toContain('21');
   });
 });
