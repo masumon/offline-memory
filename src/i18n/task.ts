@@ -1,0 +1,16 @@
+type Language = 'en' | 'bn';
+
+export function taskCopy(language: Language) {
+  const bn = language === 'bn';
+  return {
+    back: bn ? 'প্ল্যানিংয়ে ফিরুন' : 'Back to planning', planning: bn ? 'প্ল্যানিং' : 'Planning', loading: bn ? 'টাস্ক লোড হচ্ছে…' : 'Loading task…', notFound: bn ? 'টাস্ক পাওয়া যায়নি' : 'Task not found',
+    detailBadge: bn ? 'টাস্ক ডিটেইল' : 'TASK DETAIL', newBadge: bn ? 'নতুন টাস্ক' : 'NEW TASK', detailTitle: bn ? 'টাস্কের বিস্তারিত' : 'Task details', createTitle: bn ? 'টাস্ক তৈরি করুন' : 'Create task', subtitle: bn ? 'লোকালভাবে টাস্ক পরিকল্পনা, অগ্রাধিকার ও পরিচালনা করুন।' : 'Plan, prioritize and manage this task locally.',
+    status: bn ? 'স্ট্যাটাস' : 'Status', title: bn ? 'শিরোনাম' : 'Title', titlePlaceholder: bn ? 'টাস্কের শিরোনাম' : 'Task title', notes: bn ? 'নোট' : 'Notes', notesPlaceholder: bn ? 'ঐচ্ছিক নোট' : 'Optional notes', priority: bn ? 'অগ্রাধিকার' : 'Priority',
+    attachments: bn ? 'সংযুক্ত ফাইল' : 'Attachments', attachmentHint: bn ? 'সেভ করার আগেই ফাইল নির্বাচন করুন।' : 'Select files before the task is saved.', addFiles: bn ? 'ফাইল যোগ' : 'Add files', addAttachments: bn ? 'ফাইল যোগ করুন' : 'Add attachments', removeFile: bn ? 'ফাইল সরান' : 'Remove file',
+    saveFailed: bn ? 'টাস্ক সংরক্ষণ করা যায়নি' : 'The task could not be saved', stagedReady: (count:number)=>bn?`${count}টি ফাইল প্রস্তুত হয়েছে; সংরক্ষণ করলে যুক্ত হবে`:`${count} file(s) ready; they will be attached when you save`, stagedFailed:(count:number)=>bn?`${count}টি ফাইল প্রস্তুত করা যায়নি`:`Unable to prepare ${count} selected file(s)`, unablePrepare:bn?'ফাইল প্রস্তুত করা যায়নি':'Unable to prepare files', unableRemoveStaged:bn?'ফাইল সরানো যায়নি':'Unable to remove staged file', attachmentSaveFailed:(count:number)=>bn?`${count}টি সংযুক্ত ফাইল সংরক্ষণ করা যায়নি; টাস্কটি নিরাপদভাবে ফিরিয়ে দেওয়া হয়েছে।`:`${count} attachment(s) could not be saved; the task was safely rolled back.`, updated:bn?'টাস্ক আপডেট হয়েছে':'Task updated', created:bn?'টাস্ক তৈরি হয়েছে':'Task created',
+    cancel:bn?'বাতিল':'Cancel', saveChanges:bn?'পরিবর্তন সংরক্ষণ':'Save changes', create:bn?'টাস্ক তৈরি':'Create task', complete:bn?'সম্পন্ন করুন':'Mark complete', cancelTask:bn?'বাতিল করুন':'Cancel task', archive:bn?'আর্কাইভ':'Archive', reopen:bn?'আবার খুলুন':'Reopen task', moveInbox:bn?'ইনবক্সে নিন':'Move to inbox', delete:bn?'স্থায়ীভাবে মুছুন':'Delete permanently', deleteLabel:bn?'টাস্ক স্থায়ীভাবে মুছুন':'Delete task permanently', deleteTitle:bn?'টাস্ক মুছবেন?':'Delete task?', deleteDescription:bn?'এই ডিভাইস থেকে টাস্কটি স্থায়ীভাবে মুছে যাবে।':'This permanently removes the task from this device.', deleteConfirm:bn?'মুছুন':'Delete', deleteCancel:bn?'বাতিল':'Cancel', error:bn?'টাস্ক সংরক্ষণ করা যায়নি':'The task could not be saved.',
+    fileType:(mime:string)=>mime.startsWith('video/')?(bn?'ভিডিও':'Video'):mime.includes('pdf')?'PDF':mime.startsWith('image/')?(bn?'ছবি':'Image'):(bn?'ফাইল':'File'),
+    priorityLabels:{LOW:bn?'কম':'Low',MEDIUM:bn?'মাঝারি':'Medium',HIGH:bn?'উচ্চ':'High',URGENT:bn?'জরুরি':'Urgent'},
+    statusLabels:{INBOX:bn?'ইনবক্স':'Inbox',PLANNED:bn?'পরিকল্পিত':'Planned',IN_PROGRESS:bn?'চলমান':'In progress',COMPLETED:bn?'সম্পন্ন':'Completed',RESCHEDULED:bn?'পুনঃনির্ধারিত':'Rescheduled',CANCELLED:bn?'বাতিল':'Cancelled',ARCHIVED:bn?'আর্কাইভ':'Archived'},
+  };
+}
