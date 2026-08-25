@@ -14,23 +14,29 @@ npm run lint
 Write-Host '`n[4/5] Jest' -ForegroundColor Yellow
 npm test -- --runInBand
 
-Write-Host '`n[5/5] Android device' -ForegroundColor Yellow
+Write-Host '`n[5/5] Android debug build and runtime' -ForegroundColor Yellow
+$androidDir = Join-Path $PSScriptRoot '..\android'
+Push-Location $androidDir
+try {
+  & .\gradlew.bat :app:assembleDebug --no-daemon
+  if ($LASTEXITCODE -ne 0) { throw 'Android debug build failed.' }
+} finally {
+  Pop-Location
+}
+
+$apk = Join-Path $PSScriptRoot '..\android\app\build\outputs\apk\debug\app-debug.apk'
+$apk = [System.IO.Path]::GetFullPath($apk)
+if (-not (Test-Path $apk)) { throw "Expected debug APK was not produced: $apk" }
+
 $adb = Get-Command adb -ErrorAction SilentlyContinue
 if (-not $adb) {
-  Write-Host 'ADB is not installed or is not on PATH. Code verification passed; Android device verification was skipped.' -ForegroundColor DarkYellow
+  Write-Host 'Android debug build passed. ADB is not installed or is not on PATH, so device runtime verification was skipped.' -ForegroundColor DarkYellow
   exit 0
 }
 
 $devices = @(adb devices | Select-String '\sdevice$')
 if ($devices.Count -eq 0) {
-  Write-Host 'No online Android device/emulator detected. Code verification passed; Android runtime verification was skipped.' -ForegroundColor DarkYellow
-  exit 0
-}
-
-$apk = Join-Path $PSScriptRoot '..\android\app\build\outputs\apk\debug\app-debug.apk'
-$apk = [System.IO.Path]::GetFullPath($apk)
-if (-not (Test-Path $apk)) {
-  Write-Host 'No debug APK found. Build it with: npx expo run:android --variant debug --no-build-cache' -ForegroundColor DarkYellow
+  Write-Host 'Android debug build passed. No online Android device/emulator detected, so runtime verification was skipped.' -ForegroundColor DarkYellow
   exit 0
 }
 
