@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 import { getDailyPlan, planInboxTasks, type DailyPlan } from '../src/services/planning-service';
 import { useTaskStore } from '../src/store/task.store';
 import { useAppPreferences } from '../src/app/AppPreferences';
@@ -15,7 +16,7 @@ function priorityLabel(priority:TaskPriority,bn:boolean){const labels:Record<Tas
 export default function PlanningScreen(){
   const db=useSQLiteContext();const{colors,language}=useAppPreferences();const styles=useMemo(()=>makeStyles(colors),[colors]);const bn=language==='bn';const[plan,setPlan]=useState<DailyPlan|null>(null);const[busyId,setBusyId]=useState<string|null>(null);const[error,setError]=useState<string|null>(null);const loadTasks=useTaskStore(state=>state.load);
   const loadPlan=useCallback(async()=>{setError(null);try{setPlan(await getDailyPlan(db))}catch{setError(bn?'দৈনিক পরিকল্পনা লোড করা যায়নি':'Unable to load daily plan')}},[bn,db]);
-  useEffect(()=>{void loadPlan()},[loadPlan]);
+  useEffect(()=>{let active=true;void getDailyPlan(db).then(nextPlan=>{if(active){setError(null);setPlan(nextPlan)}}).catch(()=>{if(active){setError(bn?'দৈনিক পরিকল্পনা লোড করা যায়নি':'Unable to load daily plan')}});return()=>{active=false}},[bn,db]);
   const planTask=async(id:string)=>{if(busyId)return;setBusyId(id);setError(null);try{await planInboxTasks(db,[id]);await Promise.all([loadPlan(),loadTasks(db)])}catch{setError(bn?'টাস্ক প্ল্যান করা যায়নি':'Unable to plan task')}finally{setBusyId(null)}};
   const labels=bn?{eyebrow:'দৈনিক পরিকল্পনা',plan:'প্ল্যান',newTask:'নতুন টাস্ক',inbox:'ইনবক্স',today:'আজ',subtitle:'ইনবক্স টাস্কগুলোকে দিনের পরিকল্পনায় নিন।',overdue:'বকেয়া',progress:'চলমান',scheduled:'আজ নির্ধারিত',inboxTitle:'ইনবক্স',empty:'কোনো ইনবক্স টাস্ক নেই। দৈনিক পরিকল্পনা পরিষ্কার।',noTime:'সময় নেই',retry:'আবার চেষ্টা করুন'}:{eyebrow:'DAILY PLANNING',plan:'Plan',newTask:'New task',inbox:'Inbox',today:'Today',subtitle:'Move inbox tasks into your daily plan.',overdue:'Overdue',progress:'In progress',scheduled:'Scheduled today',inboxTitle:'Inbox',empty:'No inbox tasks. Your daily plan is clear.',noTime:'No time',retry:'Retry'};
   if(!plan&&!error)return <AppState loading title={bn?'প্ল্যান লোড হচ্ছে…':'Loading plan…'}/>;
