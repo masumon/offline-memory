@@ -1,4 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { DATABASE_VERSION } from '../src/database';
 import { restoreSQLiteBackupData } from '../src/backup/sqlite-restore';
 
 function mockDb(): SQLiteDatabase {
@@ -6,7 +7,7 @@ function mockDb(): SQLiteDatabase {
 }
 
 const task = { id: 'task-1', title: 'Test', notes: null, status: 'INBOX', priority: 'MEDIUM', due_at: null, completed_at: null, created_at: '2026-08-24T00:00:00Z', updated_at: '2026-08-24T00:00:00Z' };
-const base = { schemaVersion: 5, appMetadata: [], tasks: [task], subtasks: [], memories: [], notificationDeliveries: [] };
+const base = { schemaVersion: DATABASE_VERSION, appMetadata: [], tasks: [task], subtasks: [], memories: [], notificationDeliveries: [] };
 const wrap = (data: Record<string, unknown>) => ({ format: 'offline-memory-backup', version: 1, createdAt: '2026-08-24T00:00:00Z', data });
 
 describe('SQLite restore edge validation', () => {
