@@ -15,7 +15,10 @@ Offline Memory is a Bengali/English, mobile-first productivity and personal-memo
 - Deterministic bilingual local NLP and local assistant orchestration
 - Persisted Bengali/English language and Light/Dark theme preferences
 - Five-item primary navigation with responsive expanded navigation for larger windows
-- Shared theme tokens, cards, buttons, states and `AppIcon` abstraction
+- Shared theme tokens, cards, buttons, icon buttons, badges, states and `AppIcon` abstraction
+- Bangladesh-localized date/time pickers and centralized Bengali/English date-time formatting
+- Attachment support for images, videos, PDFs and arbitrary document/file types with local lifecycle cleanup
+- Attachment-aware ZIP backup export and restore, while retaining compatibility with validated legacy JSON backups
 - Android adaptive launcher icon foreground/background/monochrome resources
 - Branded Android splash resource
 - Responsive content constraints for larger windows so settings/tools remain readable instead of stretching indefinitely
@@ -31,6 +34,7 @@ The final UI follows `AIOS.md` and uses:
 - Safe-area-aware primary navigation with a compact bottom bar and expanded navigation for wider windows
 - A minimum comfortable touch-target strategy and no device-model-specific layout assumptions
 - Local vector/icon assets instead of required remote images for core flows
+- Local file metadata, thumbnails for images, file-type icons, share/remove actions and localized attachment feedback
 
 ## Architecture
 
@@ -55,13 +59,21 @@ npx expo run:android
 
 ## Final verification commands
 
+For the complete Windows local gate:
+
+```powershell
+npm run verify:local
+```
+
+The script runs typecheck, lint, the full Jest suite, then installs and launches the existing debug APK when an online Android emulator/device and APK are available. It deliberately does not claim Android runtime PASS when no runtime evidence exists.
+
+Individual checks remain available:
+
 ```bash
 npm run typecheck
 npm run lint
 npm test -- --runInBand
 ```
-
-Android/device verification is a separate final gate and must not be represented as PASS without actual runtime evidence.
 
 ## Project contract
 
