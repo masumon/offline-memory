@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications';
 
 jest.mock('expo-notifications', () => ({
   SchedulableTriggerInputTypes: { DATE: 'date' },
-  AndroidNotificationPriority: { HIGH: 'high', DEFAULT: 'default', LOW: 'low', MIN: 'min' },
+  AndroidNotificationPriority: { HIGH: 'HIGH', MAX: 'MAX', DEFAULT: 'DEFAULT', LOW: 'LOW', MIN: 'MIN' },
   getAllScheduledNotificationsAsync: jest.fn().mockResolvedValue([]),
   scheduleNotificationAsync: jest.fn().mockResolvedValue('os-notification-1'),
   cancelScheduledNotificationAsync: jest.fn().mockResolvedValue(undefined),
