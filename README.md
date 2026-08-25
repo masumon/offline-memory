@@ -20,6 +20,7 @@ Offline Memory is a Bengali/English, mobile-first productivity and personal-memo
 - Attachment support for images, videos, PDFs and arbitrary document/file types with lifecycle cleanup and storage reconciliation diagnostics
 - Attachment UI with image preview, open/share/remove actions, localized feedback and destructive confirmation
 - Attachment-aware ZIP backup export and restore, including app language/theme preferences, while retaining compatibility with validated legacy JSON backups
+- Modern Expo FileSystem `File` / `Directory` / `Paths` APIs for attachment storage and backup archive file operations
 - Android adaptive launcher icon foreground/background/monochrome resources
 - Branded Android splash resource
 - Responsive content constraints for larger windows so settings/tools remain readable instead of stretching indefinitely
