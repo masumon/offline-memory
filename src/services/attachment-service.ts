@@ -11,12 +11,31 @@ const toAttachment=(row:AttachmentRow):Attachment=>({id:row.id,ownerType:row.own
 const safeName=(name:string)=>name.replace(/[^a-zA-Z0-9._-]+/gu,'_').slice(0,160)||'file';
 const id=()=>`${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
 
+async function ownerExists(db:SQLiteDatabase, ownerType:AttachmentOwner, ownerId:string):Promise<boolean>{
+  const table=ownerType==='TASK'?'tasks':'memories';
+  const row=await db.getFirstAsync<{id:string}>(`SELECT id FROM ${table} WHERE id=? LIMIT 1`,ownerId);
+  return Boolean(row);
+}
+
+async function deleteFile(uri:string):Promise<void>{
+  await FileSystem.deleteAsync(uri,{idempotent:true});
+}
+
+async function cleanupFiles(uris:string[]):Promise<void>{
+  const failures:string[]=[];
+  for(const uri of uris){
+    try{await deleteFile(uri)}catch{failures.push(uri)}
+  }
+  if(failures.length)throw new Error('Attachment cleanup failed');
+}
+
 export async function listAttachments(db:SQLiteDatabase, ownerType:AttachmentOwner, ownerId:string):Promise<Attachment[]> {
   const rows=await db.getAllAsync<AttachmentRow>('SELECT id,owner_type,owner_id,name,mime_type,size,uri,created_at FROM attachments WHERE owner_type=? AND owner_id=? ORDER BY created_at DESC',ownerType,ownerId);
   return rows.map(toAttachment);
 }
 
 export async function addAttachments(db:SQLiteDatabase, ownerType:AttachmentOwner, ownerId:string):Promise<Attachment[]> {
+  if(!(await ownerExists(db,ownerType,ownerId)))throw new Error('Attachment owner does not exist');
   const result=await DocumentPicker.getDocumentAsync({type:'*/*',multiple:true,copyToCacheDirectory:true});
   if(result.canceled||!result.assets?.length)return [];
   const directory=FileSystem.documentDirectory;
@@ -24,21 +43,46 @@ export async function addAttachments(db:SQLiteDatabase, ownerType:AttachmentOwne
   const attachmentDirectory=`${directory}attachments/`;
   await FileSystem.makeDirectoryAsync(attachmentDirectory,{intermediates:true});
   const created:Attachment[]=[];
-  for(const asset of result.assets){
-    const attachmentId=id();
-    const name=safeName(asset.name);
-    const destination=`${attachmentDirectory}${attachmentId}-${name}`;
-    await FileSystem.copyAsync({from:asset.uri,to:destination});
-    await db.runAsync('INSERT INTO attachments (id,owner_type,owner_id,name,mime_type,size,uri,created_at) VALUES (?,?,?,?,?,?,?,?)',attachmentId,ownerType,ownerId,asset.name,asset.mimeType??'application/octet-stream',asset.size??null,destination,new Date().toISOString());
-    created.push({id:attachmentId,ownerType,ownerId,name:asset.name,mimeType:asset.mimeType??'application/octet-stream',size:asset.size??null,uri:destination,createdAt:new Date().toISOString()});
+  const copiedUris:string[]=[];
+  try{
+    for(const asset of result.assets){
+      const attachmentId=id();
+      const name=safeName(asset.name);
+      const destination=`${attachmentDirectory}${attachmentId}-${name}`;
+      await FileSystem.copyAsync({from:asset.uri,to:destination});
+      copiedUris.push(destination);
+      const createdAt=new Date().toISOString();
+      created.push({id:attachmentId,ownerType,ownerId,name:asset.name,mimeType:asset.mimeType??'application/octet-stream',size:asset.size??null,uri:destination,createdAt});
+    }
+    await db.execAsync('BEGIN IMMEDIATE TRANSACTION;');
+    try{
+      for(const item of created){
+        await db.runAsync('INSERT INTO attachments (id,owner_type,owner_id,name,mime_type,size,uri,created_at) VALUES (?,?,?,?,?,?,?,?)',item.id,item.ownerType,item.ownerId,item.name,item.mimeType,item.size,item.uri,item.createdAt);
+      }
+      await db.execAsync('COMMIT;');
+    }catch(error){
+      try{await db.execAsync('ROLLBACK;')}catch{}
+      throw error;
+    }
+    return created;
+  }catch(error){
+    try{await cleanupFiles(copiedUris)}catch(cleanupError){throw cleanupError}
+    throw error;
   }
-  return created;
 }
 
 export async function removeAttachment(db:SQLiteDatabase, attachment:Attachment):Promise<boolean>{
-  try{await FileSystem.deleteAsync(attachment.uri,{idempotent:true});}catch{}
+  await deleteFile(attachment.uri);
   const result=await db.runAsync('DELETE FROM attachments WHERE id=?',attachment.id);
   return result.changes>0;
+}
+
+export async function removeAttachmentsForOwner(db:SQLiteDatabase, ownerType:AttachmentOwner, ownerId:string):Promise<number>{
+  const items=await listAttachments(db,ownerType,ownerId);
+  if(!items.length)return 0;
+  for(const item of items)await deleteFile(item.uri);
+  const result=await db.runAsync('DELETE FROM attachments WHERE owner_type=? AND owner_id=?',ownerType,ownerId);
+  return result.changes;
 }
 
 export async function shareAttachment(attachment:Attachment):Promise<void>{
