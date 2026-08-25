@@ -1,4 +1,4 @@
-import type { Language } from '../app/AppPreferences';
+type Language = 'en' | 'bn';
 
 export function settingsCopy(language: Language) {
   const bn = language === 'bn';
