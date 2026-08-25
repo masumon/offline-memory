@@ -6,6 +6,7 @@ describe('SQLite backup reader', () => {
     const db = {
       getAllAsync: jest.fn()
         .mockResolvedValueOnce([{ key: 'a', value: '1', updated_at: '2026-08-24T00:00:00Z' }])
+        .mockResolvedValueOnce([{ key: 'language', value: 'bn' }, { key: 'themeMode', value: 'dark' }])
         .mockResolvedValueOnce([{ id: 'task-1' }])
         .mockResolvedValueOnce([{ id: 'sub-1' }])
         .mockResolvedValueOnce([{ id: 'memory-1' }])
@@ -15,6 +16,7 @@ describe('SQLite backup reader', () => {
 
     await expect(readSQLiteBackupData(db)).resolves.toEqual({
       appMetadata: [{ key: 'a', value: '1', updated_at: '2026-08-24T00:00:00Z' }],
+      appPreferences: [{ key: 'language', value: 'bn' }, { key: 'themeMode', value: 'dark' }],
       tasks: [{ id: 'task-1' }],
       subtasks: [{ id: 'sub-1' }],
       memories: [{ id: 'memory-1' }],
