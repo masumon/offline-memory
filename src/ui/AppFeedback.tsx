@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppIcon } from './AppIcon';
 import { useAppPreferences } from '../app/AppPreferences';
@@ -11,9 +11,10 @@ const FeedbackContext = createContext<FeedbackContextValue | null>(null);
 
 export function AppFeedbackProvider({ children }: PropsWithChildren) {
   const [snackbar, setSnackbar] = useState<SnackbarState>(null);
-  const [sequence, setSequence] = useState(0);
+  const sequence = useRef(0);
   const showSnackbar = useCallback((message: string, tone: SnackbarTone = 'info') => {
-    setSequence(current => { const next = current + 1; setSnackbar({ id: next, message, tone }); return next; });
+    sequence.current += 1;
+    setSnackbar({ id: sequence.current, message, tone });
   }, []);
   useEffect(() => {
     if (!snackbar) return;
