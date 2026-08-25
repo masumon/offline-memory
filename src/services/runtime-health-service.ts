@@ -22,14 +22,14 @@ export async function collectRuntimeHealth(db: SQLiteDatabase): Promise<RuntimeH
     const permission = await Notifications.getPermissionsAsync();
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     return {
-      platform: Platform.OS,
+      platform: Platform?.OS || 'node',
       notifications: permission.granted ? 'granted' : permission.canAskAgain ? 'undetermined' : 'denied',
       scheduledNotificationCount: scheduled.length,
       databaseReadable,
     };
   } catch {
     return {
-      platform: Platform.OS,
+      platform: Platform?.OS || 'node',
       notifications: 'undetermined',
       scheduledNotificationCount: 0,
       databaseReadable,
