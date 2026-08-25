@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { CreateMemoryInput, Memory, UpdateMemoryInput } from '../types/memory-model';
+import { removeAttachmentsForOwner } from './attachment-service';
 
 const now = () => new Date().toISOString();
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -61,7 +62,12 @@ export async function updateMemory(db: SQLiteDatabase, id: string, input: Update
 }
 
 export async function archiveMemory(db: SQLiteDatabase, id: string): Promise<Memory | null> { return updateMemory(db, id, { archived: true }); }
-export async function deleteMemory(db: SQLiteDatabase, id: string): Promise<boolean> { return (await db.runAsync('DELETE FROM memories WHERE id = ?', id)).changes > 0; }
+export async function deleteMemory(db: SQLiteDatabase, id: string): Promise<boolean> {
+  const current = await getMemory(db, id);
+  if (!current) return false;
+  await removeAttachmentsForOwner(db, 'MEMORY', id);
+  return (await db.runAsync('DELETE FROM memories WHERE id = ?', id)).changes > 0;
+}
 export async function touchMemory(db: SQLiteDatabase, id: string): Promise<void> { await db.runAsync('UPDATE memories SET last_accessed_at = ?, updated_at = updated_at WHERE id = ?', now(), id); }
 
 function scoreMemory(memory: Memory, terms: string[], phrase: string): number {
