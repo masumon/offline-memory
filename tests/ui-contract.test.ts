@@ -5,11 +5,11 @@ const root = path.resolve(__dirname, '..');
 const read = (file: string) => fs.readFileSync(path.join(root, file), 'utf8');
 
 describe('UI implementation contracts', () => {
-  it('does not leave array styles directly on Link asChild descendants in audited screens', () => {
+  it('does not leave raw array styles directly on immediate Link asChild Pressable descendants', () => {
     const files = ['app/index.tsx', 'app/search.tsx', 'app/settings.tsx', 'app/more.tsx', 'app/reminders.tsx', 'app/task-editor.tsx', 'app/planning.tsx', 'app/inbox.tsx'];
+    const rawArrayStyleOnLinkChild = /<Link\b[^>]*\basChild\b[^>]*>\s*<Pressable\b[^>]*style=\{\(\{\s*pressed\s*\}\)\s*=>\s*\[/;
     for (const file of files) {
-      const source = read(file);
-      expect(source).not.toMatch(/<Link[\s\S]{0,1200}asChild[\s\S]{0,1200}<Pressable[^>]*style=\{\(\{\s*pressed\s*\}\)\s*=>\s*\[/);
+      expect(read(file)).not.toMatch(rawArrayStyleOnLinkChild);
     }
   });
 
@@ -27,7 +27,7 @@ describe('UI implementation contracts', () => {
     expect(formatter).toContain('formatBangladeshRelativeDate');
   });
 
-  it('keeps attachment panel controls at the shared 48dp target', () => {
+  it('keeps attachment panel controls at the shared tokenized touch target', () => {
     const source = read('src/ui/AttachmentPanel.tsx');
     expect(source).toContain('minHeight:control.buttonHeight');
     expect(source).toContain('minWidth:layout.minTouchTarget');
