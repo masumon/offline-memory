@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.72, transform: [{ scale: 0.98 }] },
   iconWrap: {
     width: spacing.lgPlus,
-    height: spacing.mdPlus + spacing.xs,
+    height: spacing.lgPlus,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
