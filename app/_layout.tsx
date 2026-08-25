@@ -15,9 +15,7 @@ function AppNavigator() {
   const insets = useSafeAreaInsets();
   const dark = themeMode === 'dark';
   const showPrimaryNav = primaryRoutes.includes(pathname);
-  const windowSize = getWindowSizeClass(width);
-  const expandedNav = windowSize === 'expanded';
-  const horizontalInset = windowSize === 'compact' ? layout.compactHorizontal : layout.regularHorizontal;
+  const expandedNav = getWindowSizeClass(width) === 'expanded';
   const compactBottomInset = showPrimaryNav && !expandedNav ? layout.compactNavHeight + insets.bottom : 0;
 
   return (
@@ -30,7 +28,6 @@ function AppNavigator() {
             backgroundColor: colors.background,
             paddingBottom: compactBottomInset,
             paddingLeft: showPrimaryNav && expandedNav ? layout.expandedNavWidth : 0,
-            paddingHorizontal: showPrimaryNav && !expandedNav ? horizontalInset : 0,
           },
         }}
       />
