@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-const DATABASE_VERSION = 7;
+const DATABASE_VERSION = 8;
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA journal_mode = WAL;');
@@ -44,7 +44,23 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
     await db.execAsync(`CREATE TABLE IF NOT EXISTS app_preferences (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);`);
     await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 7, new Date().toISOString());
   }
-  await db.execAsync('PRAGMA user_version = 7;');
+  if (currentVersion < 8) {
+    await db.execAsync(`CREATE TABLE IF NOT EXISTS attachments (
+      id TEXT PRIMARY KEY NOT NULL,
+      owner_type TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+      size INTEGER,
+      uri TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      CHECK (owner_type IN ('TASK','MEMORY'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_attachments_owner ON attachments(owner_type, owner_id);
+    CREATE INDEX IF NOT EXISTS idx_attachments_created_at ON attachments(created_at);`);
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 8, new Date().toISOString());
+  }
+  await db.execAsync('PRAGMA user_version = 8;');
 }
 
 export { DATABASE_VERSION };
