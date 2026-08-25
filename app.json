@@ -20,7 +20,13 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "color": "#006A4E",
+          "defaultChannel": "task-reminders"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
