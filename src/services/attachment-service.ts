@@ -1,91 +1,21 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
-export type AttachmentOwner = 'TASK' | 'MEMORY';
-export interface Attachment { id:string; ownerType:AttachmentOwner; ownerId:string; name:string; mimeType:string; size:number|null; uri:string; createdAt:string; }
-
+export type AttachmentOwner='TASK'|'MEMORY';
+export interface Attachment{id:string;ownerType:AttachmentOwner;ownerId:string;name:string;mimeType:string;size:number|null;uri:string;createdAt:string;}
 type AttachmentRow={id:string;owner_type:AttachmentOwner;owner_id:string;name:string;mime_type:string;size:number|null;uri:string;created_at:string};
 const toAttachment=(row:AttachmentRow):Attachment=>({id:row.id,ownerType:row.owner_type,ownerId:row.owner_id,name:row.name,mimeType:row.mime_type,size:row.size,uri:row.uri,createdAt:row.created_at});
 const safeName=(name:string)=>name.replace(/[^a-zA-Z0-9._-]+/gu,'_').slice(0,160)||'file';
 const id=()=>`${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
-
-async function ownerExists(db:SQLiteDatabase, ownerType:AttachmentOwner, ownerId:string):Promise<boolean>{
-  const table=ownerType==='TASK'?'tasks':'memories';
-  const row=await db.getFirstAsync<{id:string}>(`SELECT id FROM ${table} WHERE id=? LIMIT 1`,ownerId);
-  return Boolean(row);
-}
-
-async function deleteFile(uri:string):Promise<void>{
-  await FileSystem.deleteAsync(uri,{idempotent:true});
-}
-
-async function cleanupFiles(uris:string[]):Promise<void>{
-  const failures:string[]=[];
-  for(const uri of uris){
-    try{await deleteFile(uri)}catch{failures.push(uri)}
-  }
-  if(failures.length)throw new Error('Attachment cleanup failed');
-}
-
-export async function listAttachments(db:SQLiteDatabase, ownerType:AttachmentOwner, ownerId:string):Promise<Attachment[]> {
-  const rows=await db.getAllAsync<AttachmentRow>('SELECT id,owner_type,owner_id,name,mime_type,size,uri,created_at FROM attachments WHERE owner_type=? AND owner_id=? ORDER BY created_at DESC',ownerType,ownerId);
-  return rows.map(toAttachment);
-}
-
-export async function addAttachments(db:SQLiteDatabase, ownerType:AttachmentOwner, ownerId:string):Promise<Attachment[]> {
-  if(!(await ownerExists(db,ownerType,ownerId)))throw new Error('Attachment owner does not exist');
-  const result=await DocumentPicker.getDocumentAsync({type:'*/*',multiple:true,copyToCacheDirectory:true});
-  if(result.canceled||!result.assets?.length)return [];
-  const directory=FileSystem.documentDirectory;
-  if(!directory)throw new Error('Local document storage is unavailable');
-  const attachmentDirectory=`${directory}attachments/`;
-  await FileSystem.makeDirectoryAsync(attachmentDirectory,{intermediates:true});
-  const created:Attachment[]=[];
-  const copiedUris:string[]=[];
-  try{
-    for(const asset of result.assets){
-      const attachmentId=id();
-      const name=safeName(asset.name);
-      const destination=`${attachmentDirectory}${attachmentId}-${name}`;
-      await FileSystem.copyAsync({from:asset.uri,to:destination});
-      copiedUris.push(destination);
-      const createdAt=new Date().toISOString();
-      created.push({id:attachmentId,ownerType,ownerId,name:asset.name,mimeType:asset.mimeType??'application/octet-stream',size:asset.size??null,uri:destination,createdAt});
-    }
-    await db.execAsync('BEGIN IMMEDIATE TRANSACTION;');
-    try{
-      for(const item of created){
-        await db.runAsync('INSERT INTO attachments (id,owner_type,owner_id,name,mime_type,size,uri,created_at) VALUES (?,?,?,?,?,?,?,?)',item.id,item.ownerType,item.ownerId,item.name,item.mimeType,item.size,item.uri,item.createdAt);
-      }
-      await db.execAsync('COMMIT;');
-    }catch(error){
-      try{await db.execAsync('ROLLBACK;')}catch{}
-      throw error;
-    }
-    return created;
-  }catch(error){
-    try{await cleanupFiles(copiedUris)}catch(cleanupError){throw cleanupError}
-    throw error;
-  }
-}
-
-export async function removeAttachment(db:SQLiteDatabase, attachment:Attachment):Promise<boolean>{
-  await deleteFile(attachment.uri);
-  const result=await db.runAsync('DELETE FROM attachments WHERE id=?',attachment.id);
-  return result.changes>0;
-}
-
-export async function removeAttachmentsForOwner(db:SQLiteDatabase, ownerType:AttachmentOwner, ownerId:string):Promise<number>{
-  const items=await listAttachments(db,ownerType,ownerId);
-  if(!items.length)return 0;
-  for(const item of items)await deleteFile(item.uri);
-  const result=await db.runAsync('DELETE FROM attachments WHERE owner_type=? AND owner_id=?',ownerType,ownerId);
-  return result.changes;
-}
-
-export async function shareAttachment(attachment:Attachment):Promise<void>{
-  if(!(await Sharing.isAvailableAsync()))throw new Error('File sharing is unavailable on this device');
-  await Sharing.shareAsync(attachment.uri,{mimeType:attachment.mimeType,dialogTitle:attachment.name});
-}
+const attachmentDirectory=()=>new Directory(Paths.document,'attachments');
+async function ownerExists(db:SQLiteDatabase,ownerType:AttachmentOwner,ownerId:string):Promise<boolean>{const table=ownerType==='TASK'?'tasks':'memories';const row=await db.getFirstAsync<{id:string}>(`SELECT id FROM ${table} WHERE id=? LIMIT 1`,ownerId);return Boolean(row);}
+async function deleteFile(uri:string):Promise<void>{const file=new File(uri);if(file.exists)file.delete();}
+async function cleanupFiles(uris:string[]):Promise<void>{const failures:string[]=[];for(const uri of uris){try{await deleteFile(uri)}catch{failures.push(uri)}}if(failures.length)throw new Error('Attachment cleanup failed');}
+export async function listAttachments(db:SQLiteDatabase,ownerType:AttachmentOwner,ownerId:string):Promise<Attachment[]>{const rows=await db.getAllAsync<AttachmentRow>('SELECT id,owner_type,owner_id,name,mime_type,size,uri,created_at FROM attachments WHERE owner_type=? AND owner_id=? ORDER BY created_at DESC',ownerType,ownerId);return rows.map(toAttachment);}
+export async function addAttachments(db:SQLiteDatabase,ownerType:AttachmentOwner,ownerId:string):Promise<Attachment[]>{if(!(await ownerExists(db,ownerType,ownerId)))throw new Error('Attachment owner does not exist');const result=await DocumentPicker.getDocumentAsync({type:'*/*',multiple:true,copyToCacheDirectory:true});if(result.canceled||!result.assets?.length)return [];const directory=attachmentDirectory();directory.create({intermediates:true,idempotent:true});const created:Attachment[]=[];const copiedUris:string[]=[];try{for(const asset of result.assets){const attachmentId=id();const name=safeName(asset.name);const destination=new File(directory,`${attachmentId}-${name}`);const source=new File(asset.uri);source.copy(destination);copiedUris.push(destination.uri);const createdAt=new Date().toISOString();created.push({id:attachmentId,ownerType,ownerId,name:asset.name,mimeType:asset.mimeType??'application/octet-stream',size:asset.size??null,uri:destination.uri,createdAt});}await db.execAsync('BEGIN IMMEDIATE TRANSACTION;');try{for(const item of created)await db.runAsync('INSERT INTO attachments (id,owner_type,owner_id,name,mime_type,size,uri,created_at) VALUES (?,?,?,?,?,?,?,?)',item.id,item.ownerType,item.ownerId,item.name,item.mimeType,item.size,item.uri,item.createdAt);await db.execAsync('COMMIT;')}catch(error){try{await db.execAsync('ROLLBACK;')}catch{}throw error}return created}catch(error){try{await cleanupFiles(copiedUris)}catch(cleanupError){throw cleanupError}throw error}}
+export async function removeAttachment(db:SQLiteDatabase,attachment:Attachment):Promise<boolean>{await deleteFile(attachment.uri);const result=await db.runAsync('DELETE FROM attachments WHERE id=?',attachment.id);return result.changes>0;}
+export async function removeAttachmentsForOwner(db:SQLiteDatabase,ownerType:AttachmentOwner,ownerId:string):Promise<number>{const items=await listAttachments(db,ownerType,ownerId);if(!items.length)return 0;for(const item of items)await deleteFile(item.uri);const result=await db.runAsync('DELETE FROM attachments WHERE owner_type=? AND owner_id=?',ownerType,ownerId);return result.changes;}
+export function getAvailableAttachmentStorage():number{return Paths.availableDiskSpace;}
+export async function shareAttachment(attachment:Attachment):Promise<void>{if(!(await Sharing.isAvailableAsync()))throw new Error('File sharing is unavailable on this device');await Sharing.shareAsync(attachment.uri,{mimeType:attachment.mimeType,dialogTitle:attachment.name});}
