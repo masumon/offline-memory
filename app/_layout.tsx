@@ -4,7 +4,7 @@ import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-
 import { AppProviders } from '../src/app/AppProviders';
 import { useAppPreferences } from '../src/app/AppPreferences';
 import { PrimaryNav } from '../src/ui/PrimaryNav';
-import { breakpoints, layout } from '../src/theme';
+import { getWindowSizeClass, layout } from '../src/theme';
 
 const primaryRoutes = ['/', '/planning', '/memory', '/inbox', '/more'];
 
@@ -15,8 +15,10 @@ function AppNavigator() {
   const insets = useSafeAreaInsets();
   const dark = themeMode === 'dark';
   const showPrimaryNav = primaryRoutes.includes(pathname);
-  const expandedNav = width >= breakpoints.expandedNavigation;
+  const windowClass = getWindowSizeClass(width);
+  const expandedNav = windowClass === 'expanded';
   const compactBottomInset = showPrimaryNav && !expandedNav ? layout.compactNavHeight + insets.bottom : 0;
+  const mediumHorizontalPadding = windowClass === 'medium' ? layout.regularHorizontal : 0;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
@@ -28,6 +30,7 @@ function AppNavigator() {
             backgroundColor: colors.background,
             paddingBottom: compactBottomInset,
             paddingLeft: showPrimaryNav && expandedNav ? layout.expandedNavWidth : 0,
+            paddingRight: showPrimaryNav && windowClass === 'medium' ? mediumHorizontalPadding : 0,
           },
         }}
       />
