@@ -22,7 +22,7 @@ describe('UI implementation contracts', () => {
 
   it('keeps Bangladesh date-time formatters centralized', () => {
     const formatter = read('src/i18n/date-time.ts');
-    expect(formatter).toContain("bn-BD");
+    expect(formatter).toContain('bn-BD');
     expect(formatter).toContain('formatBangladeshDateTime');
     expect(formatter).toContain('formatBangladeshRelativeDate');
   });
@@ -30,7 +30,8 @@ describe('UI implementation contracts', () => {
   it('keeps attachment panel controls at the shared 48dp target', () => {
     const source = read('src/ui/AttachmentPanel.tsx');
     expect(source).toContain('minHeight:control.buttonHeight');
-    expect(source).toContain('minWidth:48');
+    expect(source).toContain('minWidth:layout.minTouchTarget');
+    expect(source).toContain('minHeight:layout.minTouchTarget');
     expect(source).toContain('AppConfirmDialog');
   });
 });
