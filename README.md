@@ -15,13 +15,15 @@ Offline Memory is a Bengali/English, mobile-first productivity and personal-memo
 - Deterministic bilingual local NLP and local assistant orchestration
 - Persisted Bengali/English language and Light/Dark theme preferences
 - Five-item primary navigation with responsive expanded navigation for larger windows
-- Shared theme tokens, cards, buttons, icon buttons, badges, states and `AppIcon` abstraction
-- Bangladesh-localized date/time pickers and centralized Bengali/English date-time formatting
-- Attachment support for images, videos, PDFs and arbitrary document/file types with local lifecycle cleanup
+- Shared design tokens and reusable cards, buttons, icon buttons, badges, states, snackbar/dialog primitives and `AppIcon`
+- Bangladesh-localized date/time pickers plus centralized date, time, weekday, month/year, relative-date and number formatting
+- Attachment support for images, videos, PDFs and arbitrary document/file types with lifecycle cleanup and storage reconciliation diagnostics
+- Attachment UI with image preview, open/share/remove actions, localized feedback and destructive confirmation
 - Attachment-aware ZIP backup export and restore, including app language/theme preferences, while retaining compatibility with validated legacy JSON backups
 - Android adaptive launcher icon foreground/background/monochrome resources
 - Branded Android splash resource
 - Responsive content constraints for larger windows so settings/tools remain readable instead of stretching indefinitely
+- Branded Android reminder channel metadata and high-priority task reminder presentation
 
 ## UX / design system
 
@@ -32,13 +34,17 @@ The final UI follows `AIOS.md` and uses:
 - Bengali-first readable typography and localized status/priority labels
 - Consistent rounded cards, buttons, icon containers and pressed/loading/empty/error states
 - Safe-area-aware primary navigation with a compact bottom bar and expanded navigation for wider windows
-- A minimum comfortable touch-target strategy and no device-model-specific layout assumptions
+- A minimum 48dp shared touch-target contract for new shared controls
 - Local vector/icon assets instead of required remote images for core flows
-- Local file metadata, thumbnails for images, file-type icons, share/remove actions and localized attachment feedback
+- Local file metadata, thumbnails for images, file-type icons, open/share/remove actions and localized attachment feedback
 
 ## Backup format
 
 New exports use the attachment-aware Offline Memory Backup Archive v2. The archive contains the validated database payload, app language/theme preferences, attachment metadata and the corresponding binary attachment files. Legacy validated Offline Memory Backup v1 JSON files remain restorable.
+
+## Integrity diagnostics
+
+Device diagnostics now also reconcile attachment metadata against the local attachment directory. Missing physical files remove their stale database rows, and unreferenced files are cleaned up. The reconciliation report is surfaced in the Diagnostics screen for later device verification.
 
 ## Architecture
 
