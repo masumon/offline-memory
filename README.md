@@ -18,6 +18,19 @@ Offline Memory is a Bengali/English, mobile-first productivity and personal-memo
 - Shared theme tokens, cards, buttons, states and `AppIcon` abstraction
 - Android adaptive launcher icon foreground/background/monochrome resources
 - Branded Android splash resource
+- Responsive content constraints for larger windows so settings/tools remain readable instead of stretching indefinitely
+
+## UX / design system
+
+The final UI follows `AIOS.md` and uses:
+
+- Bangladesh-inspired green as the primary brand color, with restrained semantic red/gold accents
+- Light and dark semantic color tokens
+- Bengali-first readable typography and localized status/priority labels
+- Consistent rounded cards, buttons, icon containers and pressed/loading/empty/error states
+- Safe-area-aware primary navigation with a compact bottom bar and expanded navigation for wider windows
+- A minimum comfortable touch-target strategy and no device-model-specific layout assumptions
+- Local vector/icon assets instead of required remote images for core flows
 
 ## Architecture
 
@@ -56,6 +69,8 @@ Android/device verification is a separate final gate and must not be represented
 
 CI/CD and GitHub Actions remain deferred until the final implementation stage requested separately.
 
-## Privacy
+## Privacy and data safety
 
 Core tasks, memories, search, planning, NLP, reminders and backup/restore do not require a cloud backend. Data remains on-device unless the user explicitly exports a backup.
+
+Local SQLite database files, journals and transient database artifacts are ignored by Git so a user's local database is not accidentally committed to the repository.
