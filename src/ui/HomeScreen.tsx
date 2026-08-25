@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 import { parseLocalNlp, type NlpResult } from '../ai/nlp';
 import { useTaskStore } from '../store/task.store';
 import { useMemoryStore } from '../store/memory.store';
