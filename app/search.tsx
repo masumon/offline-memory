@@ -144,88 +144,26 @@ export default function SearchScreen() {
         ) : null}
       </View>
 
-      {loading ? (
-        <View style={styles.loadingRow}>
-          <ActivityIndicator color={colors.primary} />
-          <Text style={styles.loadingText}>{labels.searching}</Text>
-        </View>
-      ) : null}
-
-      {error ? (
-        <AppState
-          title={bn ? 'সার্চ করা যায়নি' : 'Search failed'}
-          description={bn ? 'লোকাল সার্চে সমস্যা হয়েছে।' : 'The local search could not be completed.'}
-          icon="alert-circle-outline"
-          actionLabel={labels.retry}
-          onAction={retry}
-        />
-      ) : null}
-
-      {query.trim() && !loading && !result.tasks.length && !result.memories.length && !error ? (
-        <AppState icon="database-search-outline" title={labels.empty} description={labels.subtitle} />
-      ) : null}
+      {loading ? <View style={styles.loadingRow}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{labels.searching}</Text></View> : null}
+      {error ? <AppState title={bn ? 'সার্চ করা যায়নি' : 'Search failed'} description={bn ? 'লোকাল সার্চে সমস্যা হয়েছে।' : 'The local search could not be completed.'} icon="alert-circle-outline" actionLabel={labels.retry} onAction={retry} /> : null}
+      {query.trim() && !loading && !result.tasks.length && !result.memories.length && !error ? <AppState icon="database-search-outline" title={labels.empty} description={labels.subtitle} /> : null}
 
       {result.tasks.length ? (
         <Section title={`${labels.tasks} · ${result.tasks.length}`} styles={styles}>
-          {result.tasks.map((task) => (
-            <Link key={task.id} href={{ pathname: '/task-editor', params: { id: task.id } }} asChild>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${bn ? 'টাস্ক খুলুন' : 'Open task'} ${task.title}`}
-                style={({ pressed }) => [styles.resultCard, pressed && styles.pressed]}
-              >
-                <View style={styles.resultIcon}>
-                  <AppIcon name="clipboard-text-outline" size={19} color={colors.primary} />
-                </View>
-                <View style={styles.resultCopy}>
-                  <Text numberOfLines={3} style={styles.resultTitle}>{task.title}</Text>
-                  <Text style={styles.meta}>
-                    {localizeTaskStatus(task.status, bn)} · {localizeTaskPriority(task.priority, bn)}
-                  </Text>
-                </View>
-                <AppIcon name="chevron-right" size={20} color={colors.textMuted} />
-              </Pressable>
-            </Link>
-          ))}
+          {result.tasks.map((task) => <Link key={task.id} href={{ pathname: '/task-editor', params: { id: task.id } }} asChild><Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'টাস্ক খুলুন' : 'Open task'} ${task.title}`} style={({ pressed }) => [styles.resultCard, pressed && styles.pressed]}><View style={styles.resultIcon}><AppIcon name="clipboard-text-outline" size={19} color={colors.primary} /></View><View style={styles.resultCopy}><Text numberOfLines={3} style={styles.resultTitle}>{task.title}</Text><Text style={styles.meta}>{localizeTaskStatus(task.status, bn)} · {localizeTaskPriority(task.priority, bn)}</Text></View><AppIcon name="chevron-right" size={20} color={colors.textMuted} /></Pressable></Link>)}
         </Section>
       ) : null}
 
       {result.memories.length ? (
         <Section title={`${labels.memories} · ${result.memories.length}`} styles={styles}>
-          {result.memories.map((memory) => (
-            <Link key={memory.id} href={{ pathname: '/memory-editor', params: { id: memory.id } }} asChild>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${bn ? 'মেমোরি খুলুন' : 'Open memory'} ${memory.content.slice(0, 60)}`}
-                style={({ pressed }) => [styles.resultCard, pressed && styles.pressed]}
-              >
-                <View style={styles.resultIcon}>
-                  <AppIcon name="brain" size={19} color={colors.primary} />
-                </View>
-                <View style={styles.resultCopy}>
-                  <Text numberOfLines={3} style={styles.resultTitle}>{memory.content}</Text>
-                  <Text style={styles.meta}>
-                    {localizeMemoryKind(memory.kind, bn)} · {labels.importance} {memory.importance}
-                  </Text>
-                </View>
-                <AppIcon name="chevron-right" size={20} color={colors.textMuted} />
-              </Pressable>
-            </Link>
-          ))}
+          {result.memories.map((memory) => <Link key={memory.id} href={{ pathname: '/memory-editor', params: { id: memory.id } }} asChild><Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'মেমোরি খুলুন' : 'Open memory'} ${memory.content.slice(0, 60)}`} style={({ pressed }) => [styles.resultCard, pressed && styles.pressed]}><View style={styles.resultIcon}><AppIcon name="brain" size={19} color={colors.primary} /></View><View style={styles.resultCopy}><Text numberOfLines={3} style={styles.resultTitle}>{memory.content}</Text><Text style={styles.meta}>{localizeMemoryKind(memory.kind, bn)} · {labels.importance} {memory.importance}</Text></View><AppIcon name="chevron-right" size={20} color={colors.textMuted} /></Pressable></Link>)}
         </Section>
       ) : null}
     </ScrollView>
   );
 }
 
-function Section({ title, children, styles }: { title: string; children: ReactNode; styles: ReturnType<typeof makeStyles> }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {children}
-    </View>
-  );
-}
+function Section({ title, children, styles }: { title: string; children: ReactNode; styles: ReturnType<typeof makeStyles> }) { return <View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text>{children}</View>; }
 
 function makeStyles(colors: ThemeColors) {
   return StyleSheet.create({
