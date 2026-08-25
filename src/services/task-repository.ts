@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { CreateTaskInput, Task, UpdateTaskInput } from '../types/task-model';
 import type { TaskPriority, TaskStatus } from '../types';
+import { removeAttachmentsForOwner } from './attachment-service';
 
 interface TaskRow {
   id: string; title: string; notes: string | null; status: TaskStatus; priority: TaskPriority;
@@ -96,6 +97,9 @@ export async function updateTask(db: SQLiteDatabase, id: string, input: UpdateTa
 }
 
 export async function deleteTask(db: SQLiteDatabase, id: string): Promise<boolean> {
+  const current = await getTask(db, id);
+  if (!current) return false;
+  await removeAttachmentsForOwner(db, 'TASK', id);
   return (await db.runAsync('DELETE FROM tasks WHERE id = ?', id)).changes > 0;
 }
 

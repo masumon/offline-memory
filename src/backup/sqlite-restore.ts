@@ -7,6 +7,7 @@ const TASK_STATUSES = new Set(['INBOX', 'PLANNED', 'IN_PROGRESS', 'COMPLETED', '
 const PRIORITIES = new Set(['URGENT', 'HIGH', 'MEDIUM', 'LOW']);
 const MEMORY_KINDS = new Set(['NOTE', 'FACT', 'PREFERENCE', 'EVENT', 'REFLECTION']);
 const MEMORY_SOURCES = new Set(['USER', 'SYSTEM', 'IMPORTED']);
+const ATTACHMENT_OWNERS = new Set(['TASK', 'MEMORY']);
 
 function rows(data: Record<string, unknown>, key: string): BackupRow[] {
   const value = data[key];
@@ -51,6 +52,8 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
   const subtasks = rows(backup.data, 'subtasks');
   const memories = rows(backup.data, 'memories');
   const notificationDeliveries = rows(backup.data, 'notificationDeliveries');
+  const hasAttachments = Object.prototype.hasOwnProperty.call(backup.data, 'attachments');
+  const attachments = hasAttachments ? rows(backup.data, 'attachments') : [];
 
   const taskIds = new Set<string>();
   for (const row of tasks) {
@@ -93,7 +96,23 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
   const metadataKeys = new Set<string>();
   for (const row of appMetadata) { uniqueId(row, 'key', metadataKeys); requiredString(row, 'value'); requiredString(row, 'updated_at'); }
 
+  if (hasAttachments) {
+    const attachmentIds = new Set<string>();
+    for (const row of attachments) {
+      uniqueId(row, 'id', attachmentIds);
+      const ownerType = requiredString(row, 'owner_type');
+      if (!ATTACHMENT_OWNERS.has(ownerType)) throw new Error(`Unsupported attachment owner type: ${ownerType}`);
+      const ownerId = requiredString(row, 'owner_id');
+      if (ownerType === 'TASK' ? !taskIds.has(ownerId) : !memoryIds.has(ownerId)) throw new Error(`Attachment references missing ${ownerType.toLowerCase()}: ${ownerId}`);
+      requiredString(row, 'name'); requiredString(row, 'mime_type'); requiredString(row, 'uri');
+      const size = row.size;
+      if (size !== null && size !== undefined && (typeof size !== 'number' || !Number.isInteger(size) || size < 0)) throw new Error('Backup attachment size must be a non-negative integer or null');
+      requiredString(row, 'created_at');
+    }
+  }
+
   await db.withTransactionAsync(async () => {
+    if (hasAttachments) await db.runAsync('DELETE FROM attachments');
     await db.runAsync('DELETE FROM notification_deliveries');
     await db.runAsync('DELETE FROM subtasks');
     await db.runAsync('DELETE FROM memories');
@@ -112,6 +131,11 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
     }
     for (const row of memories) {
       await db.runAsync('INSERT INTO memories (id,title,content,kind,source,tags_json,importance,archived,created_at,updated_at,last_accessed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', requiredString(row, 'id'), optionalString(row, 'title'), requiredString(row, 'content'), requiredString(row, 'kind'), requiredString(row, 'source'), requiredString(row, 'tags_json'), requiredNumber(row, 'importance'), requiredNumber(row, 'archived'), requiredString(row, 'created_at'), requiredString(row, 'updated_at'), optionalString(row, 'last_accessed_at'));
+    }
+    if (hasAttachments) {
+      for (const row of attachments) {
+        await db.runAsync('INSERT INTO attachments (id,owner_type,owner_id,name,mime_type,size,uri,created_at) VALUES (?,?,?,?,?,?,?,?)', requiredString(row, 'id'), requiredString(row, 'owner_type'), requiredString(row, 'owner_id'), requiredString(row, 'name'), requiredString(row, 'mime_type'), row.size === null || row.size === undefined ? null : requiredNumber(row, 'size'), requiredString(row, 'uri'), requiredString(row, 'created_at'));
+      }
     }
     for (const row of notificationDeliveries) {
       await db.runAsync('INSERT INTO notification_deliveries (task_id,due_at,delivered_at) VALUES (?,?,?)', requiredString(row, 'task_id'), requiredString(row, 'due_at'), requiredString(row, 'delivered_at'));
