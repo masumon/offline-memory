@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { Directory, File } from 'expo-file-system';
+import { Directory } from 'expo-file-system';
 import { reconcileAttachmentStorage } from '../src/services/attachment-reconciliation-service';
 
 jest.mock('expo-file-system', () => {
