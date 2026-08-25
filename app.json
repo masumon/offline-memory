@@ -6,10 +6,6 @@
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "scheme": "offlinememory",
-    "splash": {
-      "backgroundColor": "#F4F8F6",
-      "resizeMode": "contain"
-    },
     "android": {
       "package": "com.masumon.offlinememory",
       "permissions": ["SCHEDULE_EXACT_ALARM"],
@@ -20,6 +16,15 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
+      "expo-font",
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F4F8F6",
+          "resizeMode": "contain"
+        }
+      ],
       [
         "expo-notifications",
         {
