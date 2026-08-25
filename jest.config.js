@@ -2,6 +2,7 @@
 
 const universal = require('./node_modules/jest-expo/universal/jest-preset.js');
 const safeWarnSetup = require.resolve('./tests/jest-safe-warnings.js');
+const reactNativeWebPlatformMock = require.resolve('./tests/mocks/react-native-web-platform.js');
 
 const expoTransformIgnorePatterns = [
   '/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@Expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation))',
@@ -21,6 +22,10 @@ const projects = (universal.projects || []).map((project) => {
       require.resolve('./jest.setup.js'),
       ...(projectConfig.setupFiles || []),
     ],
+    moduleNameMapper: {
+      ...(projectConfig.moduleNameMapper || {}),
+      '^react-native-web/dist/exports/Platform$': reactNativeWebPlatformMock,
+    },
     transformIgnorePatterns: expoTransformIgnorePatterns,
   };
 });
