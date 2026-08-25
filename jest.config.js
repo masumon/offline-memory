@@ -3,6 +3,9 @@
 const universal = require('./node_modules/jest-expo/universal/jest-preset.js');
 const safeWarnSetup = require.resolve('./tests/jest-safe-warnings.js');
 const reactNativeWebPlatformMock = require.resolve('./tests/mocks/react-native-web-platform.js');
+const reactNativeWebNativeEventEmitterMock = require.resolve('./tests/mocks/react-native-web-native-event-emitter.js');
+const expoFileSystemMock = require.resolve('./tests/mocks/expo-file-system.js');
+const expoDocumentPickerMock = require.resolve('./tests/mocks/expo-document-picker.js');
 
 const expoTransformIgnorePatterns = [
   '/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@Expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation))',
@@ -25,6 +28,9 @@ const projects = (universal.projects || []).map((project) => {
     moduleNameMapper: {
       ...(projectConfig.moduleNameMapper || {}),
       '^react-native-web/dist/exports/Platform$': reactNativeWebPlatformMock,
+      '^react-native-web/dist/exports/NativeEventEmitter$': reactNativeWebNativeEventEmitterMock,
+      '^expo-file-system$': expoFileSystemMock,
+      '^expo-document-picker$': expoDocumentPickerMock,
     },
     transformIgnorePatterns: expoTransformIgnorePatterns,
   };
