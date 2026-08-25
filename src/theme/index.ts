@@ -4,11 +4,11 @@ export type ThemeColors=typeof lightColors|typeof darkColors;
 export function getThemeColors(mode:'light'|'dark'):ThemeColors{return mode==='dark'?darkColors:lightColors;}
 export const colors=lightColors;
 export const spacing={xxs:4,xs:4,sm:8,smd:12,md:16,lg:24,xl:32,xxl:48,mdPlus:20,lgPlus:40} as const;
-export const layout={compactHorizontal:16,regularHorizontal:24,contentMaxWidth:760,expandedNavWidth:104,compactNavHeight:86,minTouchTarget:48,iconButtonSize:48} as const;
+export const layout={compactHorizontal:16,regularHorizontal:24,contentMaxWidth:760,expandedNavWidth:104,compactNavHeight:86,minTouchTarget:48,iconButtonSize:48,snackbarMaxWidth:680,dialogMaxWidth:520,feedbackZIndex:1000} as const;
 export const breakpoints={compactWindow:600,mediumWindow:840,expandedNavigation:840,wideContent:900,largeWindow:1200} as const;
 export type WindowSizeClass='compact'|'medium'|'expanded';
 export function getWindowSizeClass(width:number):WindowSizeClass{return width<breakpoints.compactWindow?'compact':width<breakpoints.mediumWindow?'medium':'expanded';}
-export const typography={label:{fontSize:12,lineHeight:16},body:{fontSize:16,lineHeight:24},bodySmall:{fontSize:14,lineHeight:21},title:{fontSize:30,lineHeight:38},heading:{fontSize:22,lineHeight:29},display:{fontSize:36,lineHeight:44},caption:{fontSize:11,lineHeight:16},titleLarge:{fontSize:32,lineHeight:40},cardTitle:{fontSize:18,lineHeight:24},meta:{fontSize:13,lineHeight:20},input:{fontSize:15,lineHeight:22},section:{fontSize:11,lineHeight:16}} as const;
+export const typography={label:{fontSize:12,lineHeight:16},body:{fontSize:16,lineHeight:24},bodySmall:{fontSize:14,lineHeight:21},title:{fontSize:30,lineHeight:38},heading:{fontSize:22,lineHeight:29},display:{fontSize:36,lineHeight:44},caption:{fontSize:11,lineHeight:16},titleLarge:{fontSize:32,lineHeight:40},cardTitle:{fontSize:18,lineHeight:24},meta:{fontSize:13,lineHeight:20},input:{fontSize:15,lineHeight:22},section:{fontSize:11,lineHeight:16},dialogTitle:{fontSize:20,lineHeight:26}} as const;
 export const radius={sm:8,md:12,lg:18,xl:24,pill:999} as const;
 export const control={inputHeight:52,buttonHeight:48,rowMinHeight:64,iconSize:22,iconButtonSize:48,smallIconContainer:40,listIconContainer:44,searchHeight:56,textareaMinHeight:220,titleIconSize:52,previewCloseSize:48} as const;
 export const icon={xs:16,sm:18,md:22,lg:28,xl:36} as const;
