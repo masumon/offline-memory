@@ -17,8 +17,13 @@ describe('Expo notification adapter', () => {
 
   it('recovers an OS-scheduled notification after a process restart', async () => {
     const db = {} as SQLiteDatabase;
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-08-25T08:00:00.000Z').getTime());
     jest.mocked(Notifications.getAllScheduledNotificationsAsync).mockResolvedValue([{ identifier: 'existing-1', content: { data: { taskId: 'task-1', dueAt: '2026-08-25T10:00:00.000Z' } }, trigger: null } as never]);
-    await expect(scheduleTaskNotification(db, { taskId: 'task-1', title: 'Existing reminder', dueAt: '2026-08-25T10:00:00.000Z' })).resolves.toBe('existing-1');
+    try {
+      await expect(scheduleTaskNotification(db, { taskId: 'task-1', title: 'Existing reminder', dueAt: '2026-08-25T10:00:00.000Z' })).resolves.toBe('existing-1');
+    } finally {
+      nowSpy.mockRestore();
+    }
     expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
   });
 
