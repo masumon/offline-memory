@@ -5,7 +5,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { addAttachments, removeAttachmentsForOwner, type Attachment } from '../src/services/attachment-service';
 const getDocumentAsync=DocumentPicker.getDocumentAsync as jest.Mock;
-const fileClass=File as unknown as {copyMock:jest.Mock;deleteMock:jest.Mock;instances:Array<{uri:string}>};
+const fileClass=File as unknown as {copyMock:jest.Mock;deleteMock:jest.Mock;instances:{uri:string}[]};
 type FakeDb={getFirstAsync:jest.Mock;getAllAsync:jest.Mock;runAsync:jest.Mock;withTransactionAsync:jest.Mock};
 function createDb():FakeDb{const db:FakeDb={getFirstAsync:jest.fn().mockResolvedValue({id:'owner-1'}),getAllAsync:jest.fn().mockResolvedValue([]),runAsync:jest.fn().mockResolvedValue({changes:1}),withTransactionAsync:jest.fn(async(cb:()=>unknown)=>await cb())};return db}
 beforeEach(()=>{jest.clearAllMocks();fileClass.instances.length=0;fileClass.copyMock.mockReset();fileClass.deleteMock.mockReset();});
