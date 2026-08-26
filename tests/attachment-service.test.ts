@@ -3,7 +3,7 @@ import { File } from 'expo-file-system';
 import { addAttachments, removeAttachmentsForOwner, type Attachment } from '../src/services/attachment-service';
 
 jest.mock('expo-document-picker',()=>({getDocumentAsync:jest.fn()}));
-jest.mock('expo-file-system',()=>{class MockFile{static copyMock=jest.fn();static deleteMock=jest.fn();static instances:MockFile[]=[];uri:string;exists=true;copy=MockFile.copyMock;delete=MockFile.deleteMock;constructor(uriOrDirectory:unknown,name?:string){this.uri=typeof uriOrDirectory==='string'?uriOrDirectory:`file:///documents/attachments/${name??'file'}`;MockFile.instances.push(this)}}class MockDirectory{uri='file:///documents/attachments/';exists=true;create=jest.fn();constructor(..._parts:unknown[]){} }return{File:MockFile,Directory:MockDirectory,Paths:{document:{},availableDiskSpace:1024*1024*1024}}});
+jest.mock('expo-file-system',()=>{class MockFile{static copyMock=jest.fn();static deleteMock=jest.fn();static instances:MockFile[]=[];uri:string;exists=true;copy=MockFile.copyMock;delete=MockFile.deleteMock;constructor(uriOrDirectory:unknown,name?:string){this.uri=typeof uriOrDirectory==='string'?uriOrDirectory:`file:///documents/attachments/${name??'file'}`;MockFile.instances.push(this)}}class MockDirectory{uri='file:///documents/attachments/';exists=true;create=jest.fn()}return{File:MockFile,Directory:MockDirectory,Paths:{document:{},availableDiskSpace:1024*1024*1024}}});
 jest.mock('expo-sharing',()=>({isAvailableAsync:jest.fn(async()=>true),shareAsync:jest.fn(async()=>{})}));
 
 const getDocumentAsync=DocumentPicker.getDocumentAsync as jest.Mock;
