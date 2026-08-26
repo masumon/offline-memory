@@ -38,10 +38,21 @@ export default function TaskEditorScreen() {
 
   useEffect(() => {
     if (!id) return;
-    void (async () => { if (!task) await load(db); setLoaded(true); })();
+    if (task) {
+      setLoaded(true);
+      return;
+    }
+    void load(db).finally(() => setLoaded(true));
   }, [db, id, load, task]);
   useEffect(() => {
-    if (task) { setTitle(task.title); setNotes(task.notes ?? ''); setPriority(task.priority); setPlannedDate(task.plannedDate ?? ''); setDueAt(task.dueAt ?? ''); }
+    if (!task) return;
+    void Promise.resolve().then(() => {
+      setTitle(task.title);
+      setNotes(task.notes ?? '');
+      setPriority(task.priority);
+      setPlannedDate(task.plannedDate ?? '');
+      setDueAt(task.dueAt ?? '');
+    });
   }, [task]);
   useEffect(() => () => { const pending = stagedRef.current; if (pending.length) void discardStagedAttachments(pending).catch(() => {}); }, []);
 
