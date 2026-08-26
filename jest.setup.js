@@ -1,3 +1,4 @@
+/* global jest */
 const originalWarn = console.warn;
 
 console.warn = (...args) => {
