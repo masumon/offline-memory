@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { router } from 'expo-router';
@@ -20,7 +20,7 @@ import { backupCopy } from '../src/i18n/backup';
 type MessageKind='success'|'error';
 function formatBytes(bytes:number){if(bytes<1024)return `${bytes} B`;if(bytes<1024*1024)return `${(bytes/1024).toFixed(1)} KB`;if(bytes<1024*1024*1024)return `${(bytes/1024/1024).toFixed(1)} MB`;return `${(bytes/1024/1024/1024).toFixed(1)} GB`;}
 export default function BackupScreen(){const db=useSQLiteContext();const{colors,language}=useAppPreferences();const copy=backupCopy(language);const styles=useMemo(()=>makeStyles(colors),[colors]);const loadTasks=useTaskStore(s=>s.load);const loadMemories=useMemoryStore(s=>s.load);const[busy,setBusy]=useState(false);const[message,setMessage]=useState('');const[messageKind,setMessageKind]=useState<MessageKind>('success');const[storage,setStorage]=useState<AttachmentStorageSummary|null>(null);const[confirmRestore,setConfirmRestore]=useState(false);const[backupSize,setBackupSize]=useState<number|null>(null);
- const refreshStorage=async()=>{try{setStorage(await getAttachmentStorageSummary(db))}catch{setStorage(null)}};useEffect(()=>{void refreshStorage()},[db]);
+ const refreshStorage=useCallback(async()=>{try{setStorage(await getAttachmentStorageSummary(db))}catch{setStorage(null)}},[db]);useEffect(()=>{let active=true;void getAttachmentStorageSummary(db).then(value=>{if(active)setStorage(value)}).catch(()=>{if(active)setStorage(null)});return()=>{active=false}},[db]);
  const showSuccess=(value:string)=>{setMessageKind('success');setMessage(value)};const showError=()=>{setMessageKind('error');setMessage(copy.error)};
  const backup=async()=>{setBusy(true);setMessage('');try{const archive=await createBackupArchive(db);setBackupSize(archive.bytes.byteLength);const uri=await writeBackupArchiveFile(archive.bytes,archive.createdAt);await shareBackupArchiveFile(uri);showSuccess(copy.success(archive.attachmentCount,formatBytes(archive.bytes.byteLength)))}catch{showError()}finally{setBusy(false)}};
  const performRestore=async()=>{setBusy(true);setMessage('');try{const picked=await pickBackupBundle();if(!picked)return;let attachmentCount=0;if(picked.kind==='archive'){const result=await restoreBackupArchive(db,picked.bytes);attachmentCount=result.attachmentCount}else{await restoreBackupDocument(db,picked.document)}await Promise.all([loadTasks(db),loadMemories(db)]);await refreshStorage();try{await runNotificationScheduler(db);showSuccess(attachmentCount?copy.restoredWithAttachments(attachmentCount):copy.restored)}catch{showSuccess(copy.restoredRetry)}}catch{showError()}finally{setBusy(false);setConfirmRestore(false)}};
