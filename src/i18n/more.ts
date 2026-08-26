@@ -1,7 +1,6 @@
 import type { AppLanguage } from './date-time';
 
 type MoreItemCopy={title:string;description:string};
-type MoreGroupCopy={title:string;items:Record<string,MoreItemCopy>};
 
 export const moreCopy={
   bn:{back:'হোম',eyebrow:'টুলস ও ডেটা',title:'আরও',subtitle:'Offline Memory-এর সহায়ক টুল ও ডেটা কন্ট্রোল।',groups:{
