@@ -3,13 +3,13 @@ import { File } from 'expo-file-system';
 import { addAttachments, removeAttachmentsForOwner, type Attachment } from '../src/services/attachment-service';
 
 jest.mock('expo-document-picker',()=>({getDocumentAsync:jest.fn()}));
-jest.mock('expo-file-system',()=>{class MockFile{static copyMock=jest.fn();static deleteMock=jest.fn();static instances:MockFile[]=[];uri:string;exists=true;copy=MockFile.copyMock;delete=MockFile.deleteMock;constructor(uriOrDirectory:unknown,name?:string){this.uri=typeof uriOrDirectory==='string'?uriOrDirectory:`file:///documents/attachments/${name??'file'}`;MockFile.instances.push(this)}}class MockDirectory{uri='file:///documents/attachments/';exists=true;create=jest.fn();constructor(..._parts:unknown[]){}}return{File:MockFile,Directory:MockDirectory,Paths:{document:{},availableDiskSpace:1024*1024*1024}}});
+jest.mock('expo-file-system',()=>{class MockFile{static copyMock=jest.fn();static deleteMock=jest.fn();static instances:MockFile[]=[];uri:string;exists=true;copy=MockFile.copyMock;delete=MockFile.deleteMock;constructor(uriOrDirectory:unknown,name?:string){this.uri=typeof uriOrDirectory==='string'?uriOrDirectory:`file:///documents/attachments/${name??'file'}`;MockFile.instances.push(this)}}class MockDirectory{uri='file:///documents/attachments/';exists=true;create=jest.fn();constructor(..._parts:unknown[]){} }return{File:MockFile,Directory:MockDirectory,Paths:{document:{},availableDiskSpace:1024*1024*1024}}});
 jest.mock('expo-sharing',()=>({isAvailableAsync:jest.fn(async()=>true),shareAsync:jest.fn(async()=>{})}));
 
 const getDocumentAsync=DocumentPicker.getDocumentAsync as jest.Mock;
 const fileClass=File as unknown as {copyMock:jest.Mock;deleteMock:jest.Mock;instances:{uri:string}[]};
 type FakeDb={getFirstAsync:jest.Mock;getAllAsync:jest.Mock;runAsync:jest.Mock;withTransactionAsync:jest.Mock};
-function createDb():FakeDb{const db:FakeDb={getFirstAsync:jest.fn().mockResolvedValue({id:'owner-1'}),getAllAsync:jest.fn().mockResolvedValue([]),runAsync:jest.fn().mockResolvedValue({changes:1}),withTransactionAsync:jest.fn(async(cb:()=>unknown)=>await cb())};return db}
+function createDb():FakeDb{const db:FakeDb={getFirstAsync:jest.fn().mockResolvedValue({id:'owner-1'}),getAllAsync:jest.fn().mockResolvedValue([]),runAsync:jest.fn().mockResolvedValue({changes:1}),withTransactionAsync:jest.fn(async(cb:()=>unknown)=>{await cb();})};return db}
 beforeEach(()=>{jest.clearAllMocks();fileClass.instances.length=0;fileClass.copyMock.mockReset();fileClass.deleteMock.mockReset();});
 describe('attachment lifecycle safety',()=>{
  it('copies every selected file before inserting metadata in the atomic transaction',async()=>{const db=createDb();getDocumentAsync.mockResolvedValue({canceled:false,assets:[{name:'photo.jpg',uri:'picker://photo',mimeType:'image/jpeg',size:10},{name:'notes.pdf',uri:'picker://notes',mimeType:'application/pdf',size:20}]});const created=await addAttachments(db as never,'TASK','owner-1');expect(created).toHaveLength(2);expect(fileClass.copyMock).toHaveBeenCalledTimes(2);expect(db.withTransactionAsync).toHaveBeenCalledTimes(1);expect(db.runAsync).toHaveBeenCalledTimes(2)});
