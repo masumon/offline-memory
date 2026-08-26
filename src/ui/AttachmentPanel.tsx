@@ -10,7 +10,7 @@ import { useAppPreferences } from '../app/AppPreferences';
 import { formatBangladeshDateTime } from '../i18n/date-time';
 import { attachmentCopy } from '../i18n/attachments';
 import { addAttachments, listAttachments, removeAttachment, shareAttachment, type Attachment, type AttachmentOwner } from '../services/attachment-service';
-import { control, border, layout, opacity, radius, spacing, typography, type ThemeColors } from '../theme';
+import { control, layout, opacity, radius, spacing, typography, type ThemeColors } from '../theme';
 
 function iconFor(mime:string){if(mime.startsWith('image/'))return 'file-image-outline' as const;if(mime.startsWith('video/'))return 'file-video-outline' as const;if(mime.startsWith('audio/'))return 'file-music-outline' as const;if(mime.includes('pdf'))return 'file-pdf-box' as const;return 'file-outline' as const;}
 function formatSize(size:number|null,copy:ReturnType<typeof attachmentCopy>){if(size===null)return copy.sizeUnknown;if(size<1024)return `${size} B`;if(size<1024*1024)return `${(size/1024).toFixed(1)} KB`;return `${(size/1024/1024).toFixed(1)} MB`;}
