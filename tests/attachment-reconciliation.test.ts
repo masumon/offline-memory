@@ -19,7 +19,6 @@ jest.mock('expo-file-system', () => {
   class MockDirectory {
     exists = true;
     list = jest.fn(() => files);
-    constructor(..._parts: string[]) {}
   }
   return { File: MockFile, Directory: MockDirectory, Paths: { document: 'file:///documents' } };
 });
@@ -31,7 +30,7 @@ describe('attachment reconciliation', () => {
     expect(result.removedDatabaseRows).toBe(1);
     expect(result.removedOrphanFiles).toBe(1);
     expect(db.runAsync).toHaveBeenCalledWith('DELETE FROM attachments WHERE id=?','missing');
-    const orphan = (new Directory() as unknown as { list:()=>Array<{uri:string;delete:jest.Mock}> }).list()[1]!;
+    const orphan = (new Directory() as unknown as { list:()=>{uri:string;delete:jest.Mock}[] }).list()[1]!;
     expect(orphan.delete).toHaveBeenCalledTimes(1);
   });
 });
