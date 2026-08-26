@@ -1,7 +1,5 @@
 import type { AppLanguage } from './date-time';
 
-type MoreItemCopy={title:string;description:string};
-
 export const moreCopy={
   bn:{back:'হোম',eyebrow:'টুলস ও ডেটা',title:'আরও',subtitle:'Offline Memory-এর সহায়ক টুল ও ডেটা কন্ট্রোল।',groups:{
     Tools:{title:'টুলস',items:{search:{title:'সার্চ',description:'লোকালি সংরক্ষিত টাস্ক ও সক্রিয় মেমোরি খুঁজুন।'},assistant:{title:'লোকাল অ্যাসিস্ট্যান্ট',description:'লোকাল টাস্ক ও মেমোরি কমান্ড ব্যবহার করুন।'}}},
