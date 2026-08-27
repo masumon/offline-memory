@@ -2,7 +2,7 @@ import { Appearance } from 'react-native';
 import type { PropsWithChildren } from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
-import { getThemeColors, type ThemeColors } from '../theme';
+import { getThemeAccents, getThemeColors, type ThemeAccents, type ThemeColors } from '../theme';
 
 type Language = 'en' | 'bn';
 type ThemeMode = 'light' | 'dark';
@@ -11,6 +11,7 @@ type PreferencesContextValue = {
   language: Language;
   themeMode: ThemeMode;
   colors: ThemeColors;
+  accents: ThemeAccents;
   setLanguage: (language: Language) => Promise<void>;
   setThemeMode: (themeMode: ThemeMode) => Promise<void>;
 };
@@ -69,7 +70,8 @@ export function AppPreferencesProvider({ children }: PropsWithChildren) {
   }, [persist, themeMode]);
 
   const colors = useMemo(() => getThemeColors(themeMode), [themeMode]);
-  const value = useMemo(() => ({ language, themeMode, colors, setLanguage, setThemeMode }), [language, themeMode, colors, setLanguage, setThemeMode]);
+  const accents = useMemo(() => getThemeAccents(themeMode), [themeMode]);
+  const value = useMemo(() => ({ language, themeMode, colors, accents, setLanguage, setThemeMode }), [language, themeMode, colors, accents, setLanguage, setThemeMode]);
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
 }
 

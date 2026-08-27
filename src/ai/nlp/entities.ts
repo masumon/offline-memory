@@ -7,6 +7,9 @@ const WEEKDAYS: Record<string, number> = {
 const DATE_TERMS = ['day after tomorrow', 'tomorrow', 'today', 'আগামীকাল', 'পরশু', 'কাল', 'আজ'] as const;
 const BENGALI_DIGITS = '০১২৩৪৫৬৭৮৯';
 
+// Bengali "word" boundary must exclude combining marks too, or "কাল" matches inside "বিকাল".
+const NB = '[\\p{L}\\p{M}]';
+
 function toAsciiDigits(value: string): string {
   return [...value].map((char) => { const index = BENGALI_DIGITS.indexOf(char); return index >= 0 ? String(index) : char; }).join('');
 }
@@ -18,7 +21,7 @@ function dateEntity(raw: string, date: Date): DateEntity { return { raw, isoDate
 function findDateTerm(text: string): string | undefined {
   for (const term of DATE_TERMS) {
     const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const match = text.match(new RegExp(`(?<!\\p{L})${escaped}(?!\\p{L})`, 'u'));
+    const match = text.match(new RegExp(`(?<!${NB})${escaped}(?!${NB})`, 'u'));
     if (match) return match[0];
   }
   return undefined;
@@ -54,7 +57,7 @@ function normalizeHour(hour: number, meridiem?: string): number {
   return hour;
 }
 
-const TIME_PATTERN = /(?:(?:\bat\s+|সময়\s*|(?<period>সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে)\s*)(?<hour>\d{1,2})(?::(?<minute>\d{2}))?\s*(?<suffix>am|pm|a\.m\.|p\.m\.|টা|টায়|টায়)?|(?<plainHour>\d{1,2}):(?<plainMinute>\d{2})\s*(?<plainSuffix>am|pm|a\.m\.|p\.m\.)?|(?<suffixHour>\d{1,2})\s*(?<suffixOnly>am|pm|a\.m\.|p\.m\.|টা|টায়|টায়))(?=\s|$|[.,!?।])/u;
+const TIME_PATTERN = /(?:(?:\bat\s+|সময়\s*|(?<period>সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাতে)\s*)(?<hour>\d{1,2})(?::(?<minute>\d{2}))?\s*(?<suffix>am|pm|a\.m\.|p\.m\.|টা|টায়|টায়)?|(?<plainHour>\d{1,2}):(?<plainMinute>\d{2})\s*(?<plainSuffix>am|pm|a\.m\.|p\.m\.)?|(?<suffixHour>\d{1,2})\s*(?<suffixOnly>am|pm|a\.m\.|p\.m\.|টা|টায়|টায়))(?=\s|$|[.,!?।])/u;
 
 export function extractTime(text: string): TimeEntity | undefined {
   const normalized = toAsciiDigits(text.trim().toLocaleLowerCase());
@@ -71,18 +74,33 @@ export function extractTime(text: string): TimeEntity | undefined {
 }
 
 function removeDateTime(text: string): string {
-  let cleaned = text.replace(/(?<!\p{L})(?:today|tomorrow|day after tomorrow|আজ|আগামীকাল|কাল|পরশু)(?!\p{L})/gu, ' ');
+  let cleaned = text.replace(new RegExp(`(?<!${NB})(?:today|tomorrow|day after tomorrow|আজ|আগামীকাল|কাল|পরশু)(?!${NB})`, 'gu'), ' ');
   cleaned = cleaned.replace(/(?<!\d)\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{4})?(?!\d)/gu, ' ');
+  // Strip the time span while the period word ("বিকাল" etc.) is still present so
+  // extractTime can resolve AM/PM, then mop up any leftover bare period / "Nটা".
   const time = extractTime(cleaned);
   if (time) cleaned = cleaned.replace(time.raw, ' ');
+  cleaned = cleaned.replace(/(?<![\p{L}\p{M}])(?:সকাল|সকালে|দুপুর|বিকাল|বিকেলে|সন্ধ্যা|রাত|রাতে|ভোর)(?![\p{L}\p{M}])/gu, ' ');
+  cleaned = cleaned.replace(/(?<![\p{L}\p{M}])\d{1,2}\s*(?:টা|টায়)(?![\p{L}\p{M}])/gu, ' ');
   return cleaned.replace(/\s+/g, ' ').trim();
 }
 function cleanContent(text: string): string {
-  return text.replace(/^(please|pls|দয়া করে|দয়া করে|আমাকে|একটা|একটি)\s+/u, '').replace(/^(remember|save|note|search|find|মনে রাখো|মনে রাখ|মনে রাখবে|নোট করো|কাজ যোগ করো|কাজ যোগ|খুঁজে দাও|খুঁজে দেখ|খুঁজে|পিছিয়ে দাও|পিছিয়ে দাও|করতে হবে)\s*[:,-]?\s*/u, '').replace(/\s+(please|pls|দয়া করে|দয়া করে|খুঁজে দাও|খুঁজে দেখ|খুঁজে দিন|পিছিয়ে দাও|পিছিয়ে দাও)$/u, '').trim();
+  return text
+    .replace(/^(please|pls|দয়া করে|দয়া করে|আমাকে|একটা|একটি)\s+/u, '')
+    .replace(/^(remember|save|note|search|find|মনে রাখো|মনে রাখ|মনে রাখবে|নোট করো|কাজ যোগ করো|কাজ যোগ|খুঁজে দাও|খুঁজে দেখ|খুঁজে|পিছিয়ে দাও|পিছিয়ে দাও|করতে হবে)\s*[:,-]?\s*/u, '')
+    .replace(/(?<![\p{L}\p{M}])(?:কাজটা|কাজটি|কাজটার|কাজটিকে)(?![\p{L}\p{M}])/u, ' ')
+    .replace(/\s+(please|pls|দয়া করে|দয়া করে|খুঁজে দাও|খুঁজে দেখ|খুঁজে দিন|পিছিয়ে দাও|পিছিয়ে দাও|করে দাও|করে দিন|কমপ্লিট|কম্পলিট|সম্পন্ন|হয়ে গেছে|শেষ|করে ফেলেছি|করেছি|সেরে ফেলেছি)$/u, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 export function extractEntities(text: string, intent: NlpIntent, now = new Date()): NlpEntities {
   const date = extractDate(text, now); const time = extractTime(text); const cleaned = removeDateTime(text); const content = cleanContent(cleaned);
-  if (intent === 'CREATE_TASK' || intent === 'RESCHEDULE_TASK') return { taskText: content || undefined, date, time };
+  if (intent === 'CREATE_TASK' || intent === 'RESCHEDULE_TASK') {
+    const taskText = content
+      .replace(/^(?:রবিবার|সোমবার|মঙ্গলবার|বুধবার|বৃহস্পতিবার|শুক্রবার|শনিবার|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\s+/iu, '')
+      .trim();
+    return { taskText: taskText || undefined, date, time };
+  }
   if (intent === 'CREATE_MEMORY') return { memoryText: content || undefined };
   if (intent === 'SEARCH_MEMORY') return { query: content || undefined };
   return { date, time };

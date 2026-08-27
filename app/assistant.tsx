@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Link } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { orchestrate, type OrchestratorResult } from '../src/ai/orchestrator';
+import { orchestrate, type OrchestratedAction, type OrchestratorResult } from '../src/ai/orchestrator';
 import { executeAssistantAction, type AssistantExecutionResult } from '../src/services/assistant-action-service';
 import { useTaskStore } from '../src/store/task.store';
 import { useMemoryStore } from '../src/store/memory.store';
@@ -10,13 +10,210 @@ import { useAppPreferences } from '../src/app/AppPreferences';
 import { AppIcon } from '../src/ui/AppIcon';
 import { AppState } from '../src/ui/AppSurface';
 import { localizeMemoryKind, localizeTaskPriority, localizeTaskStatus } from '../src/i18n/domain-labels';
-import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, type ThemeColors } from '../src/theme';
+import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, type ThemeAccents, type ThemeColors } from '../src/theme';
 
-export default function AssistantScreen(){
- const db=useSQLiteContext();const{colors,language}=useAppPreferences();const bn=language==='bn';const styles=useMemo(()=>makeStyles(colors),[colors]);const[input,setInput]=useState('');const[busy,setBusy]=useState(false);const[error,setError]=useState<string|null>(null);const[execution,setExecution]=useState<AssistantExecutionResult|null>(null);const loadTasks=useTaskStore(s=>s.load);const loadMemories=useMemoryStore(s=>s.load);const result=useMemo<OrchestratorResult|null>(()=>{const value=input.trim();return value?orchestrate(value):null},[input]);
- const execute=async()=>{if(!result||result.status!=='READY'||result.action.type==='CLARIFY'||busy)return;setBusy(true);setError(null);setExecution(null);try{const next=await executeAssistantAction(db,result.action);setExecution(next);await Promise.all([loadTasks(db),loadMemories(db)])}catch{setError(bn?'লোকাল অ্যাকশন চালানো যায়নি':'Unable to execute the local action')}finally{setBusy(false)}};
- const copy=bn?{back:'আরও',eyebrow:'লোকাল অ্যাসিস্ট্যান্ট',title:'আমি কী করব?',subtitle:'ব্যাখ্যা ও এক্সিকিউশন ডিভাইসেই হয়। কোনো ক্লাউড AI সার্ভিসে ডেটা পাঠানো হয় না।',placeholder:'যেমন: আগামীকাল সকাল ৯টায় supplier-কে ফোন করতে হবে',understanding:'বোঝাপড়া',task:'টাস্ক',memory:'মেমোরি',query:'কোয়েরি',date:'তারিখ',time:'সময়',clarify:'অ্যাকশন চালানোর আগে এই কমান্ডে আরও ব্যাখ্যা প্রয়োজন।',execute:'লোকালি চালান',empty:'লোকাল কমান্ড লিখে তার ব্যাখ্যা ও অ্যাকশন দেখুন।',completed:'সম্পন্ন',planning:'প্ল্যানিং খুলুন',memoryOpen:'মেমোরি খুলুন',retry:'আবার চেষ্টা করুন',command:'লোকাল অ্যাসিস্ট্যান্ট কমান্ড'}:{back:'More',eyebrow:'LOCAL ASSISTANT',title:'What should I do?',subtitle:'Interpretation and execution happen locally. Nothing is sent to a cloud AI service.',placeholder:'e.g. আগামীকাল সকাল ৯টায় supplier-কে ফোন করতে হবে',understanding:'UNDERSTANDING',task:'Task',memory:'Memory',query:'Query',date:'Date',time:'Time',clarify:'This command needs clarification before an action can be executed.',execute:'Execute locally',empty:'Type a local command to preview and execute the interpreted action.',completed:'COMPLETED',planning:'Open planning',memoryOpen:'Open memory',retry:'Retry',command:'Local assistant command'};
- return <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}><View style={styles.header}><Link href="/more" asChild><Pressable accessibilityRole="button" accessibilityLabel={copy.back} style={styles.back}><AppIcon name="arrow-left" size={icon.md} color={colors.primary}/><Text style={styles.backText}>{copy.back}</Text></Pressable></Link><View style={styles.titleRow}><View style={styles.titleIcon}><AppIcon name="robot-outline" size={icon.lg} color={colors.primary}/></View><View style={styles.titleCopy}><Text style={styles.eyebrow}>{copy.eyebrow}</Text><Text style={styles.title}>{copy.title}</Text></View></View><Text style={styles.subtitle}>{copy.subtitle}</Text></View><View style={styles.inputBox}><AppIcon name="message-processing-outline" size={icon.md} color={colors.textMuted}/><TextInput value={input} onChangeText={value=>{setInput(value);setExecution(null);setError(null)}} placeholder={copy.placeholder} placeholderTextColor={colors.textMuted} multiline style={styles.input} accessibilityLabel={copy.command}/></View>{result?<View style={styles.result}><View style={styles.resultHeading}><AppIcon name="brain" size={icon.md} color={colors.primary}/><Text style={styles.resultLabel}>{copy.understanding}</Text></View><Text style={styles.status}>{result.status}</Text><Text style={styles.action}>{result.action.type}</Text>{result.nlp.entities.taskText?<Detail label={copy.task} value={result.nlp.entities.taskText} styles={styles}/>:null}{result.nlp.entities.memoryText?<Detail label={copy.memory} value={result.nlp.entities.memoryText} styles={styles}/>:null}{result.nlp.entities.query?<Detail label={copy.query} value={result.nlp.entities.query} styles={styles}/>:null}{result.nlp.entities.date?<Detail label={copy.date} value={result.nlp.entities.date.isoDate} styles={styles}/>:null}{result.nlp.entities.time?<Detail label={copy.time} value={`${String(Math.floor(result.nlp.entities.time.minutes/60)).padStart(2,'0')}:${String(result.nlp.entities.time.minutes%60).padStart(2,'0')}`} styles={styles}/>:null}{result.action.type==='CLARIFY'?<Text style={styles.hint}>{copy.clarify}</Text>:<Pressable accessibilityRole="button" accessibilityState={{disabled:busy,busy}} onPress={()=>void execute()} style={({pressed})=>StyleSheet.flatten([styles.executeButton,busy&&styles.disabled,pressed&&styles.pressed])}>{busy?<ActivityIndicator color={colors.onPrimary}/>:<><AppIcon name="play" size={icon.sm} color={colors.onPrimary}/><Text style={styles.executeText}>{copy.execute}</Text></>}</Pressable>}</View>:<View style={styles.emptyState}><AppIcon name="robot-outline" size={icon.xl} color={colors.textMuted}/><Text style={styles.empty}>{copy.empty}</Text></View>}{error?<AppState title={bn?'অ্যাকশন চালানো যায়নি':'Action failed'} description={bn?'লোকাল অ্যাকশনটি সম্পন্ন হয়নি।':'The local action did not complete.'} icon="alert-circle-outline" actionLabel={copy.retry} onAction={()=>void execute()}/>:null}{execution?<ExecutionCard result={execution} styles={styles} copy={copy} colors={colors} bn={bn}/>:null}</ScrollView>}
-function Detail({label,value,styles}:{label:string;value:string;styles:ReturnType<typeof makeStyles>}){return <View style={styles.detail}><Text style={styles.detailLabel}>{label}</Text><Text style={styles.detailValue}>{value}</Text></View>}
-function ExecutionCard({result,styles,copy,colors,bn}:{result:AssistantExecutionResult;styles:ReturnType<typeof makeStyles>;copy:Record<string,string>;colors:ThemeColors;bn:boolean}){return <View style={styles.execution}><View style={styles.resultHeading}><AppIcon name="check-circle-outline" size={icon.md} color={colors.success}/><Text style={styles.executionLabel}>{copy.completed}</Text></View><Text style={styles.executionMessage}>{result.message}</Text>{result.type==='TASK_LIST'?result.tasks.slice(0,10).map(task=><View key={task.id} style={styles.listItemRow}><AppIcon name="clipboard-text-outline" size={icon.xs} color={colors.primary}/><View style={styles.listItemCopy}><Text style={styles.listItem}>{task.title}</Text><Text style={styles.listMeta}>{localizeTaskStatus(task.status,bn)} · {localizeTaskPriority(task.priority,bn)}</Text></View></View>):null}{result.type==='MEMORY_SEARCH'?result.memories.slice(0,10).map(memory=><View key={memory.id} style={styles.listItemRow}><AppIcon name="brain" size={icon.xs} color={colors.primary}/><View style={styles.listItemCopy}><Text style={styles.listItem}>{memory.content}</Text><Text style={styles.listMeta}>{localizeMemoryKind(memory.kind,bn)} · {bn?'গুরুত্ব':'importance'} {memory.importance}</Text></View></View>):null}<View style={styles.executionLinks}>{result.type==='TASK_LIST'?<Link href="/planning" asChild><Pressable accessibilityRole="button" style={({pressed})=>StyleSheet.flatten([styles.linkButton,pressed&&styles.pressed])}><AppIcon name="calendar-check-outline" size={icon.sm} color={colors.primary}/><Text style={styles.linkText}>{copy.planning}</Text></Pressable></Link>:null}{result.type==='MEMORY_SEARCH'||result.type==='MEMORY_CREATED'?<Link href="/memory" asChild><Pressable accessibilityRole="button" style={({pressed})=>StyleSheet.flatten([styles.linkButton,pressed&&styles.pressed])}><AppIcon name="brain" size={icon.sm} color={colors.primary}/><Text style={styles.linkText}>{copy.memoryOpen}</Text></Pressable></Link>:null}</View></View>}
-function makeStyles(colors:ThemeColors){return StyleSheet.create({container:{flex:1,backgroundColor:colors.background},content:{paddingHorizontal:spacing.lg,paddingTop:spacing.md,paddingBottom:spacing.xxl},header:{paddingTop:spacing.sm,marginBottom:spacing.lg},back:{minHeight:layout.minTouchTarget,flexDirection:'row',alignItems:'center',gap:spacing.xs,marginBottom:spacing.lg},backText:{color:colors.primary,...typography.body,fontWeight:'800'},titleRow:{flexDirection:'row',alignItems:'center',gap:spacing.md},titleIcon:{width:control.titleIconSize,height:control.titleIconSize,borderRadius:radius.lg,backgroundColor:colors.surfaceMuted,alignItems:'center',justifyContent:'center'},titleCopy:{flex:1,minWidth:0},eyebrow:{color:colors.primary,...typography.label,fontWeight:'900',letterSpacing:spacing.xs},title:{color:colors.textPrimary,...typography.titleLarge,fontWeight:'900',marginTop:spacing.xxs},subtitle:{color:colors.textSecondary,...typography.bodySmall,marginTop:spacing.md},inputBox:{minHeight:spacing.xxl+control.inputHeight,flexDirection:'row',alignItems:'flex-start',gap:spacing.sm,borderWidth:border.thin,borderColor:colors.border,borderRadius:radius.lg,backgroundColor:colors.surface,padding:spacing.md,...elevation.card},input:{flex:1,minHeight:spacing.xxl+spacing.lg+spacing.smd,color:colors.textPrimary,...typography.body,textAlignVertical:'top'},result:{marginTop:spacing.lg,borderWidth:border.thin,borderColor:colors.border,borderRadius:radius.lg,backgroundColor:colors.surface,padding:spacing.lg,...elevation.card},resultHeading:{flexDirection:'row',alignItems:'center',gap:spacing.sm},resultLabel:{color:colors.primary,...typography.section,fontWeight:'900',letterSpacing:spacing.xs},status:{color:colors.textSecondary,...typography.meta,fontWeight:'700',marginTop:spacing.sm},action:{color:colors.textPrimary,...typography.heading,fontWeight:'900',marginTop:spacing.xs},detail:{marginTop:spacing.md},detailLabel:{color:colors.textMuted,...typography.section,fontWeight:'800'},detailValue:{color:colors.textPrimary,...typography.meta,marginTop:spacing.xxs},hint:{color:colors.textSecondary,...typography.section,lineHeight:18,marginTop:spacing.lg},executeButton:{minHeight:control.buttonHeight,borderRadius:radius.md,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center',marginTop:spacing.lg,flexDirection:'row',gap:spacing.xs},executeText:{color:colors.onPrimary,fontWeight:'800'},disabled:{opacity:opacity.disabled},pressed:{opacity:opacity.pressed},emptyState:{alignItems:'center',paddingVertical:spacing.xxl,gap:spacing.sm},empty:{color:colors.textSecondary,textAlign:'center'},execution:{marginTop:spacing.lg,borderWidth:border.thin,borderColor:colors.success,borderRadius:radius.lg,backgroundColor:colors.surface,padding:spacing.lg,...elevation.card},executionLabel:{color:colors.success,...typography.section,fontWeight:'900',letterSpacing:spacing.xs},executionMessage:{color:colors.textPrimary,...typography.body,fontWeight:'800',marginTop:spacing.xs},listItemRow:{flexDirection:'row',alignItems:'flex-start',gap:spacing.sm,marginTop:spacing.md},listItemCopy:{flex:1,minWidth:0},listItem:{color:colors.textPrimary,...typography.bodySmall},listMeta:{color:colors.textMuted,...typography.section,marginTop:spacing.xxs},executionLinks:{flexDirection:'row',flexWrap:'wrap',gap:spacing.sm,marginTop:spacing.md},linkButton:{minHeight:layout.minTouchTarget,flexDirection:'row',alignItems:'center',gap:spacing.xs,justifyContent:'center',paddingHorizontal:spacing.md,borderRadius:radius.md,borderWidth:border.thin,borderColor:colors.border},linkText:{color:colors.primary,fontWeight:'800'}})}
+type ActionType = OrchestratedAction['type'];
+
+function actionSummary(type: ActionType, bn: boolean): { title: string; icon: 'clipboard-plus-outline' | 'check-circle-outline' | 'format-list-checks' | 'calendar-clock-outline' | 'brain' | 'magnify' | 'help-circle-outline' } {
+  switch (type) {
+    case 'CREATE_TASK': return { title: bn ? 'একটি নতুন টাস্ক তৈরি করব' : 'Create a new task', icon: 'clipboard-plus-outline' };
+    case 'COMPLETE_TASK': return { title: bn ? 'একটি টাস্ক সম্পন্ন হিসেবে চিহ্নিত করব' : 'Mark a task as done', icon: 'check-circle-outline' };
+    case 'LIST_TASKS': return { title: bn ? 'আপনার টাস্কগুলো দেখাব' : 'Show your tasks', icon: 'format-list-checks' };
+    case 'RESCHEDULE_TASK': return { title: bn ? 'একটি টাস্কের সময় পরিবর্তন করব' : 'Reschedule a task', icon: 'calendar-clock-outline' };
+    case 'CREATE_MEMORY': return { title: bn ? 'একটি নতুন মেমোরি সংরক্ষণ করব' : 'Save a new memory', icon: 'brain' };
+    case 'SEARCH_MEMORY': return { title: bn ? 'আপনার মেমোরিতে খুঁজব' : 'Search your memories', icon: 'magnify' };
+    default: return { title: bn ? 'আরও তথ্য দরকার' : 'I need a little more detail', icon: 'help-circle-outline' };
+  }
+}
+
+export default function AssistantScreen() {
+  const db = useSQLiteContext();
+  const { colors, accents, language } = useAppPreferences();
+  const bn = language === 'bn';
+  const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [execution, setExecution] = useState<AssistantExecutionResult | null>(null);
+  const loadTasks = useTaskStore(s => s.load);
+  const loadMemories = useMemoryStore(s => s.load);
+  const result = useMemo<OrchestratorResult | null>(() => { const value = input.trim(); return value ? orchestrate(value) : null; }, [input]);
+  const ready = result?.status === 'READY' && result.action.type !== 'CLARIFY';
+
+  const execute = async () => {
+    if (!result || result.status !== 'READY' || result.action.type === 'CLARIFY' || busy) return;
+    const action = result.action;
+    setBusy(true); setError(null); setExecution(null);
+    try {
+      const next = await executeAssistantAction(db, action);
+      setExecution(next);
+      await Promise.all([loadTasks(db), loadMemories(db)]);
+    } catch { setError(bn ? 'লোকাল অ্যাকশন চালানো যায়নি' : 'Unable to run the local action'); }
+    finally { setBusy(false); }
+  };
+
+  const copy = bn
+    ? { back: 'আরও', eyebrow: 'লোকাল অ্যাসিস্ট্যান্ট', title: 'কীভাবে সাহায্য করব?', subtitle: 'সবকিছু এই ডিভাইসেই বোঝা ও সম্পন্ন হয়। কোনো ক্লাউড সার্ভিসে ডেটা যায় না।', placeholder: 'যেমন: আগামীকাল সকাল ৯টায় supplier-কে ফোন করতে হবে', understanding: 'আমি যা বুঝেছি', task: 'টাস্ক', memory: 'মেমোরি', query: 'খোঁজা', date: 'তারিখ', time: 'সময়', clarify: 'এই কমান্ডটি সম্পন্ন করার আগে আরও একটু তথ্য দিন।', unsupported: 'এটি বুঝতে পারিনি। আমি টাস্ক ও মেমোরি নিয়ে কাজ করি — যেমন "আগামীকাল ৯টায় মিটিং" বা "পাসওয়ার্ডটা মনে রাখো"।', execute: 'নিশ্চিত করে চালান', empty: 'একটি লোকাল কমান্ড লিখুন — আমি বুঝে নিয়ে দেখাব কী হবে।', completed: 'সম্পন্ন হয়েছে', planning: 'প্ল্যানিং খুলুন', memoryOpen: 'মেমোরি খুলুন', retry: 'আবার চেষ্টা করুন', command: 'লোকাল অ্যাসিস্ট্যান্ট কমান্ড' }
+    : { back: 'More', eyebrow: 'LOCAL ASSISTANT', title: 'How can I help?', subtitle: 'Everything is understood and done on this device. Nothing is sent to a cloud service.', placeholder: 'e.g. আগামীকাল সকাল ৯টায় supplier-কে ফোন করতে হবে', understanding: 'Here’s what I understood', task: 'Task', memory: 'Memory', query: 'Search', date: 'Date', time: 'Time', clarify: 'Add a little more detail before this can run.', unsupported: 'I couldn’t interpret that. I work with tasks and memories — e.g. "meeting tomorrow at 9" or "remember this password".', execute: 'Confirm and run', empty: 'Type a local command — I’ll interpret it and show what will happen.', completed: 'Done', planning: 'Open planning', memoryOpen: 'Open memory', retry: 'Retry', command: 'Local assistant command' };
+
+  const summary = result ? actionSummary(result.action.type, bn) : null;
+  const time = result?.nlp.entities.time;
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <View style={styles.header}>
+        <Link href="/more" asChild><Pressable accessibilityRole="button" accessibilityLabel={copy.back} style={({ pressed }) => StyleSheet.flatten([styles.back, pressed && styles.pressed])}><AppIcon name="arrow-left" size={icon.md} color={colors.primary} /><Text style={styles.backText}>{copy.back}</Text></Pressable></Link>
+        <View style={styles.titleRow}>
+          <View style={styles.titleIcon}><AppIcon name="robot-happy-outline" size={icon.lg} color={colors.primary} /></View>
+          <View style={styles.titleCopy}><Text style={styles.eyebrow}>{copy.eyebrow}</Text><Text style={styles.title}>{copy.title}</Text></View>
+        </View>
+        <Text style={styles.subtitle}>{copy.subtitle}</Text>
+      </View>
+
+      <View style={styles.inputBox}>
+        <AppIcon name="message-processing-outline" size={icon.md} color={colors.textMuted} />
+        <TextInput value={input} onChangeText={value => { setInput(value); setExecution(null); setError(null); }} placeholder={copy.placeholder} placeholderTextColor={colors.textMuted} multiline style={styles.input} accessibilityLabel={copy.command} />
+      </View>
+
+      {result && summary ? (
+        <>
+        <View style={styles.userBubbleRow}>
+          <View style={styles.userBubble}><Text style={styles.userBubbleText}>{input.trim()}</Text></View>
+        </View>
+        <View style={[styles.card, result.status === 'UNSUPPORTED' && styles.cardMuted]}>
+          <View style={styles.cardHead}>
+            <View style={styles.cardHeadIcon}><AppIcon name={summary.icon} size={icon.md} color={accents.purple.on} /></View>
+            <Text style={styles.cardEyebrow}>{copy.understanding}</Text>
+          </View>
+          {result.status === 'UNSUPPORTED' ? (
+            <Text style={styles.plain}>{copy.unsupported}</Text>
+          ) : (
+            <>
+              <Text style={styles.actionTitle}>{summary.title}</Text>
+              {result.nlp.entities.taskText ? <Detail label={copy.task} value={result.nlp.entities.taskText} styles={styles} /> : null}
+              {result.nlp.entities.memoryText ? <Detail label={copy.memory} value={result.nlp.entities.memoryText} styles={styles} /> : null}
+              {result.nlp.entities.query ? <Detail label={copy.query} value={result.nlp.entities.query} styles={styles} /> : null}
+              {result.nlp.entities.date ? <Detail label={copy.date} value={result.nlp.entities.date.isoDate} styles={styles} /> : null}
+              {time ? <Detail label={copy.time} value={`${String(Math.floor(time.minutes / 60)).padStart(2, '0')}:${String(time.minutes % 60).padStart(2, '0')}`} styles={styles} /> : null}
+              {ready ? (
+                <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy, busy }} onPress={() => void execute()} style={({ pressed }) => StyleSheet.flatten([styles.executeButton, busy && styles.disabled, pressed && styles.pressed])}>
+                  {busy ? <ActivityIndicator color={colors.onPrimary} /> : <><AppIcon name="check" size={icon.sm} color={colors.onPrimary} /><Text style={styles.executeText}>{copy.execute}</Text></>}
+                </Pressable>
+              ) : (
+                <View style={styles.clarifyBox}><AppIcon name="information-outline" size={icon.sm} color={accents.blue.on} /><Text style={styles.clarifyText}>{copy.clarify}</Text></View>
+              )}
+            </>
+          )}
+        </View>
+        </>
+      ) : (
+        <View style={styles.emptyState}>
+          <AppIcon name="robot-outline" size={icon.xl} color={colors.textMuted} />
+          <Text style={styles.empty}>{copy.empty}</Text>
+          <Text style={styles.suggestLabel}>{bn ? 'যা বলে দেখতে পারেন' : 'Try saying'}</Text>
+          <View style={styles.suggestRow}>
+            {(bn
+              ? ['আগামীকাল সকাল ৯টায় মাকে ফোন করব', 'বাসার wifi পাসওয়ার্ড মনে রাখো', 'আমার কাজগুলো দেখাও', 'রিপোর্ট খুঁজে দাও']
+              : ['Call mom tomorrow at 9am', 'Remember the home wifi password', 'Show my tasks', 'Find the report']
+            ).map(s => (
+              <Pressable key={s} accessibilityRole="button" accessibilityLabel={s} onPress={() => { setInput(s); setExecution(null); setError(null); }} style={({ pressed }) => StyleSheet.flatten([styles.suggestChip, pressed && styles.pressed])}>
+                <AppIcon name="lightbulb-outline" size={icon.xs} color={colors.primary} />
+                <Text numberOfLines={2} style={styles.suggestChipText}>{s}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {error ? <AppState title={bn ? 'অ্যাকশন চালানো যায়নি' : 'Action failed'} description={bn ? 'লোকাল অ্যাকশনটি সম্পন্ন হয়নি।' : 'The local action did not complete.'} icon="alert-circle-outline" actionLabel={copy.retry} onAction={() => void execute()} /> : null}
+      {execution ? <ExecutionCard result={execution} styles={styles} copy={copy} colors={colors} bn={bn} /> : null}
+    </ScrollView>
+  );
+}
+
+function Detail({ label, value, styles }: { label: string; value: string; styles: ReturnType<typeof makeStyles> }) {
+  return <View style={styles.detail}><Text style={styles.detailLabel}>{label}</Text><Text style={styles.detailValue}>{value}</Text></View>;
+}
+
+function executionMessage(result: AssistantExecutionResult, bn: boolean): string {
+  switch (result.type) {
+    case 'TASK_CREATED': return bn ? 'টাস্কটি তৈরি হয়েছে।' : 'Your task was created.';
+    case 'TASK_COMPLETED': return bn ? 'টাস্কটি সম্পন্ন হিসেবে চিহ্নিত হয়েছে।' : 'The task was marked complete.';
+    case 'TASK_RESCHEDULED': return bn ? 'টাস্কের সময় পরিবর্তন হয়েছে।' : 'The task was rescheduled.';
+    case 'MEMORY_CREATED': return bn ? 'মেমোরিটি সংরক্ষণ করা হয়েছে।' : 'Your memory was saved.';
+    case 'TASK_LIST': return result.tasks.length ? (bn ? `${result.tasks.length}টি টাস্ক পাওয়া গেছে।` : `Found ${result.tasks.length} task(s).`) : (bn ? 'কোনো টাস্ক নেই।' : 'No tasks yet.');
+    case 'MEMORY_SEARCH': return result.memories.length ? (bn ? `${result.memories.length}টি মেমোরি পাওয়া গেছে।` : `Found ${result.memories.length} memory result(s).`) : (bn ? 'এই খোঁজে কোনো মেমোরি পাওয়া যায়নি।' : 'No memories matched that search.');
+  }
+}
+
+function ExecutionCard({ result, styles, copy, colors, bn }: { result: AssistantExecutionResult; styles: ReturnType<typeof makeStyles>; copy: Record<string, string>; colors: ThemeColors; bn: boolean }) {
+  return (
+    <View style={styles.execution}>
+      <View style={styles.cardHead}><AppIcon name="check-decagram" size={icon.md} color={colors.success} /><Text style={styles.executionLabel}>{copy.completed}</Text></View>
+      <Text style={styles.executionMessage}>{executionMessage(result, bn)}</Text>
+      {result.type === 'TASK_LIST' ? result.tasks.slice(0, 10).map(task => (
+        <View key={task.id} style={styles.listItemRow}><AppIcon name="clipboard-text-outline" size={icon.xs} color={colors.primary} /><View style={styles.listItemCopy}><Text style={styles.listItem}>{task.title}</Text><Text style={styles.listMeta}>{localizeTaskStatus(task.status, bn)} · {localizeTaskPriority(task.priority, bn)}</Text></View></View>
+      )) : null}
+      {result.type === 'MEMORY_SEARCH' ? result.memories.slice(0, 10).map(memory => (
+        <View key={memory.id} style={styles.listItemRow}><AppIcon name="brain" size={icon.xs} color={colors.primary} /><View style={styles.listItemCopy}><Text style={styles.listItem}>{memory.content}</Text><Text style={styles.listMeta}>{localizeMemoryKind(memory.kind, bn)} · {bn ? 'গুরুত্ব' : 'importance'} {memory.importance}</Text></View></View>
+      )) : null}
+      <View style={styles.executionLinks}>
+        {result.type === 'TASK_LIST' ? <Link href="/planning" asChild><Pressable accessibilityRole="button" style={({ pressed }) => StyleSheet.flatten([styles.linkButton, pressed && styles.pressed])}><AppIcon name="calendar-check-outline" size={icon.sm} color={colors.primary} /><Text style={styles.linkText}>{copy.planning}</Text></Pressable></Link> : null}
+        {result.type === 'MEMORY_SEARCH' || result.type === 'MEMORY_CREATED' ? <Link href="/memory" asChild><Pressable accessibilityRole="button" style={({ pressed }) => StyleSheet.flatten([styles.linkButton, pressed && styles.pressed])}><AppIcon name="brain" size={icon.sm} color={colors.primary} /><Text style={styles.linkText}>{copy.memoryOpen}</Text></Pressable></Link> : null}
+      </View>
+    </View>
+  );
+}
+
+function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxl },
+    header: { paddingTop: spacing.sm, marginBottom: spacing.lg },
+    back: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.lg },
+    backText: { color: colors.primary, ...typography.body, fontWeight: '800' },
+    titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    titleIcon: { width: control.titleIconSize, height: control.titleIconSize, borderRadius: radius.lg, backgroundColor: accents.purple.soft, alignItems: 'center', justifyContent: 'center' },
+    titleCopy: { flex: 1, minWidth: 0 },
+    eyebrow: { color: colors.primary, ...typography.label, fontWeight: '900', letterSpacing: 0.8 },
+    title: { color: colors.textPrimary, ...typography.titleLarge, fontWeight: '900', marginTop: spacing.xxs },
+    subtitle: { color: colors.textSecondary, ...typography.bodySmall, marginTop: spacing.md },
+    inputBox: { minHeight: spacing.xxl + control.inputHeight, flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface, padding: spacing.md, ...elevation.card },
+    input: { flex: 1, minHeight: spacing.xxl + spacing.lg + spacing.smd, color: colors.textPrimary, ...typography.body, textAlignVertical: 'top' },
+    card: { marginTop: spacing.lg, borderWidth: border.thin, borderColor: accents.purple.border, borderRadius: radius.xl, backgroundColor: accents.purple.soft, padding: spacing.lg },
+    cardMuted: { borderColor: colors.border, backgroundColor: colors.surface },
+    cardHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    cardHeadIcon: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.md, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+    cardEyebrow: { color: accents.purple.on, ...typography.section, fontWeight: '900', letterSpacing: 0.8 },
+    plain: { color: colors.textPrimary, ...typography.body, marginTop: spacing.md },
+    actionTitle: { color: colors.textPrimary, ...typography.heading, fontWeight: '900', marginTop: spacing.smd },
+    detail: { marginTop: spacing.md },
+    detailLabel: { color: colors.textMuted, ...typography.section, fontWeight: '800' },
+    detailValue: { color: colors.textPrimary, ...typography.meta, marginTop: spacing.xxs, fontWeight: '700' },
+    clarifyBox: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.lg, padding: spacing.sm, borderRadius: radius.md, backgroundColor: accents.blue.soft, borderWidth: border.thin, borderColor: accents.blue.border },
+    clarifyText: { flex: 1, color: accents.blue.on, ...typography.bodySmall, fontWeight: '700' },
+    executeButton: { minHeight: control.buttonHeight, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: spacing.lg, flexDirection: 'row', gap: spacing.xs },
+    executeText: { color: colors.onPrimary, ...typography.bodySmall, fontWeight: '900' },
+    disabled: { opacity: opacity.disabled },
+    pressed: { opacity: opacity.pressed },
+    userBubbleRow: { alignItems: 'flex-end', marginTop: spacing.md },
+    userBubble: { maxWidth: '85%', backgroundColor: colors.primary, borderRadius: radius.lg, borderBottomRightRadius: radius.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+    userBubbleText: { color: colors.onPrimary, ...typography.bodySmall },
+    emptyState: { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.sm },
+    suggestLabel: { color: colors.textSecondary, ...typography.caption, fontFamily: typography.label.fontFamily, marginTop: spacing.md },
+    suggestRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, justifyContent: 'center', marginTop: spacing.xs },
+    suggestChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, maxWidth: 260, minHeight: layout.minTouchTarget, paddingHorizontal: spacing.smd, borderRadius: radius.pill, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface },
+    suggestChipText: { flexShrink: 1, color: colors.textPrimary, ...typography.caption },
+    empty: { color: colors.textSecondary, textAlign: 'center', ...typography.bodySmall },
+    execution: { marginTop: spacing.lg, borderWidth: border.thin, borderColor: accents.green.border, borderRadius: radius.xl, backgroundColor: accents.green.soft, padding: spacing.lg },
+    executionLabel: { color: colors.success, ...typography.section, fontWeight: '900', letterSpacing: 0.8 },
+    executionMessage: { color: colors.textPrimary, ...typography.body, fontWeight: '800', marginTop: spacing.xs },
+    listItemRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginTop: spacing.md },
+    listItemCopy: { flex: 1, minWidth: 0 },
+    listItem: { color: colors.textPrimary, ...typography.bodySmall },
+    listMeta: { color: colors.textMuted, ...typography.section, marginTop: spacing.xxs },
+    executionLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
+    linkButton: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, justifyContent: 'center', paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface },
+    linkText: { color: colors.primary, fontWeight: '800' },
+  });
+}

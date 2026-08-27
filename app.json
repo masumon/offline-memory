@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Offline Memory",
+    "name": "PA",
     "slug": "offline-memory",
     "version": "0.1.0",
     "orientation": "default",
@@ -10,7 +10,7 @@
       "package": "com.masumon.offlinememory",
       "permissions": ["SCHEDULE_EXACT_ALARM"],
       "adaptiveIcon": {
-        "backgroundColor": "#006A4E"
+        "backgroundColor": "#0E8C63"
       }
     },
     "plugins": [

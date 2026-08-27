@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import * as Notifications from 'expo-notifications';
 
-const EXPECTED_SCHEMA_VERSION = 6;
+const EXPECTED_SCHEMA_VERSION = 8;
 
 export type DiagnosticCheck = {
   id: 'database' | 'notifications' | 'scheduled';

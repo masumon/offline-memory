@@ -13,6 +13,10 @@
     "verify:local": "powershell -ExecutionPolicy Bypass -File scripts/verify-local.ps1"
   },
   "dependencies": {
+    "@expo-google-fonts/hind-siliguri": "^0.4.1",
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@expo/ui": "~57.0.11",
+    "@expo/vector-icons": "^15.0.2",
     "expo": "~57.0.16",
     "expo-constants": "~57.0.14",
     "expo-document-picker": "~57.0.1",
@@ -25,8 +29,6 @@
     "expo-splash-screen": "~57.0.7",
     "expo-sqlite": "57.0.1",
     "expo-video": "~57.0.2",
-    "@expo/ui": "~57.0.11",
-    "@expo/vector-icons": "^15.0.2",
     "fflate": "0.8.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
