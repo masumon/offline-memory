@@ -22,3 +22,12 @@ android/app/debug.keystore
 *.db-wal
 *.sqlite
 *.sqlite3
+
+# Native build output / caches
+android/build/
+android/.gradle/
+android/app/build/
+android/app/.cxx/
+android/app/release/
+*.log
+.metro-health-check*

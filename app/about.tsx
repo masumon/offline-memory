@@ -1,15 +1,150 @@
 import { useMemo } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useAppPreferences } from '../src/app/AppPreferences';
 import { AppIcon } from '../src/ui/AppIcon';
 import { AppIconButton } from '../src/ui/AppSurface';
-import { control, border, layout, radius, spacing, typography, type ThemeAccents, type ThemeColors } from '../src/theme';
+import { border, control, elevation, icon, layout, radius, spacing, typography, type ThemeAccents, type ThemeColors } from '../src/theme';
 
-export default function AboutScreen(){
- const {colors,accents,language}=useAppPreferences(); const bn=language==='bn'; const styles=useMemo(()=>makeStyles(colors,accents),[colors,accents]);
- const copy=bn?{back:'আরও',eyebrow:'OFFLINE MEMORY',title:'আমাদের সম্পর্কে',tagline:'ব্যক্তিগত স্মৃতি ও কাজ—আপনার ডিভাইসেই।',privacy:'Privacy-first · Offline-first',privacyText:'মূল টাস্ক, মেমোরি, সার্চ, পরিকল্পনা, NLP, রিমাইন্ডার এবং ব্যাকআপ লোকাল ডিভাইসে কাজ করে। আপনার ডেটা কোনো সার্ভারে পাঠানো হয় না, যদি না আপনি নিজে ব্যাকআপ শেয়ার করেন।',features:'মূল বৈশিষ্ট্য',items:['বাংলা ও English','Light ও Dark theme','লোকাল SQLite storage','লোকাল NLP ও Assistant','লোকাল reminders','Attachment-aware backup','ছবি, ভিডিও, PDF ও অন্যান্য ফাইল'],version:'Version',architecture:'Architecture',architectureText:'UI → Application Services → Local NLP/Assistant → Repository → SQLite → Notifications',license:'Offline Memory is a private, offline-first productivity application.','done':'সম্পন্ন'}:{back:'More',eyebrow:'OFFLINE MEMORY',title:'About',tagline:'Personal memory and work—kept on your device.',privacy:'Privacy-first · Offline-first',privacyText:'Core tasks, memories, search, planning, NLP, reminders and backups operate locally. Your data is not sent to a server unless you explicitly share a backup.',features:'Core capabilities',items:['Bangla and English','Light and Dark themes','Local SQLite storage','Local NLP and Assistant','Local reminders','Attachment-aware backups','Images, videos, PDFs and other files'],version:'Version',architecture:'Architecture',architectureText:'UI → Application Services → Local NLP/Assistant → Repository → SQLite → Notifications',license:'Offline Memory is a private, offline-first productivity application.','done':'Done'};
- return <ScrollView style={styles.container} contentContainerStyle={styles.content}><View style={styles.header}><AppIconButton icon="arrow-left" label={copy.back} variant="neutral" onPress={()=>router.back()}/><View style={styles.brand}><View style={styles.brandIcon}><AppIcon name="brain" size={control.iconSize} color={colors.onPrimary}/></View><View style={styles.brandCopy}><Text style={styles.eyebrow}>{copy.eyebrow}</Text><Text style={styles.title}>{copy.title}</Text></View></View><Text style={styles.tagline}>{copy.tagline}</Text><View style={styles.privacy}><AppIcon name="shield-lock-outline" size={control.iconSize} color={colors.success}/><View style={styles.privacyCopy}><Text style={styles.privacyTitle}>{copy.privacy}</Text><Text style={styles.privacyText}>{copy.privacyText}</Text></View></View></View><View style={styles.card}><Text style={styles.section}>{copy.features}</Text>{copy.items.map(item=><View key={item} style={styles.row}><AppIcon name="check-circle-outline" size={control.iconSize} color={colors.success}/><Text style={styles.rowText}>{item}</Text></View>)}</View><View style={styles.card}><Text style={styles.section}>{copy.architecture}</Text><Text style={styles.architecture}>{copy.architectureText}</Text></View><View style={styles.creditsCard}><View style={styles.creditsBadge}><AppIcon name="brain" size={control.iconSize} color={colors.onPrimary}/></View><Text style={styles.creditsApp}>Offline Memory</Text><Text style={styles.creditsVersion}>{copy.version} {Constants.expoConfig?.version ?? '0.1.0'}</Text><View style={styles.creditsRow}><Text style={styles.creditsMuted}>{bn?'ডেভেলপ করেছেন ':'Developed by '}</Text><Pressable accessibilityRole="link" accessibilityLabel="SUMON" hitSlop={8} onPress={()=>void Linking.openURL('https://mumainsumon.netlify.app').catch(()=>{})}><Text style={styles.creditsLink}>SUMON</Text></Pressable></View><View style={styles.creditsRow}><Text style={styles.creditsMuted}>Powered by </Text><Pressable accessibilityRole="link" accessibilityLabel="ABO ENTERPRISE" hitSlop={8} onPress={()=>void Linking.openURL('https://www.aboenterprise.com').catch(()=>{})}><Text style={styles.creditsLink}>ABO ENTERPRISE</Text></Pressable></View><Text style={styles.license}>{copy.license}</Text></View></ScrollView>;
+const APP_ICON = require('../assets/icon.png');
+const YEAR = new Date().getFullYear();
+
+export default function AboutScreen() {
+  const { colors, accents, language } = useAppPreferences();
+  const bn = language === 'bn';
+  const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
+  const version = Constants.expoConfig?.version ?? '0.1.0';
+
+  const c = bn
+    ? {
+        back: 'আরও',
+        eyebrow: 'অফলাইন মেমোরি',
+        title: 'অ্যাপ সম্পর্কে',
+        tagline: 'আপনার কাজ আর মনে রাখার জিনিসগুলো — সব এই ফোনেই, শুধু আপনার।',
+        privacyTitle: 'আগে গোপনীয়তা, আগে অফলাইন',
+        privacyText: 'কাজ, মেমোরি, সার্চ, পরিকল্পনা, রিমাইন্ডার আর ব্যাকআপ — সবই এই ডিভাইসে চলে। নিজে ব্যাকআপ শেয়ার না করলে কোনো ডেটা কোথাও যায় না।',
+        features: 'যা যা পাবেন',
+        items: ['বাংলা ও ইংরেজি', 'লাইট ও ডার্ক থিম', 'ডিভাইসেই সব ডেটা (SQLite)', 'অফলাইন বোঝাপড়া ও অ্যাসিস্ট্যান্ট', 'অফলাইন রিমাইন্ডার', 'ফাইলসহ পুরো ব্যাকআপ'],
+        version: 'সংস্করণ',
+        madeBy: 'তৈরি করেছেন',
+        legal: 'গোপনীয়তা নীতি ও শর্তাবলি',
+        legalHint: 'অ্যাপেই পড়া যায়',
+        rights: `© ${YEAR} SUMON · সর্বস্বত্ব সংরক্ষিত`,
+      }
+    : {
+        back: 'More',
+        eyebrow: 'OFFLINE MEMORY',
+        title: 'About the app',
+        tagline: 'Your work and the things you want to remember — all on this phone, only yours.',
+        privacyTitle: 'Privacy first, offline first',
+        privacyText: 'Tasks, memories, search, planning, reminders and backups all run on this device. Nothing leaves it unless you share a backup yourself.',
+        features: 'What you get',
+        items: ['Bangla and English', 'Light and dark themes', 'All data on the device (SQLite)', 'Offline understanding and assistant', 'Offline reminders', 'Full backup, files included'],
+        version: 'Version',
+        madeBy: 'Made by',
+        legal: 'Privacy Policy & Terms',
+        legalHint: 'read here in the app',
+        rights: `© ${YEAR} SUMON · All rights reserved`,
+      };
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.header}>
+        <AppIconButton icon="arrow-left" label={c.back} variant="neutral" onPress={() => router.back()} />
+        <View style={styles.brand}>
+          <Image source={APP_ICON} style={styles.brandIcon} />
+          <View style={styles.brandCopy}>
+            <Text style={styles.eyebrow}>{c.eyebrow}</Text>
+            <Text style={styles.title}>{c.title}</Text>
+          </View>
+        </View>
+        <Text style={styles.tagline}>{c.tagline}</Text>
+
+        <View style={styles.privacy}>
+          <View style={styles.privacyIcon}><AppIcon name="shield-lock" size={icon.md} color={accents.green.on} /></View>
+          <View style={styles.privacyCopy}>
+            <Text style={styles.privacyTitle}>{c.privacyTitle}</Text>
+            <Text style={styles.privacyText}>{c.privacyText}</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.section}>{c.features}</Text>
+        {c.items.map((item) => (
+          <View key={item} style={styles.row}>
+            <AppIcon name="check-circle" size={icon.sm} color={accents.green.base} />
+            <Text style={styles.rowText}>{item}</Text>
+          </View>
+        ))}
+      </View>
+
+      <Pressable accessibilityRole="button" accessibilityLabel={c.legal} onPress={() => router.push({ pathname: '/doc', params: { id: 'legal' } })} style={({ pressed }) => StyleSheet.flatten([styles.legalRow, pressed && styles.pressed])}>
+        <View style={styles.legalIcon}><AppIcon name="file-document-outline" size={icon.md} color={accents.blue.on} /></View>
+        <View style={styles.legalCopy}>
+          <Text style={styles.legalTitle}>{c.legal}</Text>
+          <Text style={styles.legalHint}>{c.legalHint}</Text>
+        </View>
+        <AppIcon name="chevron-right" size={icon.md} color={colors.textMuted} />
+      </Pressable>
+
+      <View style={styles.credits}>
+        <Image source={APP_ICON} style={styles.creditsBadge} />
+        <Text style={styles.creditsApp}>Offline Memory <Text style={styles.creditsVersion}>{c.version} {version}</Text></Text>
+
+        <View style={styles.creditLine}>
+          <Text style={styles.creditLabel}>{c.madeBy} — </Text>
+          <Pressable accessibilityRole="link" accessibilityLabel="SUMON" hitSlop={8} onPress={() => void Linking.openURL('https://mumainsumon.netlify.app').catch(() => {})}>
+            <Text style={styles.creditName}>SUMON</Text>
+          </Pressable>
+        </View>
+        <View style={styles.creditLine}>
+          <Text style={styles.creditLabel}>Powered by — </Text>
+          <Pressable accessibilityRole="link" accessibilityLabel="ABO ENTERPRISE" hitSlop={8} onPress={() => void Linking.openURL('https://www.aboenterprise.com').catch(() => {})}>
+            <Text style={styles.creditName}>ABO ENTERPRISE</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.rights}>{c.rights}</Text>
+      </View>
+    </ScrollView>
+  );
 }
-function makeStyles(colors:ThemeColors,accents:ThemeAccents){return StyleSheet.create({container:{flex:1,backgroundColor:colors.background},content:{width:'100%',maxWidth:layout.contentMaxWidth,alignSelf:'center',paddingHorizontal:spacing.lg,paddingTop:spacing.md,paddingBottom:spacing.xxl},header:{paddingTop:spacing.sm},brand:{flexDirection:'row',alignItems:'center',gap:spacing.md,marginTop:spacing.lg},brandIcon:{width:control.titleIconSize,height:control.titleIconSize,borderRadius:radius.lg,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center'},brandCopy:{flex:1,minWidth:0},eyebrow:{color:colors.primary,...typography.label,fontWeight:'900',letterSpacing:0.8},title:{color:colors.textPrimary,...typography.titleLarge,fontWeight:'900',marginTop:spacing.xxs},tagline:{color:colors.textSecondary,...typography.body,marginTop:spacing.md},privacy:{marginTop:spacing.lg,padding:spacing.md,borderRadius:radius.lg,backgroundColor:accents.green.soft,borderWidth:border.thin,borderColor:accents.green.border,flexDirection:'row',gap:spacing.sm},privacyCopy:{flex:1,minWidth:0},privacyTitle:{color:colors.textPrimary,fontWeight:'900'},privacyText:{color:colors.textSecondary,...typography.meta,marginTop:spacing.xs},card:{marginTop:spacing.lg,padding:spacing.lg,borderRadius:radius.lg,backgroundColor:colors.surface,borderWidth:border.thin,borderColor:colors.border},section:{color:colors.textPrimary,...typography.cardTitle,fontWeight:'900',marginBottom:spacing.sm},row:{minHeight:layout.minTouchTarget,flexDirection:'row',alignItems:'center',gap:spacing.sm},rowText:{color:colors.textSecondary,...typography.bodySmall,flex:1},architecture:{color:colors.textSecondary,...typography.meta},version:{color:colors.textMuted,textAlign:'center',...typography.label,marginTop:spacing.lg},creditsCard:{marginTop:spacing.xl,padding:spacing.lg,borderRadius:radius.lg,backgroundColor:colors.surfaceMuted,borderWidth:border.thin,borderColor:colors.border,alignItems:'center',gap:spacing.xs},creditsBadge:{width:control.smallIconContainer,height:control.smallIconContainer,borderRadius:radius.md,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center',marginBottom:spacing.xxs},creditsApp:{color:colors.textPrimary,...typography.cardTitle},creditsVersion:{color:colors.textSecondary,...typography.caption,fontFamily:typography.numeric.fontFamily,marginBottom:spacing.xs},creditsRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',justifyContent:'center'},creditsMuted:{color:colors.textMuted,...typography.caption},creditsLink:{color:colors.primary,...typography.caption,fontFamily:typography.label.fontFamily,textDecorationLine:'underline'},license:{color:colors.textMuted,textAlign:'center',...typography.caption,marginTop:spacing.sm}})}
+
+function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxl },
+    header: { paddingTop: spacing.sm },
+    brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.lg },
+    brandIcon: { width: control.titleIconSize, height: control.titleIconSize, borderRadius: radius.xl },
+    brandCopy: { flex: 1, minWidth: 0 },
+    eyebrow: { color: colors.primary, ...typography.label, fontWeight: '900', letterSpacing: 0.8 },
+    title: { color: colors.textPrimary, ...typography.titleLarge, fontWeight: '900', marginTop: spacing.xxs },
+    tagline: { color: colors.textSecondary, ...typography.body, marginTop: spacing.md, lineHeight: 22 },
+    privacy: { marginTop: spacing.lg, padding: spacing.md, borderRadius: radius.lg, backgroundColor: accents.green.soft, borderWidth: border.thin, borderColor: accents.green.border, flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
+    privacyIcon: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.md, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+    privacyCopy: { flex: 1, minWidth: 0 },
+    privacyTitle: { color: accents.green.on, ...typography.body, fontWeight: '900' },
+    privacyText: { color: colors.textSecondary, ...typography.meta, marginTop: spacing.xs, lineHeight: 19 },
+    card: { marginTop: spacing.lg, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border, ...elevation.soft },
+    section: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '900', marginBottom: spacing.sm },
+    row: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    rowText: { color: colors.textSecondary, ...typography.bodySmall, flex: 1 },
+    legalRow: { marginTop: spacing.md, minHeight: layout.minTouchTarget + spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border, ...elevation.soft },
+    legalIcon: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.md, backgroundColor: accents.blue.soft, alignItems: 'center', justifyContent: 'center' },
+    legalCopy: { flex: 1, minWidth: 0 },
+    legalTitle: { color: colors.textPrimary, ...typography.body, fontWeight: '800' },
+    legalHint: { color: colors.textMuted, ...typography.caption, marginTop: spacing.xxs },
+    credits: { marginTop: spacing.xl, alignItems: 'center', gap: spacing.xs },
+    creditsBadge: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.lg, marginBottom: spacing.xxs },
+    creditsApp: { color: colors.textPrimary, ...typography.body, fontWeight: '900' },
+    creditsVersion: { color: colors.textMuted, ...typography.caption, fontWeight: '700', fontFamily: typography.numeric.fontFamily },
+    creditLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' },
+    creditLabel: { color: colors.textMuted, ...typography.caption },
+    creditName: { color: colors.primary, ...typography.caption, fontWeight: '900' },
+    rights: { color: colors.textMuted, textAlign: 'center', ...typography.caption, marginTop: spacing.xs },
+    pressed: { opacity: 0.78 },
+  });
+}

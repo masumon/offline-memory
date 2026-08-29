@@ -10,7 +10,8 @@ describe('SQLite backup reader', () => {
         .mockResolvedValueOnce([{ id: 'task-1' }])
         .mockResolvedValueOnce([{ id: 'sub-1' }])
         .mockResolvedValueOnce([{ id: 'memory-1' }])
-        .mockResolvedValueOnce([{ task_id: 'task-1', due_at: '2026-08-24T01:00:00Z', delivered_at: '2026-08-24T00:59:00Z' }]),
+        .mockResolvedValueOnce([{ task_id: 'task-1', due_at: '2026-08-24T01:00:00Z', delivered_at: '2026-08-24T00:59:00Z' }])
+        .mockResolvedValueOnce([{ id: 'rel-1', from_type: 'TASK', from_id: 'task-1', to_type: 'MEMORY', to_id: 'memory-1', created_at: '2026-08-24T02:00:00Z' }]),
       getFirstAsync: jest.fn().mockResolvedValue({ user_version: 5 }),
     } as unknown as SQLiteDatabase;
 
@@ -21,6 +22,7 @@ describe('SQLite backup reader', () => {
       subtasks: [{ id: 'sub-1' }],
       memories: [{ id: 'memory-1' }],
       notificationDeliveries: [{ task_id: 'task-1', due_at: '2026-08-24T01:00:00Z', delivered_at: '2026-08-24T00:59:00Z' }],
+      relations: [{ id: 'rel-1', from_type: 'TASK', from_id: 'task-1', to_type: 'MEMORY', to_id: 'memory-1', created_at: '2026-08-24T02:00:00Z' }],
       schemaVersion: 5,
     });
   });

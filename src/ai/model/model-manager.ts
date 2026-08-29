@@ -1,0 +1,255 @@
+// User-facing "add your own AI model" manager.
+//
+// Flow, no developer steps:
+//   1. pickAndImportModel()  – user chooses a .gguf file from phone storage; we copy
+//      it into the app's private folder and read its header.
+//   2. verifyModel()         – staged checks, each with a plain-language result.
+//   3. the on-device-llm engine picks it up automatically once every check passes
+//      (real generation still needs a build that includes the native runtime).
+//
+// Nothing is downloaded and nothing leaves the device.
+
+import type { SQLiteDatabase } from 'expo-sqlite';
+import * as DocumentPicker from 'expo-document-picker';
+import * as LegacyFS from 'expo-file-system/legacy';
+import * as Device from 'expo-device';
+import { base64ToBytes } from '../../services/backup-archive-service';
+import { isArchitectureSupported, parseGgufHeader, summarizeGguf, type GgufSummary } from './gguf';
+import { probeRuntime, smokeTest } from './llama-runtime';
+
+const PREF_KEY = 'aiModel';
+const MODEL_DIR = `${LegacyFS.documentDirectory}ai-models/`;
+const HEADER_READ_BYTES = 3 * 1024 * 1024; // 3 MiB — comfortably covers the metadata block.
+
+export interface InstalledModel {
+  path: string;
+  name: string;
+  sizeBytes: number;
+  importedAt: string;
+  summary: GgufSummary;
+  headerTruncated: boolean;
+  verifiedAt?: string;
+  lastReport?: VerifyReport;
+}
+
+export type CheckStatus = 'pass' | 'warn' | 'fail' | 'skip';
+
+export interface VerifyStep {
+  id: 'file' | 'container' | 'architecture' | 'quantization' | 'memory' | 'inference';
+  label: { bn: string; en: string };
+  status: CheckStatus;
+  detail: { bn: string; en: string };
+}
+
+export interface VerifyReport {
+  ok: boolean;
+  ranAt: string;
+  steps: VerifyStep[];
+  /** Present when the inference step actually ran a model. */
+  sample?: string;
+}
+
+async function ensureDir(): Promise<void> {
+  const info = await LegacyFS.getInfoAsync(MODEL_DIR);
+  if (!info.exists) await LegacyFS.makeDirectoryAsync(MODEL_DIR, { intermediates: true });
+}
+
+async function readHeadBytes(uri: string, length: number): Promise<Uint8Array> {
+  // position/length keeps this cheap for multi-GB files. Length is a multiple of 3
+  // so the base64 slice has no padding and decodes cleanly.
+  const safeLen = length - (length % 3);
+  const b64 = await LegacyFS.readAsStringAsync(uri, {
+    encoding: LegacyFS.EncodingType.Base64,
+    position: 0,
+    length: safeLen,
+  });
+  return base64ToBytes(b64);
+}
+
+export async function loadInstalledModel(db: SQLiteDatabase): Promise<InstalledModel | null> {
+  try {
+    const row = await db.getFirstAsync<{ value: string }>(
+      'SELECT value FROM app_preferences WHERE key = ?', PREF_KEY,
+    );
+    if (!row?.value) return null;
+    const parsed = JSON.parse(row.value) as InstalledModel;
+    const info = await LegacyFS.getInfoAsync(parsed.path);
+    if (!info.exists) { await db.runAsync('DELETE FROM app_preferences WHERE key = ?', PREF_KEY); return null; }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function save(db: SQLiteDatabase, model: InstalledModel): Promise<void> {
+  await db.runAsync(
+    'INSERT OR REPLACE INTO app_preferences (key, value) VALUES (?, ?)',
+    PREF_KEY, JSON.stringify(model),
+  );
+}
+
+export async function removeModel(db: SQLiteDatabase): Promise<void> {
+  const existing = await loadInstalledModel(db);
+  if (existing) { try { await LegacyFS.deleteAsync(existing.path, { idempotent: true }); } catch { /* noop */ } }
+  await db.runAsync('DELETE FROM app_preferences WHERE key = ?', PREF_KEY);
+}
+
+export class ModelImportError extends Error {}
+
+/** Opens the system file picker, copies the chosen .gguf in, reads its header, persists it. */
+export async function pickAndImportModel(db: SQLiteDatabase): Promise<InstalledModel | null> {
+  const picked = await DocumentPicker.getDocumentAsync({
+    type: ['application/octet-stream', '*/*'],
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
+  if (picked.canceled) return null;
+  const asset = picked.assets[0];
+  if (!asset?.uri) throw new ModelImportError('ফাইলটি খোলা গেল না।');
+
+  const looksGguf = asset.name?.toLowerCase().endsWith('.gguf') ?? false;
+  const pickedInfo = await LegacyFS.getInfoAsync(asset.uri);
+  const size = asset.size ?? (pickedInfo.exists ? pickedInfo.size : 0) ?? 0;
+  if (size > 0 && size < 1024 * 1024) {
+    throw new ModelImportError('ফাইলটি খুব ছোট — এটি কোনো মডেল ফাইল বলে মনে হচ্ছে না।');
+  }
+
+  // Peek the header before committing a multi-GB copy.
+  let head: Uint8Array;
+  try {
+    head = await readHeadBytes(asset.uri, HEADER_READ_BYTES);
+  } catch {
+    throw new ModelImportError('ফাইলটি পড়া গেল না। আবার চেষ্টা করুন বা অন্য ফাইল বেছে নিন।');
+  }
+  const header = parseGgufHeader(head);
+  if (!header) {
+    throw new ModelImportError(
+      looksGguf
+        ? 'ফাইলটির নাম .gguf কিন্তু ভেতরের গঠন GGUF নয় — ডাউনলোডটি সম্ভবত অসম্পূর্ণ।'
+        : 'এটি GGUF মডেল ফাইল নয়। llama.cpp-ধরনের .gguf ফাইল বেছে নিন।',
+    );
+  }
+
+  await ensureDir();
+  const safeName = (asset.name ?? 'model.gguf').replace(/[^\w.\-]+/g, '_');
+  const destPath = `${MODEL_DIR}${safeName}`;
+  try {
+    await LegacyFS.deleteAsync(destPath, { idempotent: true });
+    await LegacyFS.copyAsync({ from: asset.uri, to: destPath });
+  } catch {
+    throw new ModelImportError('মডেলটি অ্যাপে কপি করা গেল না — স্টোরেজে জায়গা আছে কিনা দেখুন।');
+  }
+  const finalInfo = await LegacyFS.getInfoAsync(destPath);
+
+  const model: InstalledModel = {
+    path: destPath,
+    name: asset.name ?? safeName,
+    sizeBytes: finalInfo.exists ? (finalInfo.size ?? size) : size,
+    importedAt: new Date().toISOString(),
+    summary: summarizeGguf(header),
+    headerTruncated: header.truncated,
+  };
+  await save(db, model);
+  return model;
+}
+
+function freeRamMB(): number | null {
+  let total: number | null = null;
+  try { total = Device.totalMemory ?? null; } catch { total = null; }
+  if (!total || !Number.isFinite(total)) return null;
+  // We cannot read "free" RAM portably; assume the OS + other apps hold ~45%.
+  return Math.round((total * 0.55) / (1024 * 1024));
+}
+
+const T = (bn: string, en: string) => ({ bn, en });
+
+/** Runs the staged verification and stores the report on the model record. */
+export async function verifyModel(db: SQLiteDatabase, model: InstalledModel): Promise<VerifyReport> {
+  const steps: VerifyStep[] = [];
+
+  // 1. File present and readable.
+  const info = await LegacyFS.getInfoAsync(model.path);
+  if (!info.exists) {
+    steps.push({ id: 'file', label: T('ফাইল', 'File'), status: 'fail', detail: T('মডেল ফাইলটি আর খুঁজে পাওয়া যাচ্ছে না। আবার যোগ করুন।', 'The model file is missing. Add it again.') });
+    const report: VerifyReport = { ok: false, ranAt: new Date().toISOString(), steps };
+    await save(db, { ...model, lastReport: report });
+    return report;
+  }
+  const sizeMB = Math.round((info.size ?? model.sizeBytes) / (1024 * 1024));
+  steps.push({ id: 'file', label: T('ফাইল', 'File'), status: 'pass', detail: T(`পড়া যাচ্ছে — ${sizeMB} MB।`, `Readable — ${sizeMB} MB.`) });
+
+  // 2. Valid GGUF container (re-read the head; catches a truncated download).
+  let summary = model.summary;
+  try {
+    const header = parseGgufHeader(await readHeadBytes(model.path, HEADER_READ_BYTES));
+    if (!header) {
+      steps.push({ id: 'container', label: T('GGUF গঠন', 'GGUF format'), status: 'fail', detail: T('ফাইলের ভেতরের গঠন GGUF নয় — ডাউনলোডটি সম্ভবত অসম্পূর্ণ। পুরো ফাইলটি আবার নামান।', 'Not a valid GGUF container — the download is likely incomplete. Re-download the whole file.') });
+      const report: VerifyReport = { ok: false, ranAt: new Date().toISOString(), steps };
+      await save(db, { ...model, lastReport: report });
+      return report;
+    }
+    summary = summarizeGguf(header);
+    steps.push({ id: 'container', label: T('GGUF গঠন', 'GGUF format'), status: 'pass', detail: T(`GGUF v${summary.version}${summary.name ? ` · ${summary.name}` : ''}।`, `GGUF v${summary.version}${summary.name ? ` · ${summary.name}` : ''}.`) });
+  } catch {
+    steps.push({ id: 'container', label: T('GGUF গঠন', 'GGUF format'), status: 'fail', detail: T('হেডার পড়া গেল না।', 'Could not read the header.') });
+    const report: VerifyReport = { ok: false, ranAt: new Date().toISOString(), steps };
+    await save(db, { ...model, lastReport: report });
+    return report;
+  }
+
+  // 3. Architecture the runtime understands.
+  if (isArchitectureSupported(summary.architecture)) {
+    steps.push({ id: 'architecture', label: T('আর্কিটেকচার', 'Architecture'), status: 'pass', detail: T(`${summary.architecture} — সমর্থিত।`, `${summary.architecture} — supported.`) });
+  } else {
+    steps.push({ id: 'architecture', label: T('আর্কিটেকচার', 'Architecture'), status: 'warn', detail: T(`${summary.architecture ?? 'অজানা'} — এটি চেনা তালিকায় নেই; চলতে পারে, না-ও পারে।`, `${summary.architecture ?? 'unknown'} — not in the known list; it may or may not run.`) });
+  }
+
+  // 4. Mobile-friendly quantisation.
+  if (summary.quantIsMobileFriendly) {
+    steps.push({ id: 'quantization', label: T('কম্প্রেশন', 'Quantisation'), status: 'pass', detail: T(`${summary.quantLabel} — ফোনের জন্য ঠিক আছে।`, `${summary.quantLabel} — fine for a phone.`) });
+  } else {
+    steps.push({ id: 'quantization', label: T('কম্প্রেশন', 'Quantisation'), status: 'warn', detail: T(`${summary.quantLabel} — এটি বড় ও ধীর হবে। Q4_K_M সংস্করণ নামানো ভালো।`, `${summary.quantLabel} — this will be large and slow. Prefer a Q4_K_M build.`) });
+  }
+
+  // 5. RAM headroom.
+  const free = freeRamMB();
+  const need = Math.round((info.size ?? model.sizeBytes) / (1024 * 1024) * 1.2) + 350;
+  if (free == null) {
+    steps.push({ id: 'memory', label: T('মেমোরি (RAM)', 'Memory (RAM)'), status: 'skip', detail: T('এই ডিভাইসের RAM পড়া গেল না — চালিয়ে দেখুন।', 'Could not read this device’s RAM — try running it.') });
+  } else if (free >= need) {
+    steps.push({ id: 'memory', label: T('মেমোরি (RAM)', 'Memory (RAM)'), status: 'pass', detail: T(`দরকার ~${need} MB, আছে ~${free} MB।`, `Needs ~${need} MB, about ~${free} MB available.`) });
+  } else {
+    steps.push({ id: 'memory', label: T('মেমোরি (RAM)', 'Memory (RAM)'), status: 'warn', detail: T(`দরকার ~${need} MB কিন্তু আছে ~${free} MB — চালাতে গেলে অ্যাপ বন্ধ হয়ে যেতে পারে। ছোট মডেল বেছে নিন।`, `Needs ~${need} MB but only ~${free} MB free — it may crash. Pick a smaller model.`) });
+  }
+
+  // 6. Real inference — only when a native runtime is in this build.
+  const probe = probeRuntime();
+  let sample: string | undefined;
+  if (!probe.available) {
+    steps.push({
+      id: 'inference',
+      label: T('চালিয়ে দেখা', 'Test run'),
+      status: 'skip',
+      detail: T(
+        'এই বিল্ডে on-device LLM রানটাইম নেই, তাই সত্যিকারের টেস্ট রান বাকি। উপরের সব সবুজ হলে মডেলটি প্রস্তুত — রানটাইম-সহ বিল্ডে নিজে থেকেই চালু হবে।',
+        'This build has no on-device LLM runtime, so the real test run is pending. If everything above is green the model is ready — it turns on automatically in a build that includes the runtime.',
+      ),
+    });
+  } else {
+    const smoke = await smokeTest(model.path, summary.contextLength);
+    if (smoke.ok) {
+      sample = smoke.sample;
+      steps.push({ id: 'inference', label: T('চালিয়ে দেখা', 'Test run'), status: 'pass', detail: T(`মডেল চলল (${smoke.elapsedMs} ms)। নমুনা: "${smoke.sample}"`, `Model ran (${smoke.elapsedMs} ms). Sample: "${smoke.sample}"`) });
+    } else {
+      steps.push({ id: 'inference', label: T('চালিয়ে দেখা', 'Test run'), status: 'fail', detail: T(smoke.reason ?? 'অজানা কারণে চলল না।', smoke.reason ?? 'Failed for an unknown reason.') });
+    }
+  }
+
+  const ok = steps.every((s) => s.status === 'pass' || s.status === 'warn' || s.status === 'skip')
+    && steps.some((s) => s.id === 'container' && s.status === 'pass');
+  const report: VerifyReport = { ok, ranAt: new Date().toISOString(), steps, sample };
+  await save(db, { ...model, summary, verifiedAt: ok ? report.ranAt : model.verifiedAt, lastReport: report });
+  return report;
+}
+
+export { probeRuntime };

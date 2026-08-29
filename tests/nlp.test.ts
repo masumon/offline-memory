@@ -32,6 +32,15 @@ describe('local NLP parser', () => {
     expect(result.entities.taskText).toContain('call the supplier');
   });
 
+  it('keeps "next <weekday> morning" and a priority phrase out of the task title', () => {
+    const result = parseLocalNlp('pay the electricity bill next Monday morning high priority', now);
+    expect(result.intent).toBe('CREATE_TASK');
+    expect(result.entities.date?.isoDate).toBe('2026-08-31');
+    expect(result.entities.priority).toBe('HIGH');
+    expect(result.entities.tags).toContain('money');
+    expect(result.entities.taskText).toBe('pay the electricity bill');
+  });
+
   it('classifies memory creation without persistence access', () => {
     const result = parseLocalNlp('মনে রাখো আমার দোকান শুক্রবার বন্ধ থাকে', now);
     expect(result.intent).toBe('CREATE_MEMORY');
@@ -55,5 +64,31 @@ describe('local NLP parser', () => {
     const result = parseLocalNlp('আজ আকাশ অনেক সুন্দর', now);
     expect(result.intent).toBe('UNKNOWN');
     expect(result.confidence).toBe(0);
+  });
+
+  it('classifies a plain English imperative as task creation', () => {
+    const result = parseLocalNlp('call the supplier tomorrow at 9am', now);
+    expect(result.intent).toBe('CREATE_TASK');
+    expect(result.entities.taskText).toContain('call the supplier');
+    expect(result.entities.date?.isoDate).toBe('2026-08-25');
+    expect(result.entities.time?.minutes).toBe(540);
+  });
+
+  it('strips the "remind me to" scaffold from the stored task text', () => {
+    const result = parseLocalNlp('remind me to pay the rent tomorrow at 9am', now);
+    expect(result.intent).toBe('CREATE_TASK');
+    expect(result.entities.taskText).toBe('pay the rent');
+  });
+
+  it('handles an imperative with no schedule', () => {
+    const result = parseLocalNlp('pick up medicine', now);
+    expect(result.intent).toBe('CREATE_TASK');
+    expect(result.entities.taskText).toBe('pick up medicine');
+    expect(result.entities.date).toBeUndefined();
+  });
+
+  it('still treats English notes as memories, not tasks', () => {
+    const result = parseLocalNlp('remember the home wifi password is hunter2', now);
+    expect(result.intent).toBe('CREATE_MEMORY');
   });
 });

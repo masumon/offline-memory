@@ -2,7 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ComponentProps } from 'react';
 import { useAppPreferences } from '../app/AppPreferences';
 
-type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
+export type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 type AppIconProps = {
   name: IconName;

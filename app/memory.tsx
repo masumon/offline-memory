@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useMemoryStore } from '../src/store/memory.store';
 import { useAppPreferences } from '../src/app/AppPreferences';
 import { AppCard, AppState } from '../src/ui/AppSurface';
 import { AppConfirmDialog } from '../src/ui/AppFeedback';
 import { AppIcon } from '../src/ui/AppIcon';
+import { RowLeading } from '../src/ui/RowLeading';
+import { loadImageThumbs } from '../src/services/attachment-thumbs';
 import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, memoryKindAccentName, type ThemeAccents, type ThemeColors } from '../src/theme';
 import type { Memory } from '../src/types/memory-model';
+
+const KIND_ICON: Record<Memory['kind'], 'note-text-outline' | 'lightbulb-on-outline' | 'heart-outline' | 'calendar-star' | 'thought-bubble-outline'> = {
+  NOTE: 'note-text-outline', FACT: 'lightbulb-on-outline', PREFERENCE: 'heart-outline', EVENT: 'calendar-star', REFLECTION: 'thought-bubble-outline',
+};
 
 const KIND_LABELS = {
   NOTE: { en: 'Note', bn: 'নোট' },
@@ -26,15 +32,39 @@ export default function MemoryScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [query, setQuery] = useState('');
   const [showArchived, setShowArchived] = useState(false);
+  const params = useLocalSearchParams<{ tag?: string }>();
+  const [kindFilter, setKindFilter] = useState<Memory['kind'] | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(params.tag ?? null);
   const [pendingDelete, setPendingDelete] = useState<Memory | null>(null);
   const { memories, isLoading, error, load, loadArchived, search, archive, restore, remove } = useMemoryStore();
+  const availableKinds = useMemo(() => {
+    const set = new Set<Memory['kind']>();
+    for (const m of memories) set.add(m.kind);
+    return (Object.keys(KIND_LABELS) as Memory['kind'][]).filter(k => set.has(k));
+  }, [memories]);
+  const availableTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const m of memories) for (const tag of m.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12).map(([tag]) => tag);
+  }, [memories]);
+  const visible = useMemo(() => memories.filter(m => (!kindFilter || m.kind === kindFilter) && (!tagFilter || m.tags.includes(tagFilter))), [memories, kindFilter, tagFilter]);
   const listData = useMemo<({ header: string } | Memory)[]>(() => {
-    if (showArchived || query.trim()) return memories;
-    const important = memories.filter(m => m.importance >= 4);
-    const rest = memories.filter(m => m.importance < 4);
-    if (!important.length || !rest.length) return memories;
+    if (showArchived || query.trim() || kindFilter || tagFilter) return visible;
+    const important = visible.filter(m => m.importance >= 4);
+    const rest = visible.filter(m => m.importance < 4);
+    if (!important.length || !rest.length) return visible;
     return [{ header: bn ? 'গুরুত্বপূর্ণ' : 'Important' }, ...important, { header: bn ? 'সাম্প্রতিক' : 'Recent' }, ...rest];
-  }, [memories, showArchived, query, bn]);
+  }, [visible, showArchived, query, kindFilter, tagFilter, bn]);
+
+  const [thumbs, setThumbs] = useState<Map<string, string>>(() => new Map());
+  const visibleIdKey = visible.map(m => m.id).join(',');
+  useEffect(() => {
+    let alive = true;
+    loadImageThumbs(db, 'MEMORY', visibleIdKey ? visibleIdKey.split(',') : [])
+      .then(map => { if (alive) setThumbs(map); })
+      .catch(() => { if (alive) setThumbs(new Map()); });
+    return () => { alive = false; };
+  }, [db, visibleIdKey]);
 
   useEffect(() => { void (showArchived ? loadArchived(db) : load(db)); }, [db, load, loadArchived, showArchived]);
   useEffect(() => {
@@ -78,12 +108,34 @@ export default function MemoryScreen() {
         </View>
       ) : null}
 
+      {!showArchived && availableKinds.length > 1 ? (
+        <View style={styles.filterRow}>
+          <Pressable accessibilityRole="button" accessibilityState={{ selected: !kindFilter }} onPress={() => setKindFilter(null)} style={[styles.filterChip, !kindFilter && styles.filterChipOn]}>
+            <Text style={[styles.filterChipText, !kindFilter && styles.filterChipTextOn]}>{bn ? 'সব' : 'All'}</Text>
+          </Pressable>
+          {availableKinds.map(k => (
+            <Pressable key={k} accessibilityRole="button" accessibilityState={{ selected: kindFilter === k }} onPress={() => setKindFilter(kindFilter === k ? null : k)} style={[styles.filterChip, kindFilter === k && styles.filterChipOn]}>
+              <Text style={[styles.filterChipText, kindFilter === k && styles.filterChipTextOn]}>{bn ? KIND_LABELS[k].bn : KIND_LABELS[k].en}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      {!showArchived && availableTags.length ? (
+        <View style={styles.filterRow}>
+          {availableTags.map(tag => (
+            <Pressable key={tag} accessibilityRole="button" accessibilityState={{ selected: tagFilter === tag }} onPress={() => setTagFilter(tagFilter === tag ? null : tag)} style={[styles.filterChip, tagFilter === tag && styles.filterChipOn]}>
+              <Text style={[styles.filterChipText, tagFilter === tag && styles.filterChipTextOn]}>#{tag}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
       <View style={styles.viewToggle}>
-        <Pressable accessibilityRole="tab" accessibilityState={{ selected: !showArchived }} onPress={() => { setQuery(''); setShowArchived(false); }} style={[styles.toggleButton, !showArchived && styles.toggleSelected]}>
+        <Pressable accessibilityRole="tab" accessibilityState={{ selected: !showArchived }} onPress={() => { setQuery(''); setKindFilter(null); setTagFilter(null); setShowArchived(false); }} style={[styles.toggleButton, !showArchived && styles.toggleSelected]}>
           <AppIcon name="brain" size={icon.sm} color={!showArchived ? colors.onPrimary : colors.textSecondary} />
           <Text style={[styles.toggleText, !showArchived && styles.toggleSelectedText]}>{copy.active}</Text>
         </Pressable>
-        <Pressable accessibilityRole="tab" accessibilityState={{ selected: showArchived }} onPress={() => { setQuery(''); setShowArchived(true); }} style={[styles.toggleButton, showArchived && styles.toggleSelected]}>
+        <Pressable accessibilityRole="tab" accessibilityState={{ selected: showArchived }} onPress={() => { setQuery(''); setKindFilter(null); setTagFilter(null); setShowArchived(true); }} style={[styles.toggleButton, showArchived && styles.toggleSelected]}>
           <AppIcon name="archive-outline" size={icon.sm} color={showArchived ? colors.onPrimary : colors.textSecondary} />
           <Text style={[styles.toggleText, showArchived && styles.toggleSelectedText]}>{copy.archived}</Text>
         </Pressable>
@@ -102,7 +154,7 @@ export default function MemoryScreen() {
           ListEmptyComponent={error ? null : <AppState icon={showArchived ? 'archive-off-outline' : 'brain'} title={showArchived ? copy.archived : query ? copy.noMatch : copy.empty} description={showArchived ? copy.restoreText : query ? copy.noMatch : copy.emptyText} actionLabel={!showArchived && !query ? copy.first : undefined} onAction={!showArchived && !query ? () => router.push('/memory-editor') : undefined} />}
           renderItem={({ item }) => 'header' in item
             ? <Text style={styles.groupHeader}>{item.header}</Text>
-            : <MemoryRow memory={item} archived={showArchived} onArchive={() => void archive(db, item.id)} onRestore={() => void restore(db, item.id)} onDelete={() => setPendingDelete(item)} styles={styles} colors={colors} accents={accents} copy={copy} bn={bn} />}
+            : <MemoryRow memory={item} archived={showArchived} onArchive={() => void archive(db, item.id)} onRestore={() => void restore(db, item.id)} onDelete={() => setPendingDelete(item)} styles={styles} colors={colors} accents={accents} copy={copy} bn={bn} thumbUri={thumbs.get(item.id)} />}
         />
       )}
 
@@ -128,14 +180,17 @@ function ImportanceDots({ value, color, styles }: { value: number; color: string
   );
 }
 
-function MemoryRow({ memory, archived, onArchive, onRestore, onDelete, styles, colors, accents, copy, bn }: { memory: Memory; archived: boolean; onArchive: () => void; onRestore: () => void; onDelete: () => void; styles: ReturnType<typeof makeStyles>; colors: ThemeColors; accents: ThemeAccents; copy: Record<string, string>; bn: boolean }) {
+function MemoryRow({ memory, archived, onArchive, onRestore, onDelete, styles, colors, accents, copy, bn, thumbUri }: { memory: Memory; archived: boolean; onArchive: () => void; onRestore: () => void; onDelete: () => void; styles: ReturnType<typeof makeStyles>; colors: ThemeColors; accents: ThemeAccents; copy: Record<string, string>; bn: boolean; thumbUri?: string }) {
   const kind = KIND_LABELS[memory.kind] ?? KIND_LABELS.NOTE;
   const tone = accents[memoryKindAccentName(memory.kind)];
   return (
     <AppCard style={styles.memoryRow}>
       <View style={styles.memoryTop}>
-        <View style={[styles.kindBadge, { backgroundColor: tone.soft, borderColor: tone.border }]}>
-          <Text style={[styles.kindText, { color: tone.on }]}>{bn ? kind.bn : kind.en}</Text>
+        <View style={styles.memoryTopLeft}>
+          <RowLeading thumbUri={thumbUri} icon={KIND_ICON[memory.kind]} tone={memoryKindAccentName(memory.kind)} size={36} />
+          <View style={[styles.kindBadge, { backgroundColor: tone.soft, borderColor: tone.border }]}>
+            <Text style={[styles.kindText, { color: tone.on }]}>{bn ? kind.bn : kind.en}</Text>
+          </View>
         </View>
         <ImportanceDots value={memory.importance} color={tone.base} styles={styles} />
       </View>
@@ -187,6 +242,11 @@ function makeStyles(colors: ThemeColors) {
     addButtonText: { color: colors.onPrimary, ...typography.bodySmall, fontWeight: '900', flexShrink: 1 },
     searchBox: { minHeight: control.searchHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginBottom: spacing.md, paddingHorizontal: spacing.md, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface, ...elevation.soft },
     search: { flex: 1, minHeight: control.inputHeight, color: colors.textPrimary, ...typography.body },
+    filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginHorizontal: spacing.lg, marginBottom: spacing.md },
+    filterChip: { minHeight: layout.minTouchTarget - spacing.smd, justifyContent: 'center', paddingHorizontal: spacing.smd, borderRadius: radius.pill, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface },
+    filterChipOn: { backgroundColor: colors.primaryTint, borderColor: colors.primary },
+    filterChipText: { color: colors.textSecondary, ...typography.caption, fontWeight: '800' },
+    filterChipTextOn: { color: colors.primary },
     viewToggle: { flexDirection: 'row', marginHorizontal: spacing.lg, marginBottom: spacing.md, padding: spacing.xxs, borderRadius: radius.lg, backgroundColor: colors.surfaceMuted },
     toggleButton: { flex: 1, minHeight: layout.minTouchTarget, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: spacing.xs },
     toggleSelected: { backgroundColor: colors.primary },
@@ -197,6 +257,7 @@ function makeStyles(colors: ThemeColors) {
     emptyList: { flexGrow: 1, paddingHorizontal: spacing.lg },
     memoryRow: { padding: spacing.md, gap: spacing.sm },
     memoryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+    memoryTopLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
     kindBadge: { borderWidth: border.thin, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs },
     kindText: { ...typography.caption, fontWeight: '900' },
     dots: { flexDirection: 'row', gap: spacing.xxs },

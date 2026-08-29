@@ -13,11 +13,17 @@ export async function runNotificationScheduler(
     if (notificationAdapter.reconcileScheduledTaskNotifications) {
       await notificationAdapter.reconcileScheduledTaskNotifications(db, now);
     }
+    let quietHours: notificationAdapter.QuietHours | null = null;
+    try {
+      const row = await db.getFirstAsync<{ value: string }>("SELECT value FROM app_preferences WHERE key = 'quietHours'");
+      const m = row?.value.match(/^(\d{1,2}):(\d{1,2})$/u);
+      if (m) quietHours = { start: Number(m[1]), end: Number(m[2]) };
+    } catch { /* quiet hours are optional */ }
     const candidates = await getNotificationCandidates(db, now, horizonMinutes);
     let scheduled = 0;
     for (const candidate of candidates) {
       try {
-        const notificationId = await notificationAdapter.scheduleTaskNotification(db, candidate);
+        const notificationId = await notificationAdapter.scheduleTaskNotification(db, candidate, quietHours);
         if (notificationId) scheduled += 1;
       } catch {
         // One failed platform operation must not block other reminders.

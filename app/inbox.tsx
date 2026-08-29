@@ -9,6 +9,8 @@ import { useAppPreferences } from '../src/app/AppPreferences';
 import { AppState } from '../src/ui/AppSurface';
 import { AppConfirmDialog, useAppFeedback } from '../src/ui/AppFeedback';
 import { AppIcon } from '../src/ui/AppIcon';
+import { RowLeading } from '../src/ui/RowLeading';
+import { loadImageThumbs } from '../src/services/attachment-thumbs';
 import { formatBangladeshTime } from '../src/i18n/date-time';
 import { control, elevation, icon, layout, opacity, radius, spacing, typography, priorityAccentName, type ThemeAccents, type ThemeColors } from '../src/theme';
 import type { Task } from '../src/types/task-model';
@@ -22,30 +24,54 @@ export default function InboxScreen() {
   const bn = language === 'bn';
   const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
   const { showSnackbar } = useAppFeedback();
-  const { tasks, isLoading, error, load, remove } = useTaskStore();
+  const { tasks, isLoading, error, load, update, remove } = useTaskStore();
   const createMemory = useMemoryStore(s => s.create);
+  const removeMemory = useMemoryStore(s => s.remove);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Task | null>(null);
+  const [undo, setUndo] = useState<{ label: string; run: () => Promise<unknown> } | null>(null);
 
   useEffect(() => { void load(db); }, [db, load]);
   const inbox = useMemo(() => tasks.filter(task => task.status === 'INBOX'), [tasks]);
+  const [thumbs, setThumbs] = useState<Map<string, string>>(() => new Map());
+  const inboxIdKey = inbox.map(t => t.id).join(',');
+  useEffect(() => {
+    let alive = true;
+    loadImageThumbs(db, 'TASK', inboxIdKey ? inboxIdKey.split(',') : [])
+      .then(map => { if (alive) setThumbs(map); })
+      .catch(() => { if (alive) setThumbs(new Map()); });
+    return () => { alive = false; };
+  }, [db, inboxIdKey]);
 
   const c = bn
-    ? { eyebrow: 'ক্যাপচার', title: 'ইনবক্স', subtitle: 'ক্যাপচার করা কিন্তু এখনও পরিকল্পনা না করা আইটেম।', banner: (n: number) => `আপনার ${n}টি আইটেম প্রসেস করার অপেক্ষায় আছে`, clear: 'আপনার ইনবক্স পরিষ্কার', clearText: 'নতুন কিছু ক্যাপচার করলে এখানে দেখা যাবে।', captured: 'ক্যাপচার', toTask: 'টাস্ক করুন', toMemory: 'মেমোরি করুন', later: 'পরে', del: 'মুছুন', processAll: (n: number) => `সব প্রসেস করুন (${n})`, retry: 'আবার চেষ্টা করুন', taskDone: 'দিনের পরিকল্পনায় যোগ হয়েছে', memDone: 'মেমোরি হিসেবে রাখা হয়েছে', laterDone: 'আগামীকালের পরিকল্পনায় নেওয়া হয়েছে', failed: 'কাজটি সম্পন্ন হয়নি', delTitle: 'আইটেম মুছবেন?', delDesc: 'এটি স্থায়ীভাবে মুছে যাবে।', delOk: 'মুছুন', cancel: 'বাতিল', add: 'নতুন' }
-    : { eyebrow: 'CAPTURE', title: 'Inbox', subtitle: 'Items you captured but have not planned yet.', banner: (n: number) => `${n} item(s) waiting to be processed`, clear: 'Your inbox is clear', clearText: 'New captured items will appear here.', captured: 'Captured', toTask: 'Make task', toMemory: 'Make memory', later: 'Later', del: 'Delete', processAll: (n: number) => `Process all (${n})`, retry: 'Retry', taskDone: 'Added to today’s plan', memDone: 'Saved as a memory', laterDone: 'Moved to tomorrow’s plan', failed: 'That action did not complete', delTitle: 'Delete item?', delDesc: 'This permanently removes it.', delOk: 'Delete', cancel: 'Cancel', add: 'New' };
+    ? { eyebrow: 'দ্রুত লেখা', title: 'ইনবক্স', subtitle: 'তাড়াহুড়োয় যা লিখে রেখেছেন, কিন্তু এখনও গুছিয়ে নেননি।', banner: (n: number) => `${n}টি জিনিস গোছানোর অপেক্ষায়`, clear: 'ইনবক্স খালি', clearText: 'মাথায় যা আসে সাথে সাথে এখানে লিখে রাখুন — যেমন “বসকে কল করতে হবে”, “নতুন একটা আইডিয়া”, “ওষুধ কিনতে হবে”। পরে একটা একটা করে কাজ বা মেমোরিতে সরিয়ে নিন।', captured: 'লেখা হয়েছে', toTask: 'কাজে নিন', toMemory: 'মনে রাখুন', later: 'পরে', del: 'মুছুন', processAll: (n: number) => `সব গুছিয়ে নিন (${n})`, retry: 'আবার চেষ্টা করুন', taskDone: 'আজকের পরিকল্পনায় যোগ হয়েছে', memDone: 'মেমোরিতে রাখা হয়েছে', laterDone: 'কালকের জন্য রাখা হয়েছে', failed: 'কাজটা হলো না', delTitle: 'এটি মুছবেন?', delDesc: 'একবার মুছলে আর ফেরানো যাবে না।', delOk: 'মুছুন', cancel: 'বাতিল', add: 'নতুন', howTitle: 'ইনবক্স কীভাবে কাজে লাগে', howBody: 'ব্যস্ত থাকলে শুধু এক লাইন লিখে রাখুন। হাতে সময় এলে প্রতিটিতে “কাজে নিন” (পরিকল্পনায় চলে যাবে), “মনে রাখুন” (মেমোরি হবে) বা “পরে” চাপুন।', examples: ['বসকে কল করতে হবে', 'নতুন একটা আইডিয়া', 'ওষুধ কিনতে হবে'] }
+    : { eyebrow: 'QUICK CAPTURE', title: 'Inbox', subtitle: 'Things you jotted down in a hurry but haven’t sorted yet.', banner: (n: number) => `${n} to sort out`, clear: 'Inbox is empty', clearText: 'Drop anything on your mind here as it comes up — like “call the boss”, “a new idea”, “buy medicine”. Sort each one into a task or a memory when you have a moment.', captured: 'Added', toTask: 'Make a task', toMemory: 'Keep as memory', later: 'Later', del: 'Delete', processAll: (n: number) => `Sort all (${n})`, retry: 'Retry', taskDone: 'Added to today’s plan', memDone: 'Kept as a memory', laterDone: 'Kept for tomorrow', failed: 'That didn’t work', delTitle: 'Delete this?', delDesc: 'Once it’s gone, it’s gone.', delOk: 'Delete', cancel: 'Cancel', add: 'New', howTitle: 'What the inbox is for', howBody: 'When you’re busy, just write one line. Later, on each item tap “Make a task” (it goes to your plan), “Keep as memory”, or “Later”.', examples: ['call the boss', 'a new idea', 'buy medicine'] };
 
-  const run = useCallback(async (id: string, fn: () => Promise<unknown>, okMsg: string) => {
+  useEffect(() => { if (!undo) return; const timer = setTimeout(() => setUndo(null), 6000); return () => clearTimeout(timer); }, [undo]);
+  const runUndo = useCallback(async () => {
+    if (!undo || busyId || bulkBusy) return;
+    const action = undo; setUndo(null); setBulkBusy(true);
+    try { await action.run(); await load(db); showSnackbar(bn ? 'ফিরিয়ে আনা হয়েছে' : 'Undone', 'success'); }
+    catch { showSnackbar(c.failed, 'danger'); }
+    finally { setBulkBusy(false); }
+  }, [undo, busyId, bulkBusy, load, db, showSnackbar, bn, c.failed]);
+
+  const run = useCallback(async (id: string, fn: () => Promise<unknown>, okMsg: string, makeUndo?: () => Promise<unknown>) => {
     if (busyId || bulkBusy) return;
     setBusyId(id);
-    try { await fn(); await load(db); showSnackbar(okMsg, 'success'); }
+    try { await fn(); await load(db); showSnackbar(okMsg, 'success'); if (makeUndo) setUndo({ label: okMsg, run: makeUndo }); }
     catch { showSnackbar(c.failed, 'danger'); }
     finally { setBusyId(null); }
   }, [busyId, bulkBusy, load, db, showSnackbar, c.failed]);
 
-  const toTask = (t: Task) => run(t.id, () => planInboxTasks(db, [t.id]), c.taskDone);
-  const toLater = (t: Task) => run(t.id, () => planInboxTasks(db, [t.id], tomorrow()), c.laterDone);
-  const toMemory = (t: Task) => run(t.id, async () => { const m = await createMemory(db, { content: t.title }); if (!m) throw new Error('memory'); await remove(db, t.id); }, c.memDone);
+  const toTask = (t: Task) => run(t.id, () => planInboxTasks(db, [t.id]), c.taskDone, () => update(db, t.id, { status: 'INBOX', plannedDate: null, dueAt: null }));
+  const toLater = (t: Task) => run(t.id, () => planInboxTasks(db, [t.id], tomorrow()), c.laterDone, () => update(db, t.id, { status: 'INBOX', plannedDate: null, dueAt: null }));
+  const toMemory = (t: Task) => run(t.id, async () => { const m = await createMemory(db, { content: t.title }); if (!m) throw new Error('memory'); await remove(db, t.id); }, c.memDone, async () => {
+    const memory = useMemoryStore.getState().memories.find(mm => mm.content === t.title);
+    if (memory) await removeMemory(db, memory.id);
+    return useTaskStore.getState().create(db, { title: t.title, priority: t.priority, notes: t.notes });
+  });
   const doDelete = async () => {
     if (!pendingDelete) return;
     const id = pendingDelete.id; setPendingDelete(null); setBusyId(id);
@@ -67,9 +93,25 @@ export default function InboxScreen() {
             <Text style={styles.eyebrow}>{c.eyebrow}</Text>
             <Text style={styles.title}>{c.title}</Text>
           </View>
-          <View style={styles.count}><Text style={styles.countText}>{inbox.length}</Text></View>
+          {inbox.length ? <View style={styles.count}><Text style={styles.countText}>{inbox.length}</Text></View> : null}
         </View>
         <Text style={styles.subtitle}>{c.subtitle}</Text>
+      </View>
+
+      <View style={styles.how}>
+        <View style={styles.howHead}>
+          <AppIcon name="lightbulb-on-outline" size={icon.sm} color={accents.yellow.on} />
+          <Text style={styles.howTitle}>{c.howTitle}</Text>
+        </View>
+        <Text style={styles.howBody}>{c.howBody}</Text>
+        <View style={styles.howChips}>
+          {c.examples.map(ex => (
+            <View key={ex} style={styles.howChip}>
+              <Text style={styles.howChipLabel}>{bn ? 'যেমন' : 'e.g.'}</Text>
+              <Text numberOfLines={1} style={styles.howChipText}>{ex}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       {error ? (
@@ -101,12 +143,15 @@ export default function InboxScreen() {
               <View style={styles.card}>
                 <View style={[styles.priorityBar, { backgroundColor: tone.base }]} />
                 <View style={styles.cardBody}>
-                  <Link href={{ pathname: '/task-detail', params: { id: item.id } }} asChild>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'খুলুন' : 'Open'}: ${item.title}`} style={({ pressed }) => StyleSheet.flatten([styles.cardTap, pressed && styles.pressed])}>
-                      <Text numberOfLines={3} style={styles.cardTitle}>{item.title}</Text>
-                      <Text style={styles.cardMeta}>{c.captured}: {capturedLabel(item.createdAt, language)}</Text>
-                    </Pressable>
-                  </Link>
+                  <View style={styles.cardHeadRow}>
+                    <RowLeading thumbUri={thumbs.get(item.id)} icon="inbox-arrow-down-outline" tone="orange" size={40} />
+                    <Link href={{ pathname: '/task-detail', params: { id: item.id } }} asChild>
+                      <Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'খুলুন' : 'Open'}: ${item.title}`} style={({ pressed }) => StyleSheet.flatten([styles.cardTap, pressed && styles.pressed])}>
+                        <Text numberOfLines={3} style={styles.cardTitle}>{item.title}</Text>
+                        <Text style={styles.cardMeta}>{c.captured}: {capturedLabel(item.createdAt, language)}</Text>
+                      </Pressable>
+                    </Link>
+                  </View>
                   {rowBusy ? (
                     <View style={styles.actionRowBusy}><ActivityIndicator color={colors.primary} /></View>
                   ) : (
@@ -134,6 +179,16 @@ export default function InboxScreen() {
           }}
         />
       )}
+
+      {undo ? (
+        <View style={styles.undoBar}>
+          <Text numberOfLines={1} style={styles.undoText}>{undo.label}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'ফিরিয়ে আনুন' : 'Undo'} onPress={() => void runUndo()} style={({ pressed }) => StyleSheet.flatten([styles.undoBtn, pressed && styles.pressed])}>
+            <AppIcon name="undo-variant" size={icon.sm} color={colors.onPrimary} />
+            <Text style={styles.undoBtnText}>{bn ? 'ফিরিয়ে আনুন' : 'Undo'}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <Link href="/task-editor" asChild>
         <Pressable accessibilityRole="button" accessibilityLabel={c.add} style={({ pressed }) => StyleSheet.flatten([styles.fab, pressed && styles.pressed])}>
@@ -166,6 +221,14 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     count: { minWidth: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm },
     countText: { color: colors.onPrimary, ...typography.meta, fontFamily: typography.numeric.fontFamily },
     subtitle: { color: colors.textSecondary, ...typography.bodySmall, marginTop: spacing.sm },
+    how: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, borderWidth: 1, borderColor: accents.yellow.border, backgroundColor: accents.yellow.soft, borderRadius: radius.lg, padding: spacing.smd, gap: spacing.xs },
+    howHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    howTitle: { color: accents.yellow.on, ...typography.caption, fontFamily: typography.label.fontFamily, letterSpacing: 0.4 },
+    howBody: { color: colors.textSecondary, ...typography.caption, lineHeight: 17 },
+    howChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xxs },
+    howChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, maxWidth: '100%', paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: accents.yellow.border },
+    howChipLabel: { color: accents.yellow.on, ...typography.caption, fontFamily: typography.label.fontFamily, fontSize: 10 },
+    howChipText: { flexShrink: 1, color: colors.textPrimary, ...typography.caption },
     list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl + spacing.xl, gap: spacing.sm },
     emptyList: { flexGrow: 1, paddingHorizontal: spacing.lg },
     banner: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: accents.purple.soft, borderColor: accents.purple.border, borderWidth: 1, borderRadius: radius.lg, padding: spacing.smd, marginBottom: spacing.sm },
@@ -174,7 +237,8 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     card: { flexDirection: 'row', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, overflow: 'hidden', ...elevation.soft },
     priorityBar: { width: 4, alignSelf: 'stretch' },
     cardBody: { flex: 1, minWidth: 0, padding: spacing.smd, gap: spacing.sm },
-    cardTap: { minHeight: control.iconButtonSize, justifyContent: 'center' },
+    cardHeadRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    cardTap: { flex: 1, minWidth: 0, minHeight: control.iconButtonSize, justifyContent: 'center' },
     cardTitle: { color: colors.textPrimary, ...typography.body, fontFamily: typography.cardTitle.fontFamily },
     cardMeta: { color: colors.textMuted, ...typography.caption, marginTop: spacing.xxs },
     actionRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
@@ -186,7 +250,11 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     actIcon: { minHeight: layout.minTouchTarget, minWidth: layout.minTouchTarget, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
     processAll: { minHeight: control.buttonHeight, marginTop: spacing.smd, borderRadius: radius.md, backgroundColor: accents.purple.base, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, ...elevation.raised },
     processAllText: { color: colors.onPrimary, ...typography.callout, fontFamily: typography.label.fontFamily },
-    fab: { position: 'absolute', right: spacing.lg, bottom: layout.compactNavHeight + spacing.md, width: 56, height: 56, borderRadius: radius.xl, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...elevation.floating },
+    fab: { position: 'absolute', right: spacing.lg, bottom: layout.compactNavHeight + spacing.xxl, width: 56, height: 56, borderRadius: radius.xl, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...elevation.floating },
+    undoBar: { position: 'absolute', left: spacing.lg, right: spacing.lg + 56 + spacing.sm, bottom: layout.compactNavHeight + spacing.xxl, minHeight: control.buttonHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, ...elevation.floating },
+    undoText: { flex: 1, minWidth: 0, color: colors.textPrimary, ...typography.caption, fontWeight: '700' },
+    undoBtn: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingHorizontal: spacing.smd, borderRadius: radius.md, backgroundColor: colors.primary },
+    undoBtnText: { color: colors.onPrimary, ...typography.caption, fontWeight: '900' },
     disabled: { opacity: opacity.disabled },
     pressed: { opacity: opacity.pressed },
   });

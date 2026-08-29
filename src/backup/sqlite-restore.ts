@@ -58,6 +58,8 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
   const notificationDeliveries = rows(backup.data, 'notificationDeliveries');
   const hasAttachments = Object.prototype.hasOwnProperty.call(backup.data, 'attachments');
   const attachments = hasAttachments ? rows(backup.data, 'attachments') : [];
+  const hasRelations = Object.prototype.hasOwnProperty.call(backup.data, 'relations');
+  const relations = hasRelations ? rows(backup.data, 'relations') : [];
 
   const taskIds = new Set<string>();
   for (const row of tasks) {
@@ -65,6 +67,7 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
     const status = requiredString(row, 'status'); if (!TASK_STATUSES.has(status)) throw new Error(`Unsupported task status: ${status}`);
     const priority = requiredString(row, 'priority'); if (!PRIORITIES.has(priority)) throw new Error(`Unsupported task priority: ${priority}`);
     if (schemaVersion >= 6) optionalString(row, 'planned_date');
+    if (schemaVersion >= 9) optionalString(row, 'recurrence');
     requiredString(row, 'created_at'); requiredString(row, 'updated_at');
   }
   const subtaskIds = new Set<string>();
@@ -115,7 +118,20 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
     }
   }
 
+  if (hasRelations) {
+    const relationIds = new Set<string>();
+    for (const row of relations) {
+      uniqueId(row, 'id', relationIds);
+      const fromType = requiredString(row, 'from_type'); const toType = requiredString(row, 'to_type');
+      if (fromType !== 'TASK' || toType !== 'MEMORY') throw new Error('Backup relation must link a TASK to a MEMORY');
+      const fromId = requiredString(row, 'from_id'); if (!taskIds.has(fromId)) throw new Error(`Relation references missing task: ${fromId}`);
+      const toId = requiredString(row, 'to_id'); if (!memoryIds.has(toId)) throw new Error(`Relation references missing memory: ${toId}`);
+      requiredString(row, 'created_at');
+    }
+  }
+
   await db.withTransactionAsync(async () => {
+    if (hasRelations) await db.runAsync('DELETE FROM relations');
     if (hasAttachments) await db.runAsync('DELETE FROM attachments');
     await db.runAsync('DELETE FROM notification_deliveries');
     await db.runAsync('DELETE FROM subtasks');
@@ -123,11 +139,12 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
     await db.runAsync('DELETE FROM tasks');
     await db.runAsync('DELETE FROM app_metadata');
     await db.runAsync('DELETE FROM app_preferences');
-    for (const row of tasks) await db.runAsync(`INSERT INTO tasks (id,title,notes,status,priority,due_at,planned_date,completed_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)`, requiredString(row, 'id'), requiredString(row, 'title'), optionalString(row, 'notes'), requiredString(row, 'status'), requiredString(row, 'priority'), optionalString(row, 'due_at'), schemaVersion >= 6 ? optionalString(row, 'planned_date') : null, optionalString(row, 'completed_at'), requiredString(row, 'created_at'), requiredString(row, 'updated_at'));
+    for (const row of tasks) await db.runAsync(`INSERT INTO tasks (id,title,notes,status,priority,due_at,planned_date,completed_at,recurrence,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`, requiredString(row, 'id'), requiredString(row, 'title'), optionalString(row, 'notes'), requiredString(row, 'status'), requiredString(row, 'priority'), optionalString(row, 'due_at'), schemaVersion >= 6 ? optionalString(row, 'planned_date') : null, optionalString(row, 'completed_at'), schemaVersion >= 9 ? optionalString(row, 'recurrence') : null, requiredString(row, 'created_at'), requiredString(row, 'updated_at'));
     for (const row of subtasks) await db.runAsync('INSERT INTO subtasks (id,task_id,title,completed,position,created_at,updated_at) VALUES (?,?,?,?,?,?,?)', requiredString(row, 'id'), requiredString(row, 'task_id'), requiredString(row, 'title'), requiredNumber(row, 'completed'), requiredNumber(row, 'position'), requiredString(row, 'created_at'), requiredString(row, 'updated_at'));
     for (const row of memories) await db.runAsync('INSERT INTO memories (id,title,content,kind,source,tags_json,importance,archived,created_at,updated_at,last_accessed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', requiredString(row, 'id'), optionalString(row, 'title'), requiredString(row, 'content'), requiredString(row, 'kind'), requiredString(row, 'source'), requiredString(row, 'tags_json'), requiredNumber(row, 'importance'), requiredNumber(row, 'archived'), requiredString(row, 'created_at'), requiredString(row, 'updated_at'), optionalString(row, 'last_accessed_at'));
     if (hasAttachments) for (const row of attachments) await db.runAsync('INSERT INTO attachments (id,owner_type,owner_id,name,mime_type,size,uri,created_at) VALUES (?,?,?,?,?,?,?,?)', requiredString(row, 'id'), requiredString(row, 'owner_type'), requiredString(row, 'owner_id'), requiredString(row, 'name'), requiredString(row, 'mime_type'), row.size === null || row.size === undefined ? null : requiredNumber(row, 'size'), requiredString(row, 'uri'), requiredString(row, 'created_at'));
     for (const row of notificationDeliveries) await db.runAsync('INSERT INTO notification_deliveries (task_id,due_at,delivered_at) VALUES (?,?,?)', requiredString(row, 'task_id'), requiredString(row, 'due_at'), requiredString(row, 'delivered_at'));
+    if (hasRelations) for (const row of relations) await db.runAsync('INSERT INTO relations (id,from_type,from_id,to_type,to_id,created_at) VALUES (?,?,?,?,?,?)', requiredString(row, 'id'), requiredString(row, 'from_type'), requiredString(row, 'from_id'), requiredString(row, 'to_type'), requiredString(row, 'to_id'), requiredString(row, 'created_at'));
     for (const row of appMetadata) await db.runAsync('INSERT INTO app_metadata (key,value,updated_at) VALUES (?,?,?)', requiredString(row, 'key'), requiredString(row, 'value'), requiredString(row, 'updated_at'));
     for (const row of appPreferences) await db.runAsync('INSERT INTO app_preferences (key,value) VALUES (?,?)', requiredString(row, 'key'), requiredString(row, 'value'));
   });

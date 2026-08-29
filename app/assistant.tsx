@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
+import { useSpeech } from '../src/hooks/useSpeech';
+import { VoiceOverlay } from '../src/ui/VoiceOverlay';
 import { orchestrate, type OrchestratedAction, type OrchestratorResult } from '../src/ai/orchestrator';
-import { executeAssistantAction, type AssistantExecutionResult } from '../src/services/assistant-action-service';
+import { updateContext, type OrchestrationContext } from '../src/ai/context';
+import { executeAssistantAction, resolveAssistantTaskChoice, type AssistantExecutionResult } from '../src/services/assistant-action-service';
 import { useTaskStore } from '../src/store/task.store';
 import { useMemoryStore } from '../src/store/memory.store';
 import { useAppPreferences } from '../src/app/AppPreferences';
@@ -31,13 +34,26 @@ export default function AssistantScreen() {
   const { colors, accents, language } = useAppPreferences();
   const bn = language === 'bn';
   const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
+  const params = useLocalSearchParams<{ voice?: string }>();
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [execution, setExecution] = useState<AssistantExecutionResult | null>(null);
   const loadTasks = useTaskStore(s => s.load);
   const loadMemories = useMemoryStore(s => s.load);
-  const result = useMemo<OrchestratorResult | null>(() => { const value = input.trim(); return value ? orchestrate(value) : null; }, [input]);
+  const { supported: voiceSupported, speak } = useSpeech(language);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const voiceStarted = useRef(false);
+  const spokenMode = useRef(false);
+  const onVoiceResult = (text: string) => { spokenMode.current = true; setInput(text); setExecution(null); setError(null); };
+  useEffect(() => {
+    if (params.voice === '1' && voiceSupported && !voiceStarted.current) {
+      voiceStarted.current = true;
+      setVoiceOpen(true);
+    }
+  }, [params.voice, voiceSupported]);
+  const [convoContext, setConvoContext] = useState<OrchestrationContext>({});
+  const result = useMemo<OrchestratorResult | null>(() => { const value = input.trim(); return value ? orchestrate(value, new Date(), convoContext) : null; }, [input, convoContext]);
   const ready = result?.status === 'READY' && result.action.type !== 'CLARIFY';
 
   const execute = async () => {
@@ -47,14 +63,29 @@ export default function AssistantScreen() {
     try {
       const next = await executeAssistantAction(db, action);
       setExecution(next);
+      if (spokenMode.current) { const msg = executionMessage(next, bn); if (msg) speak(msg); }
+      setConvoContext(prev => updateContext(result.nlp.intent, result.nlp.entities, prev));
+      await Promise.all([loadTasks(db), loadMemories(db)]);
+    } catch { setError(bn ? 'লোকাল অ্যাকশন চালানো যায়নি' : 'Unable to run the local action'); }
+    finally { setBusy(false); }
+  };
+
+  const pickTaskChoice = async (taskId: string) => {
+    if (busy || execution?.type !== 'NEEDS_TASK_CHOICE') return;
+    const pending = execution.pending;
+    setBusy(true); setError(null);
+    try {
+      const next = await resolveAssistantTaskChoice(db, pending, taskId);
+      setExecution(next);
+      if (spokenMode.current) { const msg = executionMessage(next, bn); if (msg) speak(msg); }
       await Promise.all([loadTasks(db), loadMemories(db)]);
     } catch { setError(bn ? 'লোকাল অ্যাকশন চালানো যায়নি' : 'Unable to run the local action'); }
     finally { setBusy(false); }
   };
 
   const copy = bn
-    ? { back: 'আরও', eyebrow: 'লোকাল অ্যাসিস্ট্যান্ট', title: 'কীভাবে সাহায্য করব?', subtitle: 'সবকিছু এই ডিভাইসেই বোঝা ও সম্পন্ন হয়। কোনো ক্লাউড সার্ভিসে ডেটা যায় না।', placeholder: 'যেমন: আগামীকাল সকাল ৯টায় supplier-কে ফোন করতে হবে', understanding: 'আমি যা বুঝেছি', task: 'টাস্ক', memory: 'মেমোরি', query: 'খোঁজা', date: 'তারিখ', time: 'সময়', clarify: 'এই কমান্ডটি সম্পন্ন করার আগে আরও একটু তথ্য দিন।', unsupported: 'এটি বুঝতে পারিনি। আমি টাস্ক ও মেমোরি নিয়ে কাজ করি — যেমন "আগামীকাল ৯টায় মিটিং" বা "পাসওয়ার্ডটা মনে রাখো"।', execute: 'নিশ্চিত করে চালান', empty: 'একটি লোকাল কমান্ড লিখুন — আমি বুঝে নিয়ে দেখাব কী হবে।', completed: 'সম্পন্ন হয়েছে', planning: 'প্ল্যানিং খুলুন', memoryOpen: 'মেমোরি খুলুন', retry: 'আবার চেষ্টা করুন', command: 'লোকাল অ্যাসিস্ট্যান্ট কমান্ড' }
-    : { back: 'More', eyebrow: 'LOCAL ASSISTANT', title: 'How can I help?', subtitle: 'Everything is understood and done on this device. Nothing is sent to a cloud service.', placeholder: 'e.g. আগামীকাল সকাল ৯টায় supplier-কে ফোন করতে হবে', understanding: 'Here’s what I understood', task: 'Task', memory: 'Memory', query: 'Search', date: 'Date', time: 'Time', clarify: 'Add a little more detail before this can run.', unsupported: 'I couldn’t interpret that. I work with tasks and memories — e.g. "meeting tomorrow at 9" or "remember this password".', execute: 'Confirm and run', empty: 'Type a local command — I’ll interpret it and show what will happen.', completed: 'Done', planning: 'Open planning', memoryOpen: 'Open memory', retry: 'Retry', command: 'Local assistant command' };
+    ? { back: 'আরও', eyebrow: 'লোকাল অ্যাসিস্ট্যান্ট', title: 'কীভাবে সাহায্য করব?', subtitle: 'সবকিছু এই ডিভাইসেই বোঝা ও সম্পন্ন হয়। কোনো ক্লাউড সার্ভিসে ডেটা যায় না।', placeholder: 'যেমন: আগামীকাল সকাল ৯টায় supplier-কে ফোন করতে হবে', understanding: 'আমি যা বুঝেছি', task: 'টাস্ক', memory: 'মেমোরি', query: 'খোঁজা', date: 'তারিখ', time: 'সময়', priority: 'অগ্রাধিকার', tags: 'ট্যাগ', clarify: 'এই কমান্ডটি সম্পন্ন করার আগে আরও একটু তথ্য দিন।', unsupported: 'এটি বুঝতে পারিনি। আমি টাস্ক ও মেমোরি নিয়ে কাজ করি — যেমন "আগামীকাল ৯টায় মিটিং" বা "পাসওয়ার্ডটা মনে রাখো"।', execute: 'নিশ্চিত করে চালান', empty: 'একটি লোকাল কমান্ড লিখুন — আমি বুঝে নিয়ে দেখাব কী হবে।', completed: 'সম্পন্ন হয়েছে', planning: 'প্ল্যানিং খুলুন', memoryOpen: 'মেমোরি খুলুন', retry: 'আবার চেষ্টা করুন', command: 'লোকাল অ্যাসিস্ট্যান্ট কমান্ড', micStart: 'কথা বলে লিখুন', micStop: 'শোনা বন্ধ করুন', listening: 'শুনছি… বলুন', voiceOffline: 'ভয়েস এই ডিভাইসেই প্রক্রিয়া হয় — অফলাইনে কাজ করে' }
+    : { back: 'More', eyebrow: 'LOCAL ASSISTANT', title: 'How can I help?', subtitle: 'Everything is understood and done on this device. Nothing is sent to a cloud service.', placeholder: 'e.g. আগামীকাল সকাল ৯টায় supplier-কে ফোন করতে হবে', understanding: 'Here’s what I understood', task: 'Task', memory: 'Memory', query: 'Search', date: 'Date', time: 'Time', priority: 'Priority', tags: 'Tags', clarify: 'Add a little more detail before this can run.', unsupported: 'I couldn’t interpret that. I work with tasks and memories — e.g. "meeting tomorrow at 9" or "remember this password".', execute: 'Confirm and run', empty: 'Type a local command — I’ll interpret it and show what will happen.', completed: 'Done', planning: 'Open planning', memoryOpen: 'Open memory', retry: 'Retry', command: 'Local assistant command', micStart: 'Speak instead of typing', micStop: 'Stop listening', listening: 'Listening… go ahead', voiceOffline: 'Voice is processed on this device — works offline' };
 
   const summary = result ? actionSummary(result.action.type, bn) : null;
   const time = result?.nlp.entities.time;
@@ -64,16 +95,30 @@ export default function AssistantScreen() {
       <View style={styles.header}>
         <Link href="/more" asChild><Pressable accessibilityRole="button" accessibilityLabel={copy.back} style={({ pressed }) => StyleSheet.flatten([styles.back, pressed && styles.pressed])}><AppIcon name="arrow-left" size={icon.md} color={colors.primary} /><Text style={styles.backText}>{copy.back}</Text></Pressable></Link>
         <View style={styles.titleRow}>
-          <View style={styles.titleIcon}><AppIcon name="robot-happy-outline" size={icon.lg} color={colors.primary} /></View>
+          <View style={styles.titleIcon}><AppIcon name="robot-happy-outline" size={icon.lg} color={accents.purple.on} /></View>
           <View style={styles.titleCopy}><Text style={styles.eyebrow}>{copy.eyebrow}</Text><Text style={styles.title}>{copy.title}</Text></View>
         </View>
         <Text style={styles.subtitle}>{copy.subtitle}</Text>
+        {voiceSupported ? (
+          <View style={styles.voiceHint}><AppIcon name="microphone-outline" size={icon.xs} color={colors.textMuted} /><Text style={styles.voiceHintText}>{copy.voiceOffline}</Text></View>
+        ) : null}
       </View>
 
       <View style={styles.inputBox}>
         <AppIcon name="message-processing-outline" size={icon.md} color={colors.textMuted} />
-        <TextInput value={input} onChangeText={value => { setInput(value); setExecution(null); setError(null); }} placeholder={copy.placeholder} placeholderTextColor={colors.textMuted} multiline style={styles.input} accessibilityLabel={copy.command} />
+        <TextInput value={input} onChangeText={value => { spokenMode.current = false; setInput(value); setExecution(null); setError(null); }} placeholder={copy.placeholder} placeholderTextColor={colors.textMuted} multiline style={styles.input} accessibilityLabel={copy.command} />
+        {voiceSupported ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={copy.micStart}
+            onPress={() => setVoiceOpen(true)}
+            style={({ pressed }) => StyleSheet.flatten([styles.micButton, pressed && styles.pressed])}
+          >
+            <AppIcon name="microphone-outline" size={icon.md} color={colors.primary} />
+          </Pressable>
+        ) : null}
       </View>
+      <VoiceOverlay visible={voiceOpen} language={language} onResult={onVoiceResult} onClose={() => setVoiceOpen(false)} />
 
       {result && summary ? (
         <>
@@ -95,6 +140,8 @@ export default function AssistantScreen() {
               {result.nlp.entities.query ? <Detail label={copy.query} value={result.nlp.entities.query} styles={styles} /> : null}
               {result.nlp.entities.date ? <Detail label={copy.date} value={result.nlp.entities.date.isoDate} styles={styles} /> : null}
               {time ? <Detail label={copy.time} value={`${String(Math.floor(time.minutes / 60)).padStart(2, '0')}:${String(time.minutes % 60).padStart(2, '0')}`} styles={styles} /> : null}
+              {result.nlp.entities.priority && result.nlp.entities.priority !== 'MEDIUM' ? <Detail label={copy.priority} value={localizeTaskPriority(result.nlp.entities.priority, bn)} styles={styles} /> : null}
+              {result.nlp.entities.tags && result.nlp.entities.tags.length ? <Detail label={copy.tags} value={result.nlp.entities.tags.map(t => `#${t}`).join(' ')} styles={styles} /> : null}
               {ready ? (
                 <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy, busy }} onPress={() => void execute()} style={({ pressed }) => StyleSheet.flatten([styles.executeButton, busy && styles.disabled, pressed && styles.pressed])}>
                   {busy ? <ActivityIndicator color={colors.onPrimary} /> : <><AppIcon name="check" size={icon.sm} color={colors.onPrimary} /><Text style={styles.executeText}>{copy.execute}</Text></>}
@@ -126,7 +173,17 @@ export default function AssistantScreen() {
       )}
 
       {error ? <AppState title={bn ? 'অ্যাকশন চালানো যায়নি' : 'Action failed'} description={bn ? 'লোকাল অ্যাকশনটি সম্পন্ন হয়নি।' : 'The local action did not complete.'} icon="alert-circle-outline" actionLabel={copy.retry} onAction={() => void execute()} /> : null}
-      {execution ? <ExecutionCard result={execution} styles={styles} copy={copy} colors={colors} bn={bn} /> : null}
+      {execution?.type === 'NEEDS_TASK_CHOICE' ? (
+        <View style={styles.execution}>
+          <View style={styles.cardHead}><AppIcon name="help-circle-outline" size={icon.md} color={accents.blue.on} /><Text style={styles.executionLabel}>{bn ? 'কোন টাস্ক?' : 'Which task?'}</Text></View>
+          {execution.candidates.map(task => (
+            <Pressable key={task.id} accessibilityRole="button" accessibilityLabel={task.title} disabled={busy} onPress={() => void pickTaskChoice(task.id)} style={({ pressed }) => StyleSheet.flatten([styles.linkButton, { alignSelf: 'stretch', justifyContent: 'flex-start' }, pressed && styles.pressed])}>
+              <AppIcon name="clipboard-text-outline" size={icon.sm} color={colors.primary} />
+              <Text numberOfLines={2} style={styles.linkText}>{task.title}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : execution ? <ExecutionCard result={execution} styles={styles} copy={copy} colors={colors} bn={bn} /> : null}
     </ScrollView>
   );
 }
@@ -143,6 +200,7 @@ function executionMessage(result: AssistantExecutionResult, bn: boolean): string
     case 'MEMORY_CREATED': return bn ? 'মেমোরিটি সংরক্ষণ করা হয়েছে।' : 'Your memory was saved.';
     case 'TASK_LIST': return result.tasks.length ? (bn ? `${result.tasks.length}টি টাস্ক পাওয়া গেছে।` : `Found ${result.tasks.length} task(s).`) : (bn ? 'কোনো টাস্ক নেই।' : 'No tasks yet.');
     case 'MEMORY_SEARCH': return result.memories.length ? (bn ? `${result.memories.length}টি মেমোরি পাওয়া গেছে।` : `Found ${result.memories.length} memory result(s).`) : (bn ? 'এই খোঁজে কোনো মেমোরি পাওয়া যায়নি।' : 'No memories matched that search.');
+    default: return '';
   }
 }
 
@@ -178,8 +236,11 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     eyebrow: { color: colors.primary, ...typography.label, fontWeight: '900', letterSpacing: 0.8 },
     title: { color: colors.textPrimary, ...typography.titleLarge, fontWeight: '900', marginTop: spacing.xxs },
     subtitle: { color: colors.textSecondary, ...typography.bodySmall, marginTop: spacing.md },
+    voiceHint: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, marginTop: spacing.sm },
+    voiceHintText: { color: colors.textMuted, ...typography.caption },
     inputBox: { minHeight: spacing.xxl + control.inputHeight, flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface, padding: spacing.md, ...elevation.card },
     input: { flex: 1, minHeight: spacing.xxl + spacing.lg + spacing.smd, color: colors.textPrimary, ...typography.body, textAlignVertical: 'top' },
+    micButton: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.pill, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
     card: { marginTop: spacing.lg, borderWidth: border.thin, borderColor: accents.purple.border, borderRadius: radius.xl, backgroundColor: accents.purple.soft, padding: spacing.lg },
     cardMuted: { borderColor: colors.border, backgroundColor: colors.surface },
     cardHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

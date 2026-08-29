@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Link } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { getDailyPlan, planInboxTasks, type DailyPlan } from '../src/services/planning-service';
 import { useTaskStore } from '../src/store/task.store';
 import { useAppPreferences } from '../src/app/AppPreferences';
 import { AppButton, AppCard, AppState } from '../src/ui/AppSurface';
 import { AppIcon } from '../src/ui/AppIcon';
+import { RowLeading } from '../src/ui/RowLeading';
+import { loadImageThumbs } from '../src/services/attachment-thumbs';
 import { formatBangladeshDate, formatBangladeshRelativeDate, formatBangladeshNumber } from '../src/i18n/date-time';
 import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, priorityAccentName, type AccentRole, type ThemeAccents, type ThemeColors } from '../src/theme';
 import type { TaskPriority } from '../src/types';
@@ -23,6 +26,8 @@ export default function PlanningScreen() {
   const { colors, accents, language } = useAppPreferences();
   const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
   const bn = language === 'bn';
+  const params = useLocalSearchParams<{ filter?: string }>();
+  const [focusFilter, setFocusFilter] = useState<string | null>(params.filter ?? null);
   const [cursor, setCursor] = useState(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; });
   const [plan, setPlan] = useState<DailyPlan | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -37,6 +42,16 @@ export default function PlanningScreen() {
 
   useEffect(() => { let active = true; void getDailyPlan(db, cursor).then(next => { if (active) { setError(null); setPlan(next); } }).catch(() => { if (active) setError(bn ? 'দৈনিক পরিকল্পনা লোড করা যায়নি' : 'Unable to load daily plan'); }); return () => { active = false; }; }, [bn, db, cursor]);
 
+  const [thumbs, setThumbs] = useState<Map<string, string>>(() => new Map());
+  const inboxIdKey = (plan?.inbox ?? []).map(t => t.id).join(',');
+  useEffect(() => {
+    let alive = true;
+    loadImageThumbs(db, 'TASK', inboxIdKey ? inboxIdKey.split(',') : [])
+      .then(map => { if (alive) setThumbs(map); })
+      .catch(() => { if (alive) setThumbs(new Map()); });
+    return () => { alive = false; };
+  }, [db, inboxIdKey]);
+
   const planTask = async (id: string) => {
     if (busyId) return;
     setBusyId(id); setError(null);
@@ -46,8 +61,8 @@ export default function PlanningScreen() {
   };
 
   const labels = bn
-    ? { eyebrow: 'দৈনিক পরিকল্পনা', plan: 'প্ল্যান', newTask: 'নতুন টাস্ক', inbox: 'ইনবক্স', today: 'আজ', subtitle: 'ইনবক্স টাস্কগুলোকে দিনের পরিকল্পনায় নিন।', overdue: 'বকেয়া', progress: 'চলমান', scheduled: 'আজ নির্ধারিত', inboxTitle: 'ইনবক্স', empty: 'কোনো ইনবক্স টাস্ক নেই। দৈনিক পরিকল্পনা পরিষ্কার।', noTime: 'সময় নেই', retry: 'আবার চেষ্টা করুন', prev: 'আগের দিন', next: 'পরের দিন' }
-    : { eyebrow: 'DAILY PLANNING', plan: 'Plan', newTask: 'New task', inbox: 'Inbox', today: 'Today', subtitle: 'Move inbox tasks into your daily plan.', overdue: 'Overdue', progress: 'In progress', scheduled: 'Scheduled today', inboxTitle: 'Inbox', empty: 'No inbox tasks. Your daily plan is clear.', noTime: 'No time', retry: 'Retry', prev: 'Previous day', next: 'Next day' };
+    ? { eyebrow: 'দৈনিক পরিকল্পনা', plan: 'প্ল্যান', newTask: 'নতুন টাস্ক', inbox: 'ইনবক্স', today: 'আজ', subtitle: 'একটি দিন বেছে নিন — সেদিনের টাস্কগুলো সময় অনুযায়ী সাজানো থাকে। নিচের ইনবক্স আইটেমে “প্ল্যান” চাপলে সেটি এই দিনে যোগ হয়।', overdue: 'বকেয়া', progress: 'চলমান', scheduled: 'আজ নির্ধারিত', inboxTitle: 'ইনবক্সে অপেক্ষমাণ', empty: 'ইনবক্স খালি — এই দিনের সব কিছু গোছানো আছে। ✨', noTime: 'সময় নেই', retry: 'আবার চেষ্টা করুন', prev: 'আগের দিন', next: 'পরের দিন' }
+    : { eyebrow: 'DAILY PLANNING', plan: 'Plan', newTask: 'New task', inbox: 'Inbox', today: 'Today', subtitle: 'Pick a day — its tasks are laid out by time. Tap “Plan” on an inbox item below to drop it onto this day.', overdue: 'Overdue', progress: 'In progress', scheduled: 'Scheduled today', inboxTitle: 'Waiting in inbox', empty: 'Inbox is empty — this day is all set. ✨', noTime: 'No time', retry: 'Retry', prev: 'Previous day', next: 'Next day' };
 
   const todayKey = useMemo(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }, []);
   const isToday = plan?.date === todayKey;
@@ -68,6 +83,9 @@ export default function PlanningScreen() {
         <Text style={styles.subtitle}>{labels.subtitle}</Text>
 
         <View style={styles.dateNav}>
+          <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'আগের মাস' : 'Previous month'} onPress={() => setCursor(c => addDays(c, -30))} style={({ pressed }) => StyleSheet.flatten([styles.navArrow, pressed && styles.pressed])}>
+            <AppIcon name="chevron-double-left" size={icon.md} color={colors.primary} />
+          </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={labels.prev} onPress={() => setCursor(c => addDays(c, -1))} style={({ pressed }) => StyleSheet.flatten([styles.navArrow, pressed && styles.pressed])}>
             <AppIcon name="chevron-left" size={icon.md} color={colors.primary} />
           </Pressable>
@@ -77,6 +95,9 @@ export default function PlanningScreen() {
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={labels.next} onPress={() => setCursor(c => addDays(c, 1))} style={({ pressed }) => StyleSheet.flatten([styles.navArrow, pressed && styles.pressed])}>
             <AppIcon name="chevron-right" size={icon.md} color={colors.primary} />
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'পরের মাস' : 'Next month'} onPress={() => setCursor(c => addDays(c, 30))} style={({ pressed }) => StyleSheet.flatten([styles.navArrow, pressed && styles.pressed])}>
+            <AppIcon name="chevron-double-right" size={icon.md} color={colors.primary} />
           </Pressable>
         </View>
 
@@ -110,9 +131,21 @@ export default function PlanningScreen() {
         <AppState title={bn ? 'প্ল্যান লোড করা যায়নি' : 'Could not load plan'} description={bn ? 'লোকাল দৈনিক পরিকল্পনা প্রস্তুত করা যায়নি।' : 'The local daily plan could not be prepared.'} icon="alert-circle-outline" actionLabel={labels.retry} onAction={() => void loadPlan(cursor)} />
       ) : null}
 
+      {focusFilter ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'ফিল্টার সরান' : 'Clear filter'} onPress={() => setFocusFilter(null)} style={({ pressed }) => StyleSheet.flatten([styles.linkPill, { alignSelf: 'flex-start', marginBottom: spacing.sm }, pressed && styles.pressed])}>
+          <Text style={styles.linkText}>{(bn ? { overdue: 'শুধু বকেয়া', due: 'শুধু আজকের', high: 'শুধু উচ্চ অগ্রাধিকার' } : { overdue: 'Overdue only', due: 'Due today only', high: 'High priority only' })[focusFilter] ?? focusFilter}</Text>
+          <AppIcon name="close" size={icon.sm} color={colors.primary} />
+        </Pressable>
+      ) : null}
+
       {plan ? (() => {
         const seen = new Set<string>();
-        const dayTasks = [...plan.scheduled, ...plan.inProgress].filter(t => (seen.has(t.id) ? false : (seen.add(t.id), true)));
+        const matchFilter = (t: DailyPlan['scheduled'][number]) => {
+          if (focusFilter === 'high') return t.priority === 'HIGH' || t.priority === 'URGENT';
+          return true;
+        };
+        const dayTasks = [...plan.scheduled, ...plan.inProgress].filter(t => (seen.has(t.id) ? false : (seen.add(t.id), true))).filter(matchFilter);
+        const overdueTasks = plan.overdue.filter(matchFilter);
         const order: BucketKey[] = ['morning', 'noon', 'evening', 'night', 'unset'];
         const bLabels: Record<BucketKey, string> = bn
           ? { morning: 'সকাল', noon: 'দুপুর', evening: 'বিকাল', night: 'সন্ধ্যা', unset: 'সময় নির্ধারিত নয়' }
@@ -126,12 +159,20 @@ export default function PlanningScreen() {
           keyExtractor={item => item.id}
           ListHeaderComponent={
             <>
-              {plan.overdue.length ? <TimelineGroup label={labels.overdue} items={plan.overdue} accent={accents.red} styles={styles} colors={colors} accents={accents} language={language} /> : null}
+              {overdueTasks.length ? <TimelineGroup label={labels.overdue} items={overdueTasks} accent={accents.red} styles={styles} colors={colors} accents={accents} language={language} /> : null}
               {groups.map(g => <TimelineGroup key={g.key} label={g.label} items={g.items} styles={styles} colors={colors} accents={accents} language={language} />)}
-              {!plan.overdue.length && !groups.length ? <View style={styles.section}><Text style={styles.emptyDay}>{bn ? 'আজকের জন্য নির্ধারিত কোনো টাস্ক নেই।' : 'Nothing scheduled for this day.'}</Text></View> : null}
-              <View style={styles.inboxHeaderRow}>
-                <Text style={styles.sectionTitle}>{labels.inboxTitle} · {plan.inbox.length}</Text>
-                <Link href="/inbox" asChild><Pressable accessibilityRole="button" style={({ pressed }) => StyleSheet.flatten([styles.linkPill, pressed && styles.pressed])}><Text style={styles.linkText}>{labels.inbox}</Text><AppIcon name="chevron-right" size={icon.sm} color={colors.primary} /></Pressable></Link>
+              {!overdueTasks.length && !groups.length ? <View style={styles.section}><Text style={styles.emptyDay}>{bn ? 'আজকের জন্য নির্ধারিত কোনো টাস্ক নেই।' : 'Nothing scheduled for this day.'}</Text></View> : null}
+              <View style={styles.inboxSection}>
+                <LinearGradient colors={[`${colors.background}00`, colors.background]} style={styles.inboxFade} pointerEvents="none" />
+                <View style={styles.inboxHeaderRow}>
+                  <Text numberOfLines={1} style={[styles.sectionTitle, { flexShrink: 1, flexGrow: 1 }]}>{labels.inboxTitle} · {plan.inbox.length}</Text>
+                  <Link href="/inbox" asChild>
+                    <Pressable accessibilityRole="button" accessibilityLabel={labels.inbox} hitSlop={8} style={({ pressed }) => StyleSheet.flatten([styles.linkPill, pressed && styles.pressed])}>
+                      <Text style={styles.linkText}>{labels.inbox}</Text>
+                      <AppIcon name="chevron-right" size={icon.sm} color={colors.primary} />
+                    </Pressable>
+                  </Link>
+                </View>
               </View>
             </>
           }
@@ -142,6 +183,7 @@ export default function PlanningScreen() {
             return (
               <AppCard style={styles.row}>
                 <View style={[styles.priorityBar, { backgroundColor: tone.base }]} />
+                <RowLeading thumbUri={thumbs.get(item.id)} icon="inbox-arrow-down-outline" tone="orange" size={38} />
                 <Link href={{ pathname: '/task-detail', params: { id: item.id } }} asChild>
                   <Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'টাস্ক খুলুন' : 'Open task'} ${item.title}`} style={({ pressed }) => StyleSheet.flatten([styles.body, pressed && styles.pressed])}>
                     <Text numberOfLines={3} style={styles.task}>{item.title}</Text>
@@ -246,9 +288,11 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     tlLine: { flex: 1, width: 2, backgroundColor: colors.border, alignItems: 'center' },
     tlDot: { width: 12, height: 12, borderRadius: radius.pill, borderWidth: 3 },
     tlCard: { flex: 1, minWidth: 0, backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.smd, justifyContent: 'center', ...elevation.soft },
-    inboxHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm, marginTop: spacing.xs },
-    linkPill: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingHorizontal: spacing.xs },
-    linkText: { color: colors.primary, ...typography.meta, fontWeight: '800' },
+    inboxSection: { position: 'relative', marginTop: spacing.lg },
+    inboxFade: { position: 'absolute', left: 0, right: 0, top: -spacing.xl, height: spacing.xl },
+    inboxHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
+    linkPill: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingLeft: spacing.smd, paddingRight: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.primaryTint, opacity: 0.5 },
+    linkText: { color: colors.primary, ...typography.bodySmall, fontWeight: '900' },
     compact: { minHeight: control.rowMinHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.sm, marginBottom: spacing.xs, ...elevation.soft },
     compactIcon: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
     compactCopy: { flex: 1, minWidth: 0 },

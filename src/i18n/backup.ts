@@ -35,6 +35,13 @@ export function backupCopy(language: Language) {
     restoreDescription: bn ? 'বর্তমান লোকাল ডেটা নির্বাচিত ব্যাকআপ দিয়ে প্রতিস্থাপিত হবে।' : 'Current local data will be replaced by the selected backup.',
     restoreConfirm,
     confirm: restoreConfirm,
-    cancel: bn ? 'বাতিল' : 'Cancel'
+    cancel: bn ? 'বাতিল' : 'Cancel',
+    encryptLabel: bn ? 'পাসফ্রেজ দিয়ে সুরক্ষিত করুন (ঐচ্ছিক)' : 'Protect with a passphrase (optional)',
+    encryptPlaceholder: bn ? 'পাসফ্রেজ — মনে রাখুন, এটি রিকভার করা যায় না' : 'Passphrase — remember it, it cannot be recovered',
+    encryptNote: bn ? 'পাসফ্রেজ দিলে ব্যাকআপ ফাইল AES-256 দিয়ে এনক্রিপ্ট হবে।' : 'With a passphrase the backup file is AES-256 encrypted.',
+    encryptedRestoreTitle: bn ? 'এনক্রিপ্টেড ব্যাকআপ' : 'Encrypted backup',
+    encryptedRestorePrompt: bn ? 'এই ব্যাকআপটি খুলতে পাসফ্রেজ দিন।' : 'Enter the passphrase to open this backup.',
+    wrongPassphrase: bn ? 'ভুল পাসফ্রেজ বা ফাইলটি নষ্ট।' : 'Wrong passphrase or corrupt file.',
+    unlock: bn ? 'আনলক করুন' : 'Unlock',
   };
 }

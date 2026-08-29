@@ -7,7 +7,7 @@ import { useAppPreferences } from '../src/app/AppPreferences';
 import { search } from '../src/i18n/search';
 import { AppIcon } from '../src/ui/AppIcon';
 import { AppState } from '../src/ui/AppSurface';
-import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, memoryKindAccentName, priorityAccentName, type ThemeColors } from '../src/theme';
+import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, memoryKindAccentName, priorityAccentName, type ThemeAccents, type ThemeColors } from '../src/theme';
 import { localizeMemoryKind, localizeTaskPriority, localizeTaskStatus } from '../src/i18n/domain-labels';
 
 const EMPTY_RESULT: UnifiedSearchResult = { tasks: [], memories: [] };
@@ -26,7 +26,7 @@ export default function SearchScreen() {
   const db = useSQLiteContext();
   const { colors, accents, language } = useAppPreferences();
   const copy = search(language);
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<UnifiedSearchResult>(EMPTY_RESULT);
   const [filter, setFilter] = useState<SearchFilter>('ALL');
@@ -63,7 +63,7 @@ export default function SearchScreen() {
       <View style={styles.header}>
         <Link href="/" asChild><Pressable accessibilityRole="button" style={({ pressed }) => StyleSheet.flatten([styles.back, pressed && styles.pressed])}><AppIcon name="arrow-left" size={icon.md} color={colors.primary} /><Text style={styles.backText}>{copy.back}</Text></Pressable></Link>
         <View style={styles.titleRow}>
-          <View style={styles.titleIcon}><AppIcon name="magnify" size={icon.lg} color={colors.primary} /></View>
+          <View style={styles.titleIcon}><AppIcon name="magnify" size={icon.lg} color={accents.blue.on} /></View>
           <View style={styles.titleCopy}><Text style={styles.eyebrow}>{copy.eyebrow}</Text><Text style={styles.title}>{copy.title}</Text></View>
         </View>
         <Text style={styles.subtitle}>{copy.subtitle}</Text>
@@ -148,7 +148,7 @@ function Section({ title, children, styles }: { title: string; children: ReactNo
   return <View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text>{children}</View>;
 }
 
-function makeStyles(colors: ThemeColors) {
+function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     content: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxl },
@@ -156,7 +156,7 @@ function makeStyles(colors: ThemeColors) {
     back: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.lg },
     backText: { color: colors.primary, ...typography.body, fontWeight: '800' },
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-    titleIcon: { width: control.titleIconSize, height: control.titleIconSize, borderRadius: radius.lg, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
+    titleIcon: { width: control.titleIconSize, height: control.titleIconSize, borderRadius: radius.lg, backgroundColor: accents.blue.soft, alignItems: 'center', justifyContent: 'center' },
     titleCopy: { flex: 1, minWidth: 0 },
     eyebrow: { color: colors.primary, ...typography.label, fontWeight: '900', letterSpacing: 1.2 },
     title: { color: colors.textPrimary, ...typography.title, fontWeight: '900', marginTop: spacing.xxs },

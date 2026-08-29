@@ -1,4 +1,5 @@
 import type { NlpIntent } from './types';
+import { EN_ACTION_VERBS, fuzzyIncludes } from './lexicon';
 
 interface IntentRule {
   intent: NlpIntent;
@@ -6,10 +7,29 @@ interface IntentRule {
   confidence: number;
 }
 
+// Multi-word verbs need phrase matching; single words go through fuzzyIncludes for
+// light typo tolerance ("submt the report" still → task).
+const EN_MULTIWORD_VERBS = EN_ACTION_VERBS.filter((v) => v.includes(' '));
+const EN_SINGLEWORD_VERBS = EN_ACTION_VERBS.filter((v) => !v.includes(' '));
+
 // Bengali "word" boundary: exclude preceding/following letters *and* combining marks,
 // otherwise "কাল" wrongly matches inside "বিকাল"/"সকাল" and verb endings mis-fire.
 const BN_TASK_VERBS =
   /(?<![\p{L}\p{M}])(?:কর(?:ব|বো)|যাব(?:ো)?|কিনব(?:ো)?|আনব(?:ো)?|নেব(?:ো)?|নিব|দেব(?:ো)?|দিব|লিখব(?:ো)?|পাঠাব(?:ো)?|বানাব(?:ো)?|রাখব(?:ো)?|ডাকব|বলব|আসব|খাব|নামাব|তুলব|ধরব)(?![\p{L}\p{M}])/u;
+
+// English plain-imperative task capture. Real users type "call the supplier tomorrow
+// at 9am" or "pick up medicine", not "create a task to …". Match a leading action verb
+// (optionally after a soft intro like "i need to" / "don't forget to"), or an explicit
+// "remind me to". Kept below the explicit rules so "search"/"remember" still win.
+const EN_TASK_INTRO =
+  /^(?:i\s+(?:need|have|want|got)\s+to|i\s+must|don'?t\s+forget\s+to|make\s+sure\s+to|remember\s+to|remind\s+me\s+to|need\s+to|have\s+to|please\s+)+/u;
+function isEnglishImperativeTask(text: string): boolean {
+  const stripped = text.replace(EN_TASK_INTRO, '').trimStart();
+  if (EN_TASK_INTRO.test(text) && stripped.length > 0) return true;
+  if (EN_MULTIWORD_VERBS.some((v) => stripped.startsWith(v + ' ') || stripped === v)) return true;
+  const first = stripped.split(/[\s,]/u)[0] ?? '';
+  return first.length > 1 && fuzzyIncludes(first, EN_SINGLEWORD_VERBS);
+}
 
 const RULES: IntentRule[] = [
   {
@@ -100,6 +120,11 @@ export function classifyIntent(text: string): { intent: NlpIntent; confidence: n
     if (rule.patterns.some((pattern) => pattern.test(normalized))) {
       return { intent: rule.intent, confidence: rule.confidence };
     }
+  }
+
+  // Fallback: a plain English imperative ("call the supplier tomorrow at 9am").
+  if (isEnglishImperativeTask(normalized)) {
+    return { intent: 'CREATE_TASK', confidence: 0.82 };
   }
 
   return { intent: 'UNKNOWN', confidence: 0 };

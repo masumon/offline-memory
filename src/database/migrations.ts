@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-const DATABASE_VERSION = 8;
+const DATABASE_VERSION = 11;
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA journal_mode = WAL;');
@@ -60,7 +60,47 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_attachments_created_at ON attachments(created_at);`);
     await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 8, new Date().toISOString());
   }
-  await db.execAsync('PRAGMA user_version = 8;');
+  if (currentVersion < 9) {
+    const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(tasks);');
+    if (!columns.some((column) => column.name === 'recurrence')) {
+      await db.execAsync("ALTER TABLE tasks ADD COLUMN recurrence TEXT;");
+    }
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 9, new Date().toISOString());
+  }
+  if (currentVersion < 10) {
+    // On-device learning: local, per-user statistics that make capture smarter over time.
+    // No content is ever sent anywhere; rows are plain counters.
+    await db.execAsync(`CREATE TABLE IF NOT EXISTS learning (
+      kind TEXT NOT NULL,
+      key TEXT NOT NULL,
+      value TEXT NOT NULL DEFAULT '',
+      count INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (kind, key, value),
+      CHECK (kind IN ('time_pattern','intent_correction','frequent_task','tag_pair','dismissed_suggestion'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_learning_kind ON learning(kind, count DESC);`);
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 10, new Date().toISOString());
+  }
+  if (currentVersion < 11) {
+    // Explicit task ↔ memory links. Stored canonically (task on the "from" side,
+    // memory on the "to" side) so both directions are a single indexed lookup.
+    await db.execAsync(`CREATE TABLE IF NOT EXISTS relations (
+      id TEXT PRIMARY KEY NOT NULL,
+      from_type TEXT NOT NULL,
+      from_id TEXT NOT NULL,
+      to_type TEXT NOT NULL,
+      to_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      CHECK (from_type IN ('TASK','MEMORY')),
+      CHECK (to_type IN ('TASK','MEMORY')),
+      UNIQUE (from_type, from_id, to_type, to_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_relations_from ON relations(from_type, from_id);
+    CREATE INDEX IF NOT EXISTS idx_relations_to ON relations(to_type, to_id);`);
+    await db.runAsync('INSERT OR REPLACE INTO schema_migrations (version, applied_at) VALUES (?, ?)', 11, new Date().toISOString());
+  }
+  await db.execAsync('PRAGMA user_version = 11;');
 }
 
 export { DATABASE_VERSION };

@@ -19,12 +19,18 @@ export interface TimeEntity {
   confidence: number;
 }
 
+export type NlpPriority = 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
+
 export interface NlpEntities {
   taskText?: string;
   memoryText?: string;
   query?: string;
   date?: DateEntity;
   time?: TimeEntity;
+  /** Priority inferred from urgency keywords ("urgent", "জরুরি", "!!!"). */
+  priority?: NlpPriority;
+  /** Auto-suggested tags from content nouns ("office", "ব্যাংক" → #work / #money). */
+  tags?: string[];
 }
 
 export interface NlpResult {

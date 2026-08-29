@@ -7,6 +7,10 @@ import { useAppPreferences } from '../src/app/AppPreferences';
 import { AppConfirmDialog, useAppFeedback } from '../src/ui/AppFeedback';
 import { AppIcon } from '../src/ui/AppIcon';
 import { AttachmentPanel } from '../src/ui/AttachmentPanel';
+import { SubtaskList } from '../src/ui/SubtaskList';
+import { findMemories } from '../src/services/memory-service';
+import { linkTaskMemory, unlinkTaskMemory, listLinkedMemories } from '../src/services/relation-service';
+import type { Memory } from '../src/types/memory-model';
 import { formatBangladeshWeekdayDate, formatBangladeshDateTime } from '../src/i18n/date-time';
 import { localizeTaskPriority, localizeTaskStatus } from '../src/i18n/domain-labels';
 import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, priorityAccentName, type ThemeAccents, type ThemeColors } from '../src/theme';
@@ -27,8 +31,28 @@ export default function TaskDetailScreen() {
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const task = tasks.find(t => t.id === id);
+  const [related, setRelated] = useState<Memory[]>([]);
+  const [linked, setLinked] = useState<Memory[]>([]);
+  const [linkBusy, setLinkBusy] = useState<string | null>(null);
+
+  const refreshLinks = useMemo(() => async () => {
+    if (!id) { setLinked([]); return; }
+    try { setLinked(await listLinkedMemories(db, id)); } catch { setLinked([]); }
+  }, [db, id]);
 
   useEffect(() => { if (task) { void Promise.resolve().then(() => setLoaded(true)); return; } void load(db).finally(() => setLoaded(true)); }, [db, load, task]);
+  useEffect(() => { void Promise.resolve().then(() => refreshLinks()); }, [refreshLinks]);
+  useEffect(() => {
+    const title = task?.title?.trim();
+    const linkedIds = new Set(linked.map(m => m.id));
+    let active = true;
+    void Promise.resolve()
+      .then(() => (title && title.length >= 3 ? findMemories(db, title) : []))
+      .then(rows => { if (active) setRelated(rows.filter(m => !linkedIds.has(m.id)).slice(0, 3)); })
+      .catch(() => { if (active) setRelated([]); });
+    return () => { active = false; };
+  }, [db, task?.title, linked]);
+
 
   const c = bn
     ? { back: 'ফিরুন', badge: 'টাস্ক ডিটেইল', date: 'তারিখ', due: 'ডিউ সময়', planned: 'পরিকল্পিত', status: 'স্ট্যাটাস', note: 'নোট', noNote: '—', attachments: 'সংযুক্ত ফাইল', complete: 'সম্পন্ন করুন', reopen: 'আবার খুলুন', edit: 'সম্পাদনা', toInbox: 'ইনবক্সে পাঠান', share: 'শেয়ার', del: 'মুছুন', notFound: 'টাস্ক পাওয়া যায়নি', done: 'সম্পন্ন হয়েছে', reopened: 'আবার খোলা হয়েছে', movedInbox: 'ইনবক্সে পাঠানো হয়েছে', failed: 'কাজটি সম্পন্ন হয়নি', delTitle: 'টাস্ক মুছবেন?', delDesc: 'এই ডিভাইস থেকে টাস্কটি স্থায়ীভাবে মুছে যাবে।', delOk: 'মুছুন', cancel: 'বাতিল' }
@@ -47,6 +71,18 @@ export default function TaskDetailScreen() {
     try { if (await remove(db, id)) router.replace('/planning'); } finally { setBusy(false); setConfirmDelete(false); }
   };
   const doShare = () => { if (task) void Share.share({ message: task.notes ? `${task.title}\n\n${task.notes}` : task.title }).catch(() => {}); };
+  const doLink = async (memoryId: string) => {
+    if (!id || linkBusy) return;
+    setLinkBusy(memoryId);
+    try { await linkTaskMemory(db, id, memoryId); await refreshLinks(); } catch { showSnackbar(c.failed, 'danger'); }
+    finally { setLinkBusy(null); }
+  };
+  const doUnlink = async (memoryId: string) => {
+    if (!id || linkBusy) return;
+    setLinkBusy(memoryId);
+    try { await unlinkTaskMemory(db, id, memoryId); await refreshLinks(); } catch { showSnackbar(c.failed, 'danger'); }
+    finally { setLinkBusy(null); }
+  };
 
   if (!loaded) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   if (!task) return (
@@ -84,6 +120,35 @@ export default function TaskDetailScreen() {
           <Row icon="text-long" label={c.note} value={task.notes?.trim() || c.noNote} styles={styles} colors={colors} multiline />
         </View>
 
+        {id ? <SubtaskList taskId={id} onAllComplete={() => { if (!isClosed) void mutate({ status: 'COMPLETED' }, c.done); }} /> : null}
+        {linked.length || related.length ? (
+          <View style={styles.relatedWrap}>
+            <Text style={styles.relatedTitle}>{bn ? 'সম্পর্কিত মেমোরি' : 'Related memories'}</Text>
+            {linked.map(m => (
+              <View key={m.id} style={styles.relatedRow}>
+                <AppIcon name="link-variant" size={icon.sm} color={colors.primary} />
+                <Pressable accessibilityRole="button" accessibilityLabel={m.content.slice(0, 60)} onPress={() => router.push({ pathname: '/memory-detail', params: { id: m.id } })} style={({ pressed }) => StyleSheet.flatten([styles.relatedTap, pressed && styles.pressed])}>
+                  <Text numberOfLines={2} style={styles.relatedText}>{m.title || m.content}</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'লিংক সরান' : 'Unlink'} disabled={linkBusy === m.id} onPress={() => void doUnlink(m.id)} hitSlop={8} style={({ pressed }) => StyleSheet.flatten([styles.linkBtn, pressed && styles.pressed])}>
+                  {linkBusy === m.id ? <ActivityIndicator size="small" color={colors.textMuted} /> : <AppIcon name="link-variant-off" size={icon.sm} color={colors.textMuted} />}
+                </Pressable>
+              </View>
+            ))}
+            {related.length ? <Text style={styles.relatedHint}>{bn ? 'পরামর্শ — লিংক করতে + চাপুন' : 'Suggested — tap + to link'}</Text> : null}
+            {related.map(m => (
+              <View key={m.id} style={styles.relatedRow}>
+                <AppIcon name="brain" size={icon.sm} color={colors.textMuted} />
+                <Pressable accessibilityRole="button" accessibilityLabel={m.content.slice(0, 60)} onPress={() => router.push({ pathname: '/memory-detail', params: { id: m.id } })} style={({ pressed }) => StyleSheet.flatten([styles.relatedTap, pressed && styles.pressed])}>
+                  <Text numberOfLines={2} style={styles.relatedText}>{m.title || m.content}</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'লিংক করুন' : 'Link'} disabled={linkBusy === m.id} onPress={() => void doLink(m.id)} hitSlop={8} style={({ pressed }) => StyleSheet.flatten([styles.linkBtn, pressed && styles.pressed])}>
+                  {linkBusy === m.id ? <ActivityIndicator size="small" color={colors.primary} /> : <AppIcon name="plus" size={icon.sm} color={colors.primary} />}
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        ) : null}
         {id ? <AttachmentPanel ownerType="TASK" ownerId={id} /> : null}
 
         {!isClosed ? (
@@ -148,6 +213,13 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     primary: { minHeight: control.buttonHeight, marginTop: spacing.lg, borderRadius: radius.md, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, ...elevation.raised },
     primaryText: { color: colors.onPrimary, ...typography.callout, fontFamily: typography.label.fontFamily },
     actionBar: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg, borderTopWidth: border.thin, borderTopColor: colors.border, paddingTop: spacing.md },
+    relatedWrap: { marginTop: spacing.lg, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface, padding: spacing.md, gap: spacing.xs },
+    relatedTitle: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '900', marginBottom: spacing.xxs },
+    relatedRow: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    relatedTap: { flex: 1, minWidth: 0, minHeight: layout.minTouchTarget, justifyContent: 'center' },
+    relatedText: { color: colors.textSecondary, ...typography.bodySmall },
+    relatedHint: { color: colors.textMuted, ...typography.caption, marginTop: spacing.xs },
+    linkBtn: { width: control.iconButtonSize, height: control.iconButtonSize, borderRadius: radius.md, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
     barBtn: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingHorizontal: spacing.sm },
     barText: { color: colors.textSecondary, ...typography.meta, fontFamily: typography.label.fontFamily },
     secondary: { minHeight: layout.minTouchTarget, paddingHorizontal: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },

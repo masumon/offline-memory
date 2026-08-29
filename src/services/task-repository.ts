@@ -5,18 +5,19 @@ import { deleteAttachmentFiles, listAttachments } from './attachment-service';
 
 interface TaskRow {
   id: string; title: string; notes: string | null; status: TaskStatus; priority: TaskPriority;
-  due_at: string | null; planned_date: string | null; completed_at: string | null; created_at: string; updated_at: string;
+  due_at: string | null; planned_date: string | null; completed_at: string | null; recurrence: string | null; created_at: string; updated_at: string;
 }
 
 function toTask(row: TaskRow): Task {
   return { id: row.id, title: row.title, notes: row.notes, status: row.status, priority: row.priority,
     dueAt: row.due_at, plannedDate: row.planned_date, completedAt: row.completed_at,
+    recurrence: (row.recurrence as Task['recurrence']) ?? null,
     createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 function createId(): string { return `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`; }
 
-const SELECT = `SELECT id, title, notes, status, priority, due_at, planned_date, completed_at, created_at, updated_at FROM tasks`;
+const SELECT = `SELECT id, title, notes, status, priority, due_at, planned_date, completed_at, recurrence, created_at, updated_at FROM tasks`;
 
 export async function createTask(db: SQLiteDatabase, input: CreateTaskInput): Promise<Task> {
   const title = input.title.trim();
@@ -26,8 +27,8 @@ export async function createTask(db: SQLiteDatabase, input: CreateTaskInput): Pr
   const status = input.status ?? (input.dueAt ? 'PLANNED' : 'INBOX');
   const priority = input.priority ?? 'MEDIUM';
   await db.runAsync(
-    `INSERT INTO tasks (id,title,notes,status,priority,due_at,planned_date,completed_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,NULL,?,?)`,
-    id, title, input.notes ?? null, status, priority, input.dueAt ?? null, input.plannedDate ?? null, now, now,
+    `INSERT INTO tasks (id,title,notes,status,priority,due_at,planned_date,completed_at,recurrence,created_at,updated_at) VALUES (?,?,?,?,?,?,?,NULL,?,?,?)`,
+    id, title, input.notes ?? null, status, priority, input.dueAt ?? null, input.plannedDate ?? null, input.recurrence ?? null, now, now,
   );
   const task = await getTask(db, id);
   if (!task) throw new Error('Task could not be created');
@@ -82,7 +83,7 @@ export async function updateTask(db: SQLiteDatabase, id: string, input: UpdateTa
   const completedAt = nextStatus === 'COMPLETED' ? current.completedAt ?? new Date().toISOString() : null;
   const now = new Date().toISOString();
   await db.runAsync(
-    `UPDATE tasks SET title=?, notes=?, status=?, priority=?, due_at=?, planned_date=?, completed_at=?, updated_at=? WHERE id=?`,
+    `UPDATE tasks SET title=?, notes=?, status=?, priority=?, due_at=?, planned_date=?, completed_at=?, recurrence=?, updated_at=? WHERE id=?`,
     nextTitle,
     input.notes === undefined ? current.notes : input.notes,
     nextStatus,
@@ -90,6 +91,7 @@ export async function updateTask(db: SQLiteDatabase, id: string, input: UpdateTa
     input.dueAt === undefined ? current.dueAt : input.dueAt,
     input.plannedDate === undefined ? current.plannedDate : input.plannedDate,
     completedAt,
+    (input.recurrence === undefined ? current.recurrence : input.recurrence) ?? null,
     now,
     id,
   );

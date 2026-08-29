@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { CreateTaskInput, Task, UpdateTaskInput } from '../types/task-model';
+import type { CreateTaskInput, Task, TaskRecurrence, UpdateTaskInput } from '../types/task-model';
+import { TASK_RECURRENCES } from '../types/task-model';
 import type { TaskStatus } from '../types';
 import { createTask, deleteTask, findTasksByExactTitle, getTask, listTasks, searchTasks, updateTask } from './task-repository';
 
@@ -45,15 +46,17 @@ export async function addTask(db: SQLiteDatabase, input: CreateTaskInput): Promi
     : dueAt
       ? dateKeyFromIso(dueAt)
       : null;
-  return createTask(db, { ...input, dueAt, plannedDate });
+  const recurrence = validateRecurrence(input.recurrence) ?? null;
+  return createTask(db, { ...input, dueAt, plannedDate, recurrence });
 }
 
 export async function editTask(db: SQLiteDatabase, id: string, input: UpdateTaskInput): Promise<Task | null> {
+  let before: Task | null = null;
   if (input.status) {
-    const current = await getTask(db, id);
-    if (!current) return null;
-    if (current.status !== input.status && !ALLOWED_TRANSITIONS[current.status].includes(input.status)) {
-      throw new Error(`Invalid task status transition: ${current.status} -> ${input.status}`);
+    before = await getTask(db, id);
+    if (!before) return null;
+    if (before.status !== input.status && !ALLOWED_TRANSITIONS[before.status].includes(input.status)) {
+      throw new Error(`Invalid task status transition: ${before.status} -> ${input.status}`);
     }
   }
   const dueAt = input.dueAt !== undefined ? validateDueAt(input.dueAt) : undefined;
@@ -62,7 +65,37 @@ export async function editTask(db: SQLiteDatabase, id: string, input: UpdateTask
     : dueAt !== undefined && dueAt !== null
       ? dateKeyFromIso(dueAt)
       : undefined;
-  return updateTask(db, id, { ...input, dueAt, plannedDate });
+  const recurrence = validateRecurrence(input.recurrence);
+  const updated = await updateTask(db, id, { ...input, dueAt, plannedDate, recurrence });
+  // A recurring task spawns its next occurrence the moment it is completed, regardless
+  // of which surface completed it (Home checkbox, detail, editor, assistant).
+  if (updated && input.status === 'COMPLETED' && before && before.status !== 'COMPLETED' && before.recurrence && before.dueAt) {
+    await createTask(db, {
+      title: before.title,
+      notes: before.notes,
+      priority: before.priority,
+      dueAt: advanceRecurrence(before.dueAt, before.recurrence),
+      recurrence: before.recurrence,
+      status: 'PLANNED',
+    });
+  }
+  return updated;
+}
+
+function validateRecurrence(value: TaskRecurrence | null | undefined): TaskRecurrence | null | undefined {
+  if (value === undefined || value === null) return value;
+  if (!TASK_RECURRENCES.includes(value)) throw new Error(`Unsupported recurrence: ${value}`);
+  return value;
+}
+
+/** Advance a due timestamp by one recurrence step, preserving the time-of-day. */
+export function advanceRecurrence(iso: string, rule: TaskRecurrence, from = new Date(iso)): string {
+  const next = new Date(from);
+  if (rule === 'DAILY') next.setDate(next.getDate() + 1);
+  else if (rule === 'WEEKLY') next.setDate(next.getDate() + 7);
+  else if (rule === 'MONTHLY') next.setMonth(next.getMonth() + 1);
+  else if (rule === 'WEEKDAYS') { do { next.setDate(next.getDate() + 1); } while (next.getDay() === 0 || next.getDay() === 6); }
+  return next.toISOString();
 }
 
 export async function completeTask(db: SQLiteDatabase, id: string): Promise<Task | null> {

@@ -1,17 +1,29 @@
 {
   "expo": {
-    "name": "PA",
+    "name": "Offline Memory",
     "slug": "offline-memory",
     "version": "0.1.0",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "scheme": "offlinememory",
+    "icon": "./assets/icon.png",
+    "backgroundColor": "#0B7A55",
     "android": {
       "package": "com.masumon.offlinememory",
-      "permissions": ["SCHEDULE_EXACT_ALARM"],
+      "permissions": [
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED"
+      ],
       "adaptiveIcon": {
-        "backgroundColor": "#0E8C63"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/monochrome-icon.png",
+        "backgroundColor": "#0B7A55"
       }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
@@ -21,17 +33,30 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F4F8F6",
-          "resizeMode": "contain"
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0B7A55"
         }
       ],
       [
         "expo-notifications",
         {
-          "color": "#006A4E",
+          "color": "#0B7A55",
           "defaultChannel": "task-reminders"
         }
-      ]
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Offline Memory uses the microphone only while you hold the mic button, so you can speak a task or memory instead of typing.",
+          "speechRecognitionPermission": "Speech is turned into text on this device to capture what you say. Nothing is sent to a server.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

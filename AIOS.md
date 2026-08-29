@@ -78,6 +78,10 @@ The national-color inspiration must remain respectful. Do not reproduce the nati
 
 ## 3.2 Color Tokens
 
+> **Superseded.** The shipped palette is design-system **v4 "Emerald & Sand"** — see
+> `src/theme/index.ts` for the authoritative light/dark tokens, accent families and glass
+> tokens. The hex values listed below are the earlier v2 direction, kept for history only.
+
 ### Light
 
 - Background: `#F4F8F6`

@@ -7,6 +7,8 @@ import { useAppPreferences } from '../src/app/AppPreferences';
 import { AppConfirmDialog, useAppFeedback } from '../src/ui/AppFeedback';
 import { AppIcon } from '../src/ui/AppIcon';
 import { AttachmentPanel } from '../src/ui/AttachmentPanel';
+import { listLinkedTasks } from '../src/services/relation-service';
+import type { Task } from '../src/types/task-model';
 import { formatBangladeshDateTime } from '../src/i18n/date-time';
 import { localizeMemoryKind } from '../src/i18n/domain-labels';
 import { border, control, icon, layout, opacity, radius, spacing, typography, memoryKindAccentName, type ThemeAccents, type ThemeColors } from '../src/theme';
@@ -26,11 +28,20 @@ export default function MemoryDetailScreen() {
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const memory = memories.find(m => m.id === id);
+  const [linkedTasks, setLinkedTasks] = useState<Task[]>([]);
 
   useEffect(() => {
     if (memory) { void Promise.resolve().then(() => setLoaded(true)); return; }
     void Promise.all([load(db), loadArchived(db)]).finally(() => setLoaded(true));
   }, [db, load, loadArchived, memory]);
+  useEffect(() => {
+    let active = true;
+    void Promise.resolve()
+      .then(() => (id ? listLinkedTasks(db, id) : []))
+      .then(rows => { if (active) setLinkedTasks(rows); })
+      .catch(() => { if (active) setLinkedTasks([]); });
+    return () => { active = false; };
+  }, [db, id]);
 
   const c = bn
     ? { back: 'ফিরুন', badge: 'মেমোরি ডিটেইল', importance: 'গুরুত্ব', tags: 'ট্যাগ', content: 'কনটেন্ট', attachments: 'সংযুক্ত ফাইল', created: 'তৈরি', updated: 'সর্বশেষ আপডেট', edit: 'সম্পাদনা', archive: 'আর্কাইভ', restore: 'রিস্টোর', share: 'শেয়ার', del: 'মুছুন', notFound: 'মেমোরি পাওয়া যায়নি', archived: 'আর্কাইভ করা হয়েছে', restored: 'ফিরিয়ে আনা হয়েছে', failed: 'কাজটি সম্পন্ন হয়নি', delTitle: 'মেমোরি মুছবেন?', delDesc: 'এই ডিভাইস থেকে মেমোরিটি স্থায়ীভাবে মুছে যাবে।', delOk: 'মুছুন', cancel: 'বাতিল' }
@@ -78,7 +89,20 @@ export default function MemoryDetailScreen() {
         <Text style={styles.contentText}>{memory.content}</Text>
 
         {memory.tags.length ? (
-          <View style={styles.tagRow}>{memory.tags.map(t => <View key={t} style={styles.tagChip}><Text style={styles.tagText}>#{t}</Text></View>)}</View>
+          <View style={styles.tagRow}>{memory.tags.map(t => <Pressable key={t} accessibilityRole="button" accessibilityLabel={`#${t}`} onPress={() => router.push({ pathname: '/memory', params: { tag: t } })} style={({ pressed }) => StyleSheet.flatten([styles.tagChip, pressed && styles.pressed])}><Text style={styles.tagText}>#{t}</Text></Pressable>)}</View>
+        ) : null}
+
+        {linkedTasks.length ? (
+          <View style={styles.linkedWrap}>
+            <Text style={styles.linkedTitle}>{bn ? 'সম্পর্কিত টাস্ক' : 'Linked tasks'}</Text>
+            {linkedTasks.map(t => (
+              <Pressable key={t.id} accessibilityRole="button" accessibilityLabel={t.title} onPress={() => router.push({ pathname: '/task-detail', params: { id: t.id } })} style={({ pressed }) => StyleSheet.flatten([styles.linkedRow, pressed && styles.pressed])}>
+                <AppIcon name="link-variant" size={icon.sm} color={colors.primary} />
+                <Text numberOfLines={2} style={styles.linkedText}>{t.title}</Text>
+                <AppIcon name="chevron-right" size={icon.sm} color={colors.textMuted} />
+              </Pressable>
+            ))}
+          </View>
         ) : null}
 
         {id ? <AttachmentPanel ownerType="MEMORY" ownerId={id} /> : null}
@@ -131,6 +155,10 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.md },
     tagChip: { borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs },
     tagText: { color: colors.textSecondary, ...typography.caption },
+    linkedWrap: { marginTop: spacing.lg, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface, padding: spacing.md, gap: spacing.xs },
+    linkedTitle: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '900', marginBottom: spacing.xxs },
+    linkedRow: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    linkedText: { flex: 1, minWidth: 0, color: colors.textSecondary, ...typography.bodySmall },
     metaCard: { marginTop: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surfaceMuted, padding: spacing.md, gap: spacing.xxs },
     metaLine: { color: colors.textMuted, ...typography.caption },
     actionBar: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg, borderTopWidth: border.thin, borderTopColor: colors.border, paddingTop: spacing.md },

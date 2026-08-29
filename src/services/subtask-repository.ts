@@ -90,3 +90,27 @@ export async function deleteSubtask(db: SQLiteDatabase, id: string): Promise<boo
   const result = await db.runAsync('DELETE FROM subtasks WHERE id = ?', id);
   return result.changes > 0;
 }
+
+export interface SubtaskProgress {
+  total: number;
+  done: number;
+}
+
+/** Bulk progress for list surfaces (Home / Planning) — one query, no per-row fan-out. */
+export async function listSubtaskProgress(db: SQLiteDatabase): Promise<Record<string, SubtaskProgress>> {
+  const rows = await db.getAllAsync<{ task_id: string; total: number; done: number }>(
+    'SELECT task_id, COUNT(*) AS total, SUM(completed) AS done FROM subtasks GROUP BY task_id',
+  );
+  const out: Record<string, SubtaskProgress> = {};
+  for (const row of rows) out[row.task_id] = { total: Number(row.total), done: Number(row.done ?? 0) };
+  return out;
+}
+
+export async function reorderSubtasks(db: SQLiteDatabase, taskId: string, orderedIds: string[]): Promise<void> {
+  await db.withTransactionAsync(async () => {
+    const now = new Date().toISOString();
+    for (let index = 0; index < orderedIds.length; index += 1) {
+      await db.runAsync('UPDATE subtasks SET position = ?, updated_at = ? WHERE id = ? AND task_id = ?', index, now, orderedIds[index]!, taskId);
+    }
+  });
+}
