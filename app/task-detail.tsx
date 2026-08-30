@@ -13,7 +13,7 @@ import { linkTaskMemory, unlinkTaskMemory, listLinkedMemories } from '../src/ser
 import type { Memory } from '../src/types/memory-model';
 import { formatBangladeshWeekdayDate, formatBangladeshDateTime } from '../src/i18n/date-time';
 import { localizeTaskPriority, localizeTaskStatus } from '../src/i18n/domain-labels';
-import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, priorityAccentName, type ThemeAccents, type ThemeColors } from '../src/theme';
+import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, priorityAccentName, memoryKindIcon, type ThemeAccents, type ThemeColors } from '../src/theme';
 import type { TaskStatus } from '../src/types';
 
 function dateLabel(v: string | null | undefined, language: 'bn' | 'en'): string | null { if (!v) return null; try { return v.length <= 10 ? formatBangladeshWeekdayDate(`${v}T00:00:00`, language) : formatBangladeshDateTime(v, language); } catch { return v; } }
@@ -138,7 +138,7 @@ export default function TaskDetailScreen() {
             {related.length ? <Text style={styles.relatedHint}>{bn ? 'পরামর্শ — লিংক করতে + চাপুন' : 'Suggested — tap + to link'}</Text> : null}
             {related.map(m => (
               <View key={m.id} style={styles.relatedRow}>
-                <AppIcon name="brain" size={icon.sm} color={colors.textMuted} />
+                <AppIcon name={memoryKindIcon(m.kind)} size={icon.sm} color={colors.textMuted} />
                 <Pressable accessibilityRole="button" accessibilityLabel={m.content.slice(0, 60)} onPress={() => router.push({ pathname: '/memory-detail', params: { id: m.id } })} style={({ pressed }) => StyleSheet.flatten([styles.relatedTap, pressed && styles.pressed])}>
                   <Text numberOfLines={2} style={styles.relatedText}>{m.title || m.content}</Text>
                 </Pressable>

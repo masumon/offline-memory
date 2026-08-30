@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
@@ -10,7 +10,7 @@ import { border, elevation, getWindowSizeClass, icon as iconToken, layout, radiu
 const items = [
   { href: '/', icon: 'home-variant-outline' as const, activeIcon: 'home-variant' as const, tone: 'green' as AccentName, en: 'Home', bn: 'হোম' },
   { href: '/planning', icon: 'calendar-blank-outline' as const, activeIcon: 'calendar-blank' as const, tone: 'blue' as AccentName, en: 'Planning', bn: 'পরিকল্পনা' },
-  { href: '/memory', icon: 'brain' as const, activeIcon: 'brain' as const, tone: 'purple' as AccentName, en: 'Memory', bn: 'মেমোরি' },
+  { href: '/memory', icon: 'bookmark-multiple-outline' as const, activeIcon: 'bookmark-multiple' as const, tone: 'purple' as AccentName, en: 'Memory', bn: 'মেমোরি' },
   { href: '/inbox', icon: 'inbox-outline' as const, activeIcon: 'inbox' as const, tone: 'orange' as AccentName, en: 'Inbox', bn: 'ইনবক্স' },
   { href: '/more', icon: 'view-grid-outline' as const, activeIcon: 'view-grid' as const, tone: 'yellow' as AccentName, en: 'More', bn: 'আরও' },
 ];
@@ -25,25 +25,30 @@ export function PrimaryNav() {
   const windowClass = getWindowSizeClass(width);
   const expanded = windowClass === 'expanded';
   const medium = windowClass === 'medium';
-  const styles = makeStyles();
+
+  // iOS gets a genuine system blur over a light tint. Android uses a near-opaque tinted
+  // surface (`navSolid`) — a fully translucent View over scrolling content can turn
+  // white or drop its GPU layer on aggressive OEMs, so the bar here is always painted.
+  const isIOS = Platform.OS === 'ios';
+  const barStyle = [
+    styles.bar,
+    medium && styles.barMedium,
+    expanded && styles.barExpanded,
+    {
+      backgroundColor: isIOS ? glass.navScrim : glass.navSolid,
+      borderColor: glass.border,
+      borderTopColor: glass.highlight,
+      height: expanded ? undefined : layout.compactNavHeight + insets.bottom,
+      paddingBottom: expanded ? spacing.lg : insets.bottom,
+    },
+  ];
+  const Bar = isIOS ? BlurView : View;
 
   return (
     <View pointerEvents="box-none" style={[styles.host, expanded && styles.hostExpanded]}>
-      <BlurView
-        intensity={glass.intensity + 14}
-        tint={glass.tint}
-        style={[
-          styles.bar,
-          medium && styles.barMedium,
-          expanded && styles.barExpanded,
-          {
-            backgroundColor: glass.navScrim,
-            borderColor: glass.border,
-            borderTopColor: glass.highlight,
-            height: expanded ? undefined : layout.compactNavHeight + insets.bottom,
-            paddingBottom: expanded ? spacing.lg : insets.bottom,
-          },
-        ]}
+      <Bar
+        {...(isIOS ? { intensity: glass.intensity, tint: glass.tint } : {})}
+        style={barStyle}
       >
         {items.map((item) => {
           const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
@@ -81,16 +86,18 @@ export function PrimaryNav() {
             </Pressable>
           );
         })}
-      </BlurView>
+      </Bar>
     </View>
   );
 }
 
-function makeStyles() {
-  return StyleSheet.create({
-    host: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+// Nav styling is theme-independent (colours come from `accents`/`colors` inline), so the
+// sheet is built once at module load rather than on every route change.
+const styles = StyleSheet.create({
+    host: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 40 },
     hostExpanded: { top: 0, right: undefined, width: layout.expandedNavWidth, bottom: 0 },
-    bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', overflow: 'hidden', borderTopWidth: border.thin, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, paddingTop: spacing.sm, paddingHorizontal: spacing.xs, ...elevation.raised },
+    // A hairline top border + a small elevation for lift. `navSolid` keeps it painted.
+    bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', overflow: 'hidden', borderTopWidth: border.thin, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, paddingTop: spacing.sm, paddingHorizontal: spacing.xs, shadowColor: '#131A2E', shadowOpacity: 0.1, shadowRadius: 16, shadowOffset: { width: 0, height: -3 }, elevation: 8 },
     barMedium: { paddingHorizontal: spacing.lg },
     barExpanded: { flex: 1, flexDirection: 'column', justifyContent: 'center', alignItems: 'stretch', borderTopWidth: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderRightWidth: border.thin, paddingTop: spacing.lg, paddingHorizontal: spacing.sm, gap: spacing.xs },
     item: { flex: 1, maxWidth: 96, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xs, paddingHorizontal: spacing.xxs, borderRadius: radius.md, gap: spacing.xxs },
@@ -100,5 +107,4 @@ function makeStyles() {
     iconWrap: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
     iconWrapExpanded: { width: 42, height: 42, borderRadius: 21 },
     label: { ...typography.caption, fontSize: 10.5, lineHeight: 13, maxWidth: 88, textAlign: 'center', marginTop: 1 },
-  });
-}
+});

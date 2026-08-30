@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { Easing, FadeInDown, LinearTransition, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,12 +22,12 @@ import { loadImageThumbs } from '../services/attachment-thumbs';
 import { formatBangladeshWeekdayDate } from '../i18n/date-time';
 import { home } from '../i18n/common';
 import { localizeTaskPriority, localizeTaskStatus } from '../i18n/domain-labels';
-import { border, control, elevation, gradients, icon, layout, radius, spacing, typography, memoryKindAccentName, type AccentRole, type ThemeAccents, type ThemeColors } from '../theme';
+import { border, control, elevation, gradients, icon, layout, radius, spacing, typography, memoryKindAccentName, memoryKindIcon, type AccentRole, type ThemeAccents, type ThemeColors } from '../theme';
 import type { Task } from '../types/task-model';
 
 const dateKey = (date: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(date);
 const pad = (value: number) => String(value).padStart(2, '0');
-const clockLabel = (minutes: number) => `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+const clockLabel = (minutes: number) => { const h = Math.floor(minutes / 60); const h12 = h % 12 || 12; return `${h12}:${pad(minutes % 60)} ${h < 12 ? 'AM' : 'PM'}`; };
 
 type NlpPlan = {
   kind: 'task' | 'memory';
@@ -87,7 +87,7 @@ export default function HomeScreen() {
   const db = useSQLiteContext();
   const { colors, accents, language, reduceMotion } = useAppPreferences();
   const bn = language === 'bn';
-  const copy = home(language);
+  const copy = useMemo(() => home(language), [language]);
   const anim = <T,>(a: T): T | undefined => (reduceMotion ? undefined : a);
   const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
   const [title, setTitle] = useState('');
@@ -166,7 +166,14 @@ export default function HomeScreen() {
   const greeting = bn
     ? (hour < 5 ? 'শুভ রাত্রি' : hour < 12 ? 'শুভ সকাল' : hour < 16 ? 'শুভ অপরাহ্ন' : hour < 19 ? 'শুভ বিকাল' : 'শুভ সন্ধ্যা')
     : (hour < 5 ? 'Good night' : hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening');
-  const nlpPreview = useMemo<NlpResult | null>(() => (title.trim() ? parseLocalNlp(title.trim(), today) : null), [title, today]);
+  // The capture box parses on a short debounce — a long line shouldn't re-run the whole
+  // NLP pipeline on every keystroke. The "here's what I understood" card may lag a beat.
+  const [nlpText, setNlpText] = useState('');
+  useEffect(() => {
+    const id = setTimeout(() => setNlpText(title.trim()), 160);
+    return () => clearTimeout(id);
+  }, [title]);
+  const nlpPreview = useMemo<NlpResult | null>(() => (nlpText ? parseLocalNlp(nlpText, today) : null), [nlpText, today]);
   const plan = useMemo(() => (nlpPreview ? buildPlan(nlpPreview, today, suggestedMin, learnedIntent) : null), [nlpPreview, today, suggestedMin, learnedIntent]);
   const active = useMemo(() => tasks.filter(task => !['COMPLETED', 'ARCHIVED', 'CANCELLED'].includes(task.status)), [tasks]);
   const focus = useMemo(() => ({
@@ -194,6 +201,30 @@ export default function HomeScreen() {
     const plannedToday = active.filter(isToday).length + doneToday;
     return { done: doneToday, total: plannedToday, pct: plannedToday ? Math.round((doneToday / plannedToday) * 100) : 0 };
   }, [tasks, active, todayKey]);
+
+  // The hero (gradient + the always-animating mascot + greeting) has nothing to do with
+  // the capture box, so it's memoised out of the list header — otherwise every keystroke
+  // reconciles the mascot's ~60-node SVG tree.
+  const heroBlock = useMemo(() => (
+    <LinearGradient colors={gradients.heroBrand} locations={[0, 0.42, 0.72, 1]} start={{ x: 0.05, y: 0 }} end={{ x: 0.95, y: 1 }} style={styles.hero}>
+      <LinearGradient colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0)']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 0.7 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <View style={styles.heroMascotSlot} pointerEvents="none"><HeroMascot /></View>
+      <View style={styles.headerTop}>
+        <View style={styles.headerCopy}>
+          <Text style={styles.greeting}>{greeting}</Text>
+          <Text style={styles.date}>{formatBangladeshWeekdayDate(today, language)}</Text>
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'রিমাইন্ডার' : 'Reminders'} onPress={() => router.push('/reminders')} style={({ pressed }) => StyleSheet.flatten([styles.heroBell, pressed && styles.pressed])}>
+          <AppIcon name="bell-outline" size={icon.md} color={colors.onPrimary} />
+        </Pressable>
+      </View>
+      <View style={styles.heroBadge}>
+        <AppIcon name="shield-check-outline" size={icon.sm} color={colors.onPrimary} />
+        <Text style={styles.heroBadgeText}>{copy.offline}</Text>
+      </View>
+      <Text style={styles.heroPurpose}>{bn ? 'এক লাইনে লিখুন বা বলুন — অ্যাপ বুঝে টাস্ক বা মেমোরি বানায়, সময় হলে মনে করায়। সব এই ফোনেই।' : 'Type or say one line — the app turns it into a task or a memory and reminds you. All on this phone.'}</Text>
+    </LinearGradient>
+  ), [greeting, today, language, bn, styles, colors, copy]);
 
   const confirmPlan = async () => {
     if (!plan || creating) return;
@@ -240,39 +271,42 @@ export default function HomeScreen() {
     setSuggestions(prev => prev.filter(x => x.id !== s.id));
     void recordDismissal(db, s.id).catch(() => {});
   };
-  const handleComplete = async (id: string) => {
+  const handleComplete = useCallback(async (id: string) => {
     if (completingId) return;
     setCompletingId(id);
     try { await complete(db, id); } finally { setCompletingId(null); }
-  };
+  }, [completingId, complete, db]);
+  const openTask = useCallback((id: string) => router.push({ pathname: '/task-detail', params: { id } }), []);
+  const renderTask = useCallback(({ item }: { item: Task }) => (
+    <TaskRow
+      task={item}
+      completing={completingId === item.id}
+      onComplete={handleComplete}
+      onOpen={openTask}
+      colors={colors}
+      accents={accents}
+      styles={styles}
+      language={language}
+      subtasks={subtaskProgress[item.id]}
+      thumbUri={thumbs.get(item.id)}
+    />
+  ), [completingId, handleComplete, openTask, colors, accents, styles, language, subtaskProgress, thumbs]);
 
   return (
     <View style={styles.container}>
       <FlatList
         data={todayTasks}
         keyExtractor={item => item.id}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        removeClippedSubviews
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
-            <LinearGradient colors={gradients.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-              <View style={styles.heroMascotSlot} pointerEvents="none"><HeroMascot /></View>
-              <View style={styles.headerTop}>
-                <View style={styles.headerCopy}>
-                  <Text style={styles.greeting}>{greeting}</Text>
-                  <Text style={styles.date}>{formatBangladeshWeekdayDate(today, language)}</Text>
-                </View>
-                <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'রিমাইন্ডার' : 'Reminders'} onPress={() => router.push('/reminders')} style={({ pressed }) => StyleSheet.flatten([styles.heroBell, pressed && styles.pressed])}>
-                  <AppIcon name="bell-outline" size={icon.md} color={colors.onPrimary} />
-                </Pressable>
-              </View>
-              <View style={styles.heroBadge}>
-                <AppIcon name="shield-check-outline" size={icon.sm} color={colors.onPrimary} />
-                <Text style={styles.heroBadgeText}>{copy.offline}</Text>
-              </View>
-              <Text style={styles.heroPurpose}>{bn ? 'এক লাইনে লিখুন বা বলুন — অ্যাপ বুঝে টাস্ক বা মেমোরি বানায়, সময় হলে মনে করায়। সব এই ফোনেই।' : 'Type or say one line — the app turns it into a task or a memory and reminds you. All on this phone.'}</Text>
-            </LinearGradient>
+            {heroBlock}
 
             <View style={styles.capture}>
               <View style={styles.captureLabelRow}>
@@ -331,7 +365,7 @@ export default function HomeScreen() {
               {plan ? (
                 <View style={[styles.understand, plan.kind === 'memory' && { borderColor: accents.purple.border, backgroundColor: accents.purple.soft }]}>
                   <View style={styles.understandHead}>
-                    <AppIcon name={plan.kind === 'memory' ? 'brain' : 'check-decagram-outline'} size={icon.sm} color={plan.kind === 'memory' ? accents.purple.on : accents.green.on} />
+                    <AppIcon name={plan.kind === 'memory' ? 'bookmark-plus-outline' : 'check-decagram-outline'} size={icon.sm} color={plan.kind === 'memory' ? accents.purple.on : accents.green.on} />
                     <Text style={[styles.understandTitle, plan.kind === 'memory' && { color: accents.purple.on }]}>{bn ? 'আমি বুঝেছি' : 'Here’s what I understood'}</Text>
                   </View>
                   <UnderstandRow icon="clipboard-text-outline" iconColor={plan.kind === 'memory' ? accents.purple.on : accents.green.on} label={plan.kind === 'memory' ? (bn ? 'মেমোরি' : 'Memory') : (bn ? 'টাস্ক' : 'Task')} value={plan.title} styles={styles} />
@@ -345,7 +379,7 @@ export default function HomeScreen() {
                   <View style={styles.understandActions}>
                     {plan.kind === 'task' ? (
                       <Pressable disabled={creating} accessibilityRole="button" accessibilityLabel={bn ? 'বরং মেমোরি হিসেবে রাখুন' : 'Keep as a memory instead'} onPress={() => void saveMemory()} style={({ pressed }) => StyleSheet.flatten([styles.altBtn, { borderColor: accents.purple.border, backgroundColor: accents.purple.soft }, pressed && styles.pressed])}>
-                        <AppIcon name="brain" size={icon.xs} color={accents.purple.on} />
+                        <AppIcon name="bookmark-plus-outline" size={icon.xs} color={accents.purple.on} />
                         <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.altText, { color: accents.purple.on }]}>{bn ? 'মেমোরিতে বদলান' : 'Make it a memory'}</Text>
                       </Pressable>
                     ) : (
@@ -435,19 +469,7 @@ export default function HomeScreen() {
             {todayTasks.length ? <Text style={styles.sectionHint}>{copy.tasksHint}</Text> : null}
           </>
         }
-        renderItem={({ item }) => (
-          <TaskRow
-            task={item}
-            completing={completingId === item.id}
-            onComplete={() => void handleComplete(item.id)}
-            onOpen={() => router.push({ pathname: '/task-detail', params: { id: item.id } })}
-            colors={colors}
-            styles={styles}
-            language={language}
-            subtasks={subtaskProgress[item.id]}
-            thumbUri={thumbs.get(item.id)}
-          />
-        )}
+        renderItem={renderTask}
         ListEmptyComponent={isLoading ? <AppState loading title={copy.loadTasks} /> : <AppState icon="white-balance-sunny" title={copy.emptyTask} description={copy.emptyTaskHint} />}
         ListFooterComponent={
           <>
@@ -487,7 +509,7 @@ export default function HomeScreen() {
                     style={({ pressed }) => StyleSheet.flatten([styles.memoryCard, pressed && styles.pressed])}
                   >
                     <View style={[styles.memoryIcon, { backgroundColor: tone.soft }]}>
-                      <AppIcon name="brain" size={icon.md} color={tone.on} />
+                      <AppIcon name={memoryKindIcon(memory.kind)} size={icon.md} color={tone.on} />
                     </View>
                     <Text numberOfLines={2} style={styles.memoryTitle}>{memory.content}</Text>
                     <AppIcon name="chevron-right" size={icon.md} color={colors.textMuted} />
@@ -495,7 +517,7 @@ export default function HomeScreen() {
                 );
               })
             ) : (
-              <AppState icon="brain" title={copy.emptyMemory} description={copy.emptyMemory} />
+              <AppState icon="bookmark-outline" title={copy.emptyMemory} description={copy.emptyMemory} />
             )}
             <SectionHeader title={copy.more} action={copy.open} onPress={() => router.push('/more')} styles={styles} colors={colors} />
             <View style={styles.quickRow}>
@@ -554,10 +576,13 @@ function QuickAction({ icon: iconName, label, onPress, tone, styles }: { icon: I
   );
 }
 
-function TaskRow({ task, completing, onComplete, onOpen, colors, styles, language, subtasks, thumbUri }: { task: Task; completing: boolean; onComplete: () => void; onOpen: () => void; colors: ThemeColors; styles: ReturnType<typeof makeStyles>; language: 'bn' | 'en'; subtasks?: { done: number; total: number }; thumbUri?: string }) {
+const TaskRow = memo(function TaskRow({ task, completing, onComplete, onOpen, colors, accents, styles, language, subtasks, thumbUri }: { task: Task; completing: boolean; onComplete: (id: string) => void; onOpen: (id: string) => void; colors: ThemeColors; accents: ThemeAccents; styles: ReturnType<typeof makeStyles>; language: 'bn' | 'en'; subtasks?: { done: number; total: number }; thumbUri?: string }) {
   const completed = task.status === 'COMPLETED';
   const bn = language === 'bn';
   const tone = task.priority === 'URGENT' ? 'red' : task.priority === 'HIGH' ? 'orange' : 'green';
+  // The empty checkbox carries the task's priority colour so the row's urgency reads at
+  // a glance (red = urgent, orange = high, green = normal) — and still says "tap to tick".
+  const toneOn = accents[tone].on;
   return (
     <View style={styles.taskRow}>
       <Pressable
@@ -565,13 +590,13 @@ function TaskRow({ task, completing, onComplete, onOpen, colors, styles, languag
         accessibilityState={{ checked: completed, busy: completing }}
         accessibilityLabel={`${bn ? 'সম্পন্ন করুন' : 'Complete'} ${task.title}`}
         disabled={completed || completing}
-        onPress={onComplete}
-        style={({ pressed }) => StyleSheet.flatten([styles.checkbox, completed && styles.checkboxDone, completing && styles.disabled, pressed && styles.pressed])}
+        onPress={() => onComplete(task.id)}
+        style={({ pressed }) => StyleSheet.flatten([styles.checkbox, !completed && { borderColor: toneOn }, completed && styles.checkboxDone, completing && styles.disabled, pressed && styles.pressed])}
       >
-        {completing ? <ActivityIndicator size="small" color={colors.primary} /> : completed ? <AppIcon name="check" size={icon.sm} color={colors.onPrimary} /> : null}
+        {completing ? <ActivityIndicator size="small" color={colors.primary} /> : completed ? <AppIcon name="check" size={icon.sm} color={colors.onPrimary} /> : <AppIcon name="circle-outline" size={icon.sm} color={toneOn} />}
       </Pressable>
       <RowLeading thumbUri={thumbUri} icon="clipboard-text-outline" tone={tone} size={42} />
-      <Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'টাস্ক খুলুন' : 'Open task'} ${task.title}`} onPress={onOpen} style={({ pressed }) => StyleSheet.flatten([styles.taskBody, pressed && styles.pressed])}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'টাস্ক খুলুন' : 'Open task'} ${task.title}`} onPress={() => onOpen(task.id)} style={({ pressed }) => StyleSheet.flatten([styles.taskBody, pressed && styles.pressed])}>
         <Text numberOfLines={3} style={styles.taskTitle}>{task.title}</Text>
         <View style={styles.taskMetaRow}>
           <Text style={styles.taskMeta}>{localizeTaskPriority(task.priority, bn)} · {localizeTaskStatus(task.status, bn)}</Text>
@@ -586,7 +611,7 @@ function TaskRow({ task, completing, onComplete, onOpen, colors, styles, languag
       <AppIcon name="chevron-right" size={icon.sm} color={colors.textMuted} />
     </View>
   );
-}
+});
 
 // A tiny live-recording indicator shown inside the capture field while voice is on.
 function PulseDot({ color, reduceMotion }: { color: string; reduceMotion: boolean }) {

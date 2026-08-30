@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -75,26 +75,32 @@ export default function MemoryScreen() {
     return () => clearTimeout(timer);
   }, [db, query, load, search, showArchived]);
 
-  const copy = bn
+  const copy = useMemo(() => (bn
     ? { active: 'সক্রিয়', archived: 'আর্কাইভ', title: 'আপনার মেমোরি', archiveTitle: 'আর্কাইভ করা মেমোরি', subtitle: 'ব্যক্তিগত নোট ও গুরুত্বপূর্ণ তথ্য এই ডিভাইসেই থাকে।', search: 'মেমোরি খুঁজুন', add: 'যোগ', empty: 'এখনও কোনো মেমোরি নেই', emptyText: 'পরে মনে রাখার মতো গুরুত্বপূর্ণ কিছু ক্যাপচার করুন।', noMatch: 'কোনো মিল পাওয়া যায়নি', restoreText: 'আর্কাইভ করা মেমোরি প্রয়োজন হলে ফিরিয়ে আনুন।', first: 'প্রথম মেমোরি তৈরি করুন', edit: 'এডিট', restore: 'রিস্টোর', archive: 'আর্কাইভ', delete: 'মুছুন', importance: 'গুরুত্ব', retry: 'আবার চেষ্টা করুন', clear: 'সার্চ মুছুন', deleteTitle: 'মেমোরি মুছবেন?', deleteDescription: 'এই ডিভাইস থেকে মেমোরিটি স্থায়ীভাবে মুছে যাবে।', deleteConfirm: 'মুছুন', cancel: 'বাতিল' }
-    : { active: 'Active', archived: 'Archived', title: 'Your memory', archiveTitle: 'Archived memories', subtitle: 'Private notes and facts stay on this device.', search: 'Search memories', add: 'Add', empty: 'No memories yet', emptyText: 'Capture something important to remember later.', noMatch: 'No matching memories', restoreText: 'Restore archived memories whenever you need them.', first: 'Create your first memory', edit: 'Edit', restore: 'Restore', archive: 'Archive', delete: 'Delete', importance: 'importance', retry: 'Retry', clear: 'Clear search', deleteTitle: 'Delete memory?', deleteDescription: 'This permanently removes the memory from this device.', deleteConfirm: 'Delete', cancel: 'Cancel' };
+    : { active: 'Active', archived: 'Archived', title: 'Your memory', archiveTitle: 'Archived memories', subtitle: 'Private notes and facts stay on this device.', search: 'Search memories', add: 'Add', empty: 'No memories yet', emptyText: 'Capture something important to remember later.', noMatch: 'No matching memories', restoreText: 'Restore archived memories whenever you need them.', first: 'Create your first memory', edit: 'Edit', restore: 'Restore', archive: 'Archive', delete: 'Delete', importance: 'importance', retry: 'Retry', clear: 'Clear search', deleteTitle: 'Delete memory?', deleteDescription: 'This permanently removes the memory from this device.', deleteConfirm: 'Delete', cancel: 'Cancel' }), [bn]);
+
+  const onArchiveRow = useCallback((id: string) => void archive(db, id), [archive, db]);
+  const onRestoreRow = useCallback((id: string) => void restore(db, id), [restore, db]);
+  const onDeleteRow = useCallback((m: Memory) => setPendingDelete(m), []);
+  const renderRow = useCallback(({ item }: { item: { header: string } | Memory }) => ('header' in item
+    ? <Text style={styles.groupHeader}>{item.header}</Text>
+    : <MemoryRow memory={item} archived={showArchived} onArchive={onArchiveRow} onRestore={onRestoreRow} onDelete={onDeleteRow} styles={styles} colors={colors} accents={accents} copy={copy} bn={bn} thumbUri={thumbs.get(item.id)} />),
+  [showArchived, onArchiveRow, onRestoreRow, onDeleteRow, styles, colors, accents, copy, bn, thumbs]);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
-          <View style={styles.titleIcon}><AppIcon name="brain" size={icon.lg} color={colors.primary} /></View>
+          <View style={styles.titleIcon}><AppIcon name="bookmark-multiple-outline" size={icon.lg} color={colors.primary} /></View>
           <View style={styles.titleCopy}>
             <Text style={styles.eyebrow}>{bn ? 'মেমোরি' : 'MEMORY'}</Text>
             <Text style={styles.title}>{showArchived ? copy.archiveTitle : copy.title}</Text>
           </View>
           {!showArchived ? (
-            <Link href="/memory-editor" asChild>
-              <Pressable accessibilityRole="button" accessibilityLabel={copy.add} style={({ pressed }) => StyleSheet.flatten([styles.addButton, pressed && styles.pressed])}>
-                <AppIcon name="plus" size={icon.sm} color={colors.onPrimary} />
-                <Text style={styles.addButtonText}>{copy.add}</Text>
-              </Pressable>
-            </Link>
+            <Pressable accessibilityRole="button" accessibilityLabel={copy.add} onPress={() => router.push('/memory-editor')} style={({ pressed }) => StyleSheet.flatten([styles.addButton, pressed && styles.pressed])}>
+              <AppIcon name="plus" size={icon.sm} color={colors.onPrimary} />
+              <Text style={styles.addButtonText}>{copy.add}</Text>
+            </Pressable>
           ) : null}
         </View>
         <Text style={styles.subtitle}>{copy.subtitle}</Text>
@@ -132,7 +138,7 @@ export default function MemoryScreen() {
 
       <View style={styles.viewToggle}>
         <Pressable accessibilityRole="tab" accessibilityState={{ selected: !showArchived }} onPress={() => { setQuery(''); setKindFilter(null); setTagFilter(null); setShowArchived(false); }} style={[styles.toggleButton, !showArchived && styles.toggleSelected]}>
-          <AppIcon name="brain" size={icon.sm} color={!showArchived ? colors.onPrimary : colors.textSecondary} />
+          <AppIcon name="bookmark-outline" size={icon.sm} color={!showArchived ? colors.onPrimary : colors.textSecondary} />
           <Text style={[styles.toggleText, !showArchived && styles.toggleSelectedText]}>{copy.active}</Text>
         </Pressable>
         <Pressable accessibilityRole="tab" accessibilityState={{ selected: showArchived }} onPress={() => { setQuery(''); setKindFilter(null); setTagFilter(null); setShowArchived(true); }} style={[styles.toggleButton, showArchived && styles.toggleSelected]}>
@@ -149,12 +155,14 @@ export default function MemoryScreen() {
         <FlatList
           data={listData}
           keyExtractor={item => 'header' in item ? `h:${item.header}` : item.id}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          removeClippedSubviews
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={listData.length ? styles.list : styles.emptyList}
-          ListEmptyComponent={error ? null : <AppState icon={showArchived ? 'archive-off-outline' : 'brain'} title={showArchived ? copy.archived : query ? copy.noMatch : copy.empty} description={showArchived ? copy.restoreText : query ? copy.noMatch : copy.emptyText} actionLabel={!showArchived && !query ? copy.first : undefined} onAction={!showArchived && !query ? () => router.push('/memory-editor') : undefined} />}
-          renderItem={({ item }) => 'header' in item
-            ? <Text style={styles.groupHeader}>{item.header}</Text>
-            : <MemoryRow memory={item} archived={showArchived} onArchive={() => void archive(db, item.id)} onRestore={() => void restore(db, item.id)} onDelete={() => setPendingDelete(item)} styles={styles} colors={colors} accents={accents} copy={copy} bn={bn} thumbUri={thumbs.get(item.id)} />}
+          ListEmptyComponent={error ? null : <AppState icon={showArchived ? 'archive-off-outline' : 'bookmark-outline'} title={showArchived ? copy.archived : query ? copy.noMatch : copy.empty} description={showArchived ? copy.restoreText : query ? copy.noMatch : copy.emptyText} actionLabel={!showArchived && !query ? copy.first : undefined} onAction={!showArchived && !query ? () => router.push('/memory-editor') : undefined} />}
+          renderItem={renderRow}
         />
       )}
 
@@ -180,7 +188,7 @@ function ImportanceDots({ value, color, styles }: { value: number; color: string
   );
 }
 
-function MemoryRow({ memory, archived, onArchive, onRestore, onDelete, styles, colors, accents, copy, bn, thumbUri }: { memory: Memory; archived: boolean; onArchive: () => void; onRestore: () => void; onDelete: () => void; styles: ReturnType<typeof makeStyles>; colors: ThemeColors; accents: ThemeAccents; copy: Record<string, string>; bn: boolean; thumbUri?: string }) {
+const MemoryRow = memo(function MemoryRow({ memory, archived, onArchive, onRestore, onDelete, styles, colors, accents, copy, bn, thumbUri }: { memory: Memory; archived: boolean; onArchive: (id: string) => void; onRestore: (id: string) => void; onDelete: (memory: Memory) => void; styles: ReturnType<typeof makeStyles>; colors: ThemeColors; accents: ThemeAccents; copy: Record<string, string>; bn: boolean; thumbUri?: string }) {
   const kind = KIND_LABELS[memory.kind] ?? KIND_LABELS.NOTE;
   const tone = accents[memoryKindAccentName(memory.kind)];
   return (
@@ -212,21 +220,21 @@ function MemoryRow({ memory, archived, onArchive, onRestore, onDelete, styles, c
           </Pressable>
         </Link>
         {archived ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={copy.restore} onPress={onRestore} style={({ pressed }) => StyleSheet.flatten([styles.actionButton, pressed && styles.pressed])}>
+          <Pressable accessibilityRole="button" accessibilityLabel={copy.restore} onPress={() => onRestore(memory.id)} style={({ pressed }) => StyleSheet.flatten([styles.actionButton, pressed && styles.pressed])}>
             <AppIcon name="backup-restore" size={icon.sm} color={colors.primary} /><Text style={styles.actionText}>{copy.restore}</Text>
           </Pressable>
         ) : (
-          <Pressable accessibilityRole="button" accessibilityLabel={copy.archive} onPress={onArchive} style={({ pressed }) => StyleSheet.flatten([styles.actionButton, pressed && styles.pressed])}>
+          <Pressable accessibilityRole="button" accessibilityLabel={copy.archive} onPress={() => onArchive(memory.id)} style={({ pressed }) => StyleSheet.flatten([styles.actionButton, pressed && styles.pressed])}>
             <AppIcon name="archive-outline" size={icon.sm} color={colors.primary} /><Text style={styles.actionText}>{copy.archive}</Text>
           </Pressable>
         )}
-        <Pressable accessibilityRole="button" accessibilityLabel={copy.delete} onPress={onDelete} style={({ pressed }) => StyleSheet.flatten([styles.actionButton, pressed && styles.pressed])}>
+        <Pressable accessibilityRole="button" accessibilityLabel={copy.delete} onPress={() => onDelete(memory)} style={({ pressed }) => StyleSheet.flatten([styles.actionButton, pressed && styles.pressed])}>
           <AppIcon name="delete-outline" size={icon.sm} color={colors.danger} /><Text style={styles.deleteText}>{copy.delete}</Text>
         </Pressable>
       </View>
     </AppCard>
   );
-}
+});
 
 function makeStyles(colors: ThemeColors) {
   return StyleSheet.create({
@@ -238,8 +246,8 @@ function makeStyles(colors: ThemeColors) {
     eyebrow: { color: colors.primary, ...typography.label, fontWeight: '900', letterSpacing: 1.2 },
     title: { color: colors.textPrimary, ...typography.title, fontWeight: '900', marginTop: spacing.xxs },
     subtitle: { color: colors.textSecondary, ...typography.bodySmall, marginTop: spacing.md },
-    addButton: { minHeight: layout.minTouchTarget, maxWidth: 110, paddingHorizontal: spacing.smd, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: spacing.xxs },
-    addButtonText: { color: colors.onPrimary, ...typography.bodySmall, fontWeight: '900', flexShrink: 1 },
+    addButton: { minHeight: layout.minTouchTarget, minWidth: 78, maxWidth: 120, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primary, borderWidth: border.thin, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: spacing.xs, ...elevation.soft },
+    addButtonText: { color: colors.onPrimary, ...typography.bodySmall, fontWeight: '900' },
     searchBox: { minHeight: control.searchHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.lg, marginBottom: spacing.md, paddingHorizontal: spacing.md, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface, ...elevation.soft },
     search: { flex: 1, minHeight: control.inputHeight, color: colors.textPrimary, ...typography.body },
     filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginHorizontal: spacing.lg, marginBottom: spacing.md },

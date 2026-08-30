@@ -26,7 +26,7 @@ export default function SettingsScreen(){
   <AppCard style={styles.localCard}><View style={styles.localIcon}><AppIcon name="shield-check-outline" size={icon.md} color={colors.success}/></View><View style={styles.localCopy}><Text style={styles.localTitle}>{copy.localTitle}</Text><Text style={styles.localText}>{copy.localText}</Text></View><Text style={styles.localStatus}>{copy.onDevice}</Text></AppCard>
   <Text style={styles.section}>{language==='bn'?'এআই ইঞ্জিন':'AI engine'}</Text>
   <AppCard style={styles.preferenceCard}>
-   <View style={styles.rowHeading}><View style={styles.rowIcon}><AppIcon name="brain" size={icon.md} color={colors.primary}/></View><Text style={styles.cardTitle}>{language==='bn'?'কথা বোঝার ইঞ্জিন':'Understanding engine'}</Text></View>
+   <View style={styles.rowHeading}><View style={styles.rowIcon}><AppIcon name="head-cog-outline" size={icon.md} color={colors.primary}/></View><Text style={styles.cardTitle}>{language==='bn'?'কথা বোঝার ইঞ্জিন':'Understanding engine'}</Text></View>
    {listAiEngines().map((e,i)=>(
     <View key={e.descriptor.id} style={[styles.engineRow,i>0&&styles.engineRowDivided]}>
      <AppIcon name={e.descriptor.builtIn?'check-circle':'download-circle-outline'} size={icon.sm} color={e.descriptor.builtIn?colors.success:colors.textMuted}/>

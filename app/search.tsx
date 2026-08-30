@@ -7,7 +7,7 @@ import { useAppPreferences } from '../src/app/AppPreferences';
 import { search } from '../src/i18n/search';
 import { AppIcon } from '../src/ui/AppIcon';
 import { AppState } from '../src/ui/AppSurface';
-import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, memoryKindAccentName, priorityAccentName, type ThemeAccents, type ThemeColors } from '../src/theme';
+import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, memoryKindAccentName, memoryKindIcon, priorityAccentName, type ThemeAccents, type ThemeColors } from '../src/theme';
 import { localizeMemoryKind, localizeTaskPriority, localizeTaskStatus } from '../src/i18n/domain-labels';
 
 const EMPTY_RESULT: UnifiedSearchResult = { tasks: [], memories: [] };
@@ -128,7 +128,7 @@ export default function SearchScreen() {
             return (
               <Link key={memory.id} href={{ pathname: '/memory-detail', params: { id: memory.id } }} asChild>
                 <Pressable accessibilityRole="button" accessibilityLabel={`${copy.openMemory} ${memory.content.slice(0, 60)}`} style={({ pressed }) => StyleSheet.flatten([styles.resultCard, pressed && styles.pressed])}>
-                  <View style={[styles.resultIcon, { backgroundColor: tone.soft }]}><AppIcon name="brain" size={icon.sm} color={tone.on} /></View>
+                  <View style={[styles.resultIcon, { backgroundColor: tone.soft }]}><AppIcon name={memoryKindIcon(memory.kind)} size={icon.sm} color={tone.on} /></View>
                   <View style={styles.resultCopy}>
                     <Text numberOfLines={3} style={styles.resultTitle}>{memory.content}</Text>
                     <Text style={styles.meta}>{localizeMemoryKind(memory.kind, language === 'bn')} · {copy.importance} {memory.importance}</Text>

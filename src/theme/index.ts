@@ -1,8 +1,9 @@
-// ── Offline Memory · design system v4 · "Emerald & Sand" ────────────────────────────────
-// Direction: premium, warm, Bengali-first. A deep emerald brand with an antique-gold
-// secondary accent (a restrained nod to Bangladesh's palette), set on warm sand paper in
-// light and forest-black in dark. Hairline structure; one soft shadow for floating
-// surfaces. Type: Hind Siliguri + Inter (numerals).
+// ── Offline Memory · design system v5 · "Sapphire & Gold" ───────────────────────────────
+// Direction: premium, calm, Bengali-first. A deep royal-sapphire brand with an antique
+// gold secondary accent, set on cool paper in light and deep navy-black in dark.
+// Hairline structure; one soft shadow for floating surfaces; glass only on floating
+// chrome. `success` is its own green (done ≠ brand). Type: Hind Siliguri + Inter.
+// This file is the single source of truth — there is no second palette anywhere.
 
 // Font family names as registered in app/_layout.tsx (weight-named — do not rely on fontWeight
 // with custom families on Android; pick the family that carries the weight you want).
@@ -10,8 +11,9 @@ export const fonts={regular:'HindSiliguri_400Regular',medium:'HindSiliguri_500Me
 
 // textMuted meets WCAG AA (>=4.5:1) for body text on `surface`/`background` while
 // staying visibly lighter than textSecondary so the hierarchy survives.
-export const lightColors={background:'#F5F4EF',surface:'#FFFFFF',surfaceMuted:'#ECEBE3',surfaceSunken:'#E4E2D7',primary:'#0B7A55',primaryPressed:'#095F42',primaryTint:'#DEF0E6',onPrimary:'#FFFFFF',accent:'#B0812F',textPrimary:'#171C19',textSecondary:'#4A554D',textMuted:'#69726B',border:'#E1DED4',borderStrong:'#CECABD',success:'#0B7A55',warning:'#8A6212',danger:'#BB3B2E',info:'#2A66C4',overlay:'rgba(20, 26, 22, 0.46)'} as const;
-export const darkColors={background:'#0A0D0B',surface:'#181F1B',surfaceMuted:'#212B25',surfaceSunken:'#101512',primary:'#43CE9A',primaryPressed:'#38B487',primaryTint:'#12291F',onPrimary:'#04140D',accent:'#D8B45E',textPrimary:'#F1F5F1',textSecondary:'#B3BDB6',textMuted:'#8D978F',border:'#313B35',borderStrong:'#44504A',success:'#43CE9A',warning:'#E2A94E',danger:'#F0736A',info:'#6FA5F2',overlay:'rgba(0, 0, 0, 0.66)'} as const;
+// `surface` is a whisper-tinted off-white — never a stark #FFF against the cool paper.
+export const lightColors={background:'#F1F4FA',surface:'#FBFCFF',surfaceMuted:'#E7ECF6',surfaceSunken:'#DCE3F1',primary:'#2456C9',primaryPressed:'#1B429E',primaryTint:'#E1E9FB',onPrimary:'#FFFFFF',accent:'#B4832E',textPrimary:'#131720',textSecondary:'#464E60',textMuted:'#68707F',border:'#DBE1EF',borderStrong:'#C5CDE0',success:'#1E874A',warning:'#96690F',danger:'#C13B2E',info:'#2A79BE',overlay:'rgba(16, 20, 30, 0.46)'} as const;
+export const darkColors={background:'#0A0E18',surface:'#161C2B',surfaceMuted:'#1F2637',surfaceSunken:'#10131E',primary:'#7AA2FF',primaryPressed:'#6389E6',primaryTint:'#172138',onPrimary:'#07122A',accent:'#D9B663',textPrimary:'#EFF2FA',textSecondary:'#B2BBCD',textMuted:'#8A93A7',border:'#2C3446',borderStrong:'#3F4A5F',success:'#46CE86',warning:'#E1A94E',danger:'#F0736A',info:'#5FB2E6',overlay:'rgba(0, 0, 0, 0.66)'} as const;
 export type ThemeColors=typeof lightColors|typeof darkColors;
 export function getThemeColors(mode:'light'|'dark'):ThemeColors{return mode==='dark'?darkColors:lightColors;}
 export const colors=lightColors;
@@ -53,9 +55,9 @@ export const motion={fast:120,standard:200,slow:300} as const;
 // Elevation — hairline borders do the structural work; shadows stay subtle and are only
 // meaningful on genuinely floating surfaces (dialog, snackbar, quick-capture, primary CTA).
 export const elevation={
-  soft:{shadowColor:'#0B1220',shadowOpacity:0.04,shadowRadius:8,shadowOffset:{width:0,height:2},elevation:1},
-  card:{shadowColor:'#0B1220',shadowOpacity:0.05,shadowRadius:10,shadowOffset:{width:0,height:3},elevation:2},
-  raised:{shadowColor:'#0B1220',shadowOpacity:0.08,shadowRadius:16,shadowOffset:{width:0,height:6},elevation:4},
+  soft:{shadowColor:'#131A2E',shadowOpacity:0.06,shadowRadius:10,shadowOffset:{width:0,height:2},elevation:1},
+  card:{shadowColor:'#131A2E',shadowOpacity:0.09,shadowRadius:14,shadowOffset:{width:0,height:4},elevation:2},
+  raised:{shadowColor:'#131A2E',shadowOpacity:0.12,shadowRadius:20,shadowOffset:{width:0,height:8},elevation:4},
   floating:{shadowColor:'#0B1220',shadowOpacity:0.13,shadowRadius:26,shadowOffset:{width:0,height:14},elevation:10},
 } as const;
 
@@ -64,20 +66,20 @@ export const elevation={
 // `ThemeAccents` can be indexed safely. base → emphasis · soft → container tint ·
 // on → readable text/icon on `soft` · border → gentle container border.
 export const lightAccents={
-  green:{base:'#0B7A55',soft:'#DEF0E6',on:'#0A4E38',border:'#C5E3D5'},
-  blue:{base:'#2A66C4',soft:'#E5EDFA',on:'#1E4A94',border:'#CEDEF3'},
+  green:{base:'#1E874A',soft:'#DFF1E7',on:'#0F5E31',border:'#C4E4D1'},
+  blue:{base:'#2A79BE',soft:'#E1EEF9',on:'#1C5992',border:'#C9E0F1'},
   orange:{base:'#B5691E',soft:'#F5E9DC',on:'#824A12',border:'#E8D7C1'},
-  yellow:{base:'#B0812F',soft:'#F3EDDC',on:'#7A5A1E',border:'#E5DBBE'},
-  red:{base:'#BB3B2E',soft:'#F7E6E3',on:'#8C2A20',border:'#ECD0CB'},
-  purple:{base:'#6A57A8',soft:'#ECE9F5',on:'#493C7B',border:'#D9D2EB'},
+  yellow:{base:'#B4832E',soft:'#F3ECDA',on:'#7C5A1E',border:'#E6DBBC'},
+  red:{base:'#C13B2E',soft:'#F8E6E3',on:'#8E2A20',border:'#EDCFCB'},
+  purple:{base:'#6455A6',soft:'#EBE9F5',on:'#463B79',border:'#D7D1EA'},
 } as const;
 export const darkAccents={
-  green:{base:'#43CE9A',soft:'#10271E',on:'#BEEAD7',border:'#264A3A'},
-  blue:{base:'#6FA5F2',soft:'#11213A',on:'#CBDDF8',border:'#294263'},
+  green:{base:'#46CE86',soft:'#102A1E',on:'#BFEAD2',border:'#264C39'},
+  blue:{base:'#5FB2E6',soft:'#0F2436',on:'#C6E2F6',border:'#264860'},
   orange:{base:'#E2A94E',soft:'#2C2416',on:'#F1D7A9',border:'#4C3F24'},
-  yellow:{base:'#D8B45E',soft:'#28241A',on:'#EEE0B4',border:'#453F27'},
+  yellow:{base:'#D9B663',soft:'#292317',on:'#EEE1B7',border:'#463F26'},
   red:{base:'#F0736A',soft:'#301C1A',on:'#F6C9C3',border:'#523330'},
-  purple:{base:'#A996E0',soft:'#1F1B33',on:'#DBD2F2',border:'#392F5C'},
+  purple:{base:'#AB9AE2',soft:'#1E1B33',on:'#DCD3F3',border:'#3A2F5E'},
 } as const;
 export type AccentName=keyof typeof lightAccents;
 export type AccentRole={base:string;soft:string;on:string;border:string};
@@ -89,16 +91,23 @@ export const accents=lightAccents;
 // Used ONLY on floating chrome (nav bar, dialog, snackbar) via expo-blur, always over an
 // opaque scrim so text contrast never depends on what scrolls underneath. Never on
 // content, editors, lists, or long-form text.
-export type GlassTokens={ tint:'light'|'dark'; intensity:number; scrim:string; navScrim:string; border:string; highlight:string };
+// `navSolid` is a near-opaque tinted surface for the Android bottom nav — it must never
+// vanish or read as stark white (translucent Views over scrolling content can do both
+// on aggressive OEMs). `navScrim` stays for the iOS BlurView's light tint.
+export type GlassTokens={ tint:'light'|'dark'; intensity:number; scrim:string; navScrim:string; navSolid:string; border:string; highlight:string };
 // Lower scrim so the blur is actually visible; a 1px top highlight sells the "glass" edge.
 // navScrim is lighter still — the bottom bar reads as genuinely translucent, with the
 // bumped BlurView intensity keeping labels legible over scrolling content.
-export const lightGlass:GlassTokens={ tint:'light', intensity:22, scrim:'rgba(255,255,255,0.56)', navScrim:'rgba(255,255,255,0.30)', border:'rgba(23,28,25,0.10)', highlight:'rgba(255,255,255,0.55)' };
-export const darkGlass:GlassTokens={ tint:'dark', intensity:26, scrim:'rgba(16,20,17,0.46)', navScrim:'rgba(12,16,13,0.28)', border:'rgba(255,255,255,0.09)', highlight:'rgba(255,255,255,0.12)' };
+// The bottom nav is intentionally the most translucent surface — a low scrim with a
+// stronger blur so it reads as real glass while its solid-colour labels stay legible.
+export const lightGlass:GlassTokens={ tint:'light', intensity:24, scrim:'rgba(255,255,255,0.56)', navScrim:'rgba(246,248,253,0.44)', navSolid:'rgba(244,247,252,0.95)', border:'rgba(19,23,32,0.08)', highlight:'rgba(255,255,255,0.5)' };
+export const darkGlass:GlassTokens={ tint:'dark', intensity:28, scrim:'rgba(18,22,33,0.46)', navScrim:'rgba(14,17,26,0.44)', navSolid:'rgba(15,19,29,0.95)', border:'rgba(255,255,255,0.08)', highlight:'rgba(255,255,255,0.1)' };
 export function getGlassTokens(mode:'light'|'dark'):GlassTokens{return mode==='dark'?darkGlass:lightGlass;}
 
 // Gradient stop pairs (from→to) — plain colour arrays; stop [0] is a safe solid fallback.
-export const gradients={brand:['#0B7A55','#0E9E6E'],hero:['#F5F4EF','#E9F1EC'],sky:['#E5EDFA','#ECE9F5'],warmth:['#F3EDDC','#F5E9DC'],surfaceLight:['#FFFFFF','#F3F2EC'],surfaceDark:['#141A17','#0C100E']} as const;
+// `heroBrand` is a soft, multi-hue blend (indigo → periwinkle → dusk-teal → warm gold
+// edge) — deliberately hazy, never a flat blue. White text stays AA-legible on every stop.
+export const gradients={brand:['#2456C9','#3F79EE'],heroBrand:['#2E4EA8','#4B54B4','#3E77AE','#6E6AB0'],hero:['#F3F5FB','#E7EDF9'],sky:['#E1EEF9','#EBE9F5'],warmth:['#F3ECDA','#F5E9DC'],surfaceLight:['#FFFFFF','#F1F4FB'],surfaceDark:['#141A29','#0C1019']} as const;
 export type GradientName=keyof typeof gradients;
 
 // Domain → colour mappings, centralized so screens stop re-implementing them.
@@ -107,3 +116,17 @@ export type MemoryKindToken='NOTE'|'FACT'|'PREFERENCE'|'EVENT'|'REFLECTION';
 export function priorityColor(colors:ThemeColors,priority:PriorityToken):string{return priority==='URGENT'?colors.danger:priority==='HIGH'?colors.warning:priority==='LOW'?colors.textMuted:colors.primary;}
 export function priorityAccentName(priority:PriorityToken):AccentName{return priority==='URGENT'?'red':priority==='HIGH'?'orange':priority==='MEDIUM'?'blue':'green';}
 export function memoryKindAccentName(kind:MemoryKindToken):AccentName{return kind==='FACT'?'blue':kind==='PREFERENCE'?'purple':kind==='EVENT'?'orange':kind==='REFLECTION'?'yellow':'green';}
+// One refined icon per memory kind — used EVERYWHERE a memory is shown, so the crude
+// generic "brain" glyph never appears. `MemoryLike` accepts a nullable kind for the
+// places (assistant answer sources, unified search) that don't carry one.
+export type MemoryKindIcon='note-text-outline'|'lightbulb-on-outline'|'heart-outline'|'calendar-star'|'thought-bubble-outline'|'bookmark-outline';
+export function memoryKindIcon(kind:MemoryKindToken|null|undefined):MemoryKindIcon{
+  switch(kind){
+    case 'FACT':return 'lightbulb-on-outline';
+    case 'PREFERENCE':return 'heart-outline';
+    case 'EVENT':return 'calendar-star';
+    case 'REFLECTION':return 'thought-bubble-outline';
+    case 'NOTE':return 'note-text-outline';
+    default:return 'bookmark-outline';
+  }
+}

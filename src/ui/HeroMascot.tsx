@@ -10,6 +10,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+import { useIsFocused } from 'expo-router';
 import { useAppPreferences } from '../app/AppPreferences';
 
 // ── Why it is built this way ──────────────────────────────────────────────────
@@ -69,6 +70,11 @@ const OFF = 460;               // fully off the right edge
 export function HeroMascot() {
   const { reduceMotion, language } = useAppPreferences();
   const bn = language === 'bn';
+  // The scene is a set of never-ending loops + a JS director. When Home isn't the
+  // focused tab there's nothing to watch, so we freeze it exactly like reduce-motion
+  // and stop burning UI-thread + scheduler time; it restarts cleanly on return.
+  const isFocused = useIsFocused();
+  const paused = reduceMotion || !isFocused;
 
   // gross character motion (View transform)
   const cx = useSharedValue(OFF);
@@ -105,7 +111,7 @@ export function HeroMascot() {
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
-    if (reduceMotion) {
+    if (paused) {
       // Frozen calmly seated at the desk (right-hand quadrant), lid open — matches the
       // animated rest pose so she never overlaps the headline on the left.
       cx.value = CHAIR_HOME + 4; cy.value = 4; cflip.value = 1;
@@ -267,7 +273,7 @@ export function HeroMascot() {
     })();
 
     return () => { alive = false; clk.forEach(clearTimeout); clk.length = 0; };
-  }, [reduceMotion, cx, cy, cflip, deskX, chairX, lapX, mugX, lid, screenOn, armF, armB, legF, legB, bob, headT, hair, torso, sit, hi, blink, glow, spark, steam, type]);
+  }, [paused, cx, cy, cflip, deskX, chairX, lapX, mugX, lid, screenOn, armF, armB, legF, legB, bob, headT, hair, torso, sit, hi, blink, glow, spark, steam, type]);
 
   // ── bindings ──
   const hiStyle = useAnimatedStyle(() => ({ opacity: hi.value, transform: [{ scale: 0.7 + hi.value * 0.3 }, { translateY: (1 - hi.value) * 6 }] }));

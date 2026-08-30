@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useLocalSearchParams } from 'expo-router';
@@ -52,17 +52,44 @@ export default function PlanningScreen() {
     return () => { alive = false; };
   }, [db, inboxIdKey]);
 
-  const planTask = async (id: string) => {
+  const planTask = useCallback(async (id: string) => {
     if (busyId) return;
     setBusyId(id); setError(null);
     try { await planInboxTasks(db, [id], cursor); await Promise.all([loadPlan(cursor), loadTasks(db)]); }
     catch { setError(bn ? 'টাস্ক প্ল্যান করা যায়নি' : 'Unable to plan task'); }
     finally { setBusyId(null); }
-  };
+  }, [busyId, db, cursor, loadPlan, loadTasks, bn]);
 
-  const labels = bn
+  const labels = useMemo(() => (bn
     ? { eyebrow: 'দৈনিক পরিকল্পনা', plan: 'প্ল্যান', newTask: 'নতুন টাস্ক', inbox: 'ইনবক্স', today: 'আজ', subtitle: 'একটি দিন বেছে নিন — সেদিনের টাস্কগুলো সময় অনুযায়ী সাজানো থাকে। নিচের ইনবক্স আইটেমে “প্ল্যান” চাপলে সেটি এই দিনে যোগ হয়।', overdue: 'বকেয়া', progress: 'চলমান', scheduled: 'আজ নির্ধারিত', inboxTitle: 'ইনবক্সে অপেক্ষমাণ', empty: 'ইনবক্স খালি — এই দিনের সব কিছু গোছানো আছে। ✨', noTime: 'সময় নেই', retry: 'আবার চেষ্টা করুন', prev: 'আগের দিন', next: 'পরের দিন' }
-    : { eyebrow: 'DAILY PLANNING', plan: 'Plan', newTask: 'New task', inbox: 'Inbox', today: 'Today', subtitle: 'Pick a day — its tasks are laid out by time. Tap “Plan” on an inbox item below to drop it onto this day.', overdue: 'Overdue', progress: 'In progress', scheduled: 'Scheduled today', inboxTitle: 'Waiting in inbox', empty: 'Inbox is empty — this day is all set. ✨', noTime: 'No time', retry: 'Retry', prev: 'Previous day', next: 'Next day' };
+    : { eyebrow: 'DAILY PLANNING', plan: 'Plan', newTask: 'New task', inbox: 'Inbox', today: 'Today', subtitle: 'Pick a day — its tasks are laid out by time. Tap “Plan” on an inbox item below to drop it onto this day.', overdue: 'Overdue', progress: 'In progress', scheduled: 'Scheduled today', inboxTitle: 'Waiting in inbox', empty: 'Inbox is empty — this day is all set. ✨', noTime: 'No time', retry: 'Retry', prev: 'Previous day', next: 'Next day' }), [bn]);
+
+  // Timeline sections (overdue + time buckets) are derived from the plan + focus filter
+  // only — recompute when those change, not on every busyId / cursor-arrow tap.
+  const daySections = useMemo(() => {
+    if (!plan) return null;
+    const seen = new Set<string>();
+    const matchFilter = (t: DailyPlan['scheduled'][number]) => {
+      if (focusFilter === 'high') return t.priority === 'HIGH' || t.priority === 'URGENT';
+      return true;
+    };
+    const showOverdue = focusFilter !== 'due';
+    const showDay = focusFilter !== 'overdue';
+    const dayTasks = showDay ? [...plan.scheduled, ...plan.inProgress].filter(t => (seen.has(t.id) ? false : (seen.add(t.id), true))).filter(matchFilter) : [];
+    const overdueTasks = showOverdue ? plan.overdue.filter(matchFilter) : [];
+    const order: BucketKey[] = ['morning', 'noon', 'evening', 'night', 'unset'];
+    const bLabels: Record<BucketKey, string> = bn
+      ? { morning: 'সকাল', noon: 'দুপুর', evening: 'বিকাল', night: 'সন্ধ্যা', unset: 'সময় নির্ধারিত নয়' }
+      : { morning: 'Morning', noon: 'Afternoon', evening: 'Evening', night: 'Night', unset: 'No time set' };
+    const groups = order
+      .map(k => ({ key: k, label: bLabels[k], items: dayTasks.filter(t => bucketKey(t) === k).sort((a, b) => timeStr(a).localeCompare(timeStr(b))) }))
+      .filter(g => g.items.length);
+    return { overdueTasks, groups };
+  }, [plan, focusFilter, bn]);
+
+  const renderInboxRow = useCallback(({ item }: { item: DailyPlan['inbox'][number] }) => (
+    <PlanningInboxRow task={item} busy={busyId === item.id} anyBusy={Boolean(busyId)} styles={styles} colors={colors} accents={accents} bn={bn} planLabel={labels.plan} thumbUri={thumbs.get(item.id)} onPlan={planTask} />
+  ), [busyId, styles, colors, accents, bn, labels.plan, thumbs, planTask]);
 
   const todayKey = useMemo(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }, []);
   const isToday = plan?.date === todayKey;
@@ -138,30 +165,19 @@ export default function PlanningScreen() {
         </Pressable>
       ) : null}
 
-      {plan ? (() => {
-        const seen = new Set<string>();
-        const matchFilter = (t: DailyPlan['scheduled'][number]) => {
-          if (focusFilter === 'high') return t.priority === 'HIGH' || t.priority === 'URGENT';
-          return true;
-        };
-        const dayTasks = [...plan.scheduled, ...plan.inProgress].filter(t => (seen.has(t.id) ? false : (seen.add(t.id), true))).filter(matchFilter);
-        const overdueTasks = plan.overdue.filter(matchFilter);
-        const order: BucketKey[] = ['morning', 'noon', 'evening', 'night', 'unset'];
-        const bLabels: Record<BucketKey, string> = bn
-          ? { morning: 'সকাল', noon: 'দুপুর', evening: 'বিকাল', night: 'সন্ধ্যা', unset: 'সময় নির্ধারিত নয়' }
-          : { morning: 'Morning', noon: 'Afternoon', evening: 'Evening', night: 'Night', unset: 'No time set' };
-        const groups = order
-          .map(k => ({ key: k, label: bLabels[k], items: dayTasks.filter(t => bucketKey(t) === k).sort((a, b) => timeStr(a).localeCompare(timeStr(b))) }))
-          .filter(g => g.items.length);
-        return (
+      {plan && daySections ? (
         <FlatList
           data={plan.inbox}
           keyExtractor={item => item.id}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          removeClippedSubviews
           ListHeaderComponent={
             <>
-              {overdueTasks.length ? <TimelineGroup label={labels.overdue} items={overdueTasks} accent={accents.red} styles={styles} colors={colors} accents={accents} language={language} /> : null}
-              {groups.map(g => <TimelineGroup key={g.key} label={g.label} items={g.items} styles={styles} colors={colors} accents={accents} language={language} />)}
-              {!overdueTasks.length && !groups.length ? <View style={styles.section}><Text style={styles.emptyDay}>{bn ? 'আজকের জন্য নির্ধারিত কোনো টাস্ক নেই।' : 'Nothing scheduled for this day.'}</Text></View> : null}
+              {daySections.overdueTasks.length ? <TimelineGroup label={labels.overdue} items={daySections.overdueTasks} accent={accents.red} styles={styles} colors={colors} accents={accents} language={language} /> : null}
+              {daySections.groups.map(g => <TimelineGroup key={g.key} label={g.label} items={g.items} styles={styles} colors={colors} accents={accents} language={language} />)}
+              {!daySections.overdueTasks.length && !daySections.groups.length ? <View style={styles.section}><Text style={styles.emptyDay}>{bn ? 'আজকের জন্য নির্ধারিত কোনো টাস্ক নেই।' : 'Nothing scheduled for this day.'}</Text></View> : null}
               <View style={styles.inboxSection}>
                 <LinearGradient colors={[`${colors.background}00`, colors.background]} style={styles.inboxFade} pointerEvents="none" />
                 <View style={styles.inboxHeaderRow}>
@@ -178,30 +194,33 @@ export default function PlanningScreen() {
           }
           ListEmptyComponent={<AppState title={labels.empty} icon="inbox" />}
           contentContainerStyle={styles.list}
-          renderItem={({ item }) => {
-            const tone = accents[priorityAccentName(item.priority)];
-            return (
-              <AppCard style={styles.row}>
-                <View style={[styles.priorityBar, { backgroundColor: tone.base }]} />
-                <RowLeading thumbUri={thumbs.get(item.id)} icon="inbox-arrow-down-outline" tone="orange" size={38} />
-                <Link href={{ pathname: '/task-detail', params: { id: item.id } }} asChild>
-                  <Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'টাস্ক খুলুন' : 'Open task'} ${item.title}`} style={({ pressed }) => StyleSheet.flatten([styles.body, pressed && styles.pressed])}>
-                    <Text numberOfLines={3} style={styles.task}>{item.title}</Text>
-                    <Text style={[styles.meta, { color: tone.on }]}>{priorityLabel(item.priority, bn)}</Text>
-                  </Pressable>
-                </Link>
-                <Pressable disabled={Boolean(busyId)} onPress={() => void planTask(item.id)} style={({ pressed }) => StyleSheet.flatten([styles.planButton, busyId && styles.disabled, pressed && styles.pressed])} accessibilityRole="button" accessibilityState={{ busy: busyId === item.id, disabled: Boolean(busyId) }} accessibilityLabel={`${labels.plan} ${item.title}`}>
-                  {busyId === item.id ? <ActivityIndicator color={colors.onPrimary} /> : <><AppIcon name="calendar-check-outline" size={icon.sm} color={colors.onPrimary} /><Text style={styles.planText}>{labels.plan}</Text></>}
-                </Pressable>
-              </AppCard>
-            );
-          }}
+          renderItem={renderInboxRow}
         />
-        );
-      })() : null}
+      ) : null}
     </View>
   );
 }
+
+const PlanningInboxRow = memo(function PlanningInboxRow({ task, busy, anyBusy, styles, colors, accents, bn, planLabel, thumbUri, onPlan }: {
+  task: DailyPlan['inbox'][number]; busy: boolean; anyBusy: boolean; styles: ReturnType<typeof makeStyles>; colors: ThemeColors; accents: ThemeAccents; bn: boolean; planLabel: string; thumbUri?: string; onPlan: (id: string) => void;
+}) {
+  const tone = accents[priorityAccentName(task.priority)];
+  return (
+    <AppCard style={styles.row}>
+      <View style={[styles.priorityBar, { backgroundColor: tone.base }]} />
+      <RowLeading thumbUri={thumbUri} icon="inbox-arrow-down-outline" tone="orange" size={38} />
+      <Link href={{ pathname: '/task-detail', params: { id: task.id } }} asChild>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'টাস্ক খুলুন' : 'Open task'} ${task.title}`} style={({ pressed }) => StyleSheet.flatten([styles.body, pressed && styles.pressed])}>
+          <Text numberOfLines={3} style={styles.task}>{task.title}</Text>
+          <Text style={[styles.meta, { color: tone.on }]}>{priorityLabel(task.priority, bn)}</Text>
+        </Pressable>
+      </Link>
+      <Pressable disabled={anyBusy} onPress={() => void onPlan(task.id)} style={({ pressed }) => StyleSheet.flatten([styles.planButton, anyBusy && styles.disabled, pressed && styles.pressed])} accessibilityRole="button" accessibilityState={{ busy, disabled: anyBusy }} accessibilityLabel={`${planLabel} ${task.title}`}>
+        {busy ? <ActivityIndicator color={colors.onPrimary} /> : <><AppIcon name="calendar-check-outline" size={icon.sm} color={colors.onPrimary} /><Text style={styles.planText}>{planLabel}</Text></>}
+      </Pressable>
+    </AppCard>
+  );
+});
 
 function SummaryPill({ label, count, tone, styles }: { label: string; count: number; tone: AccentRole; styles: ReturnType<typeof makeStyles> }) {
   return (
@@ -221,10 +240,10 @@ function bucketKey(task: DailyPlan['scheduled'][number]): BucketKey {
 }
 function timeStr(task: DailyPlan['scheduled'][number]): string {
   if (!task.dueAt) return '—';
-  try { return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(task.dueAt)); } catch { return '—'; }
+  try { return new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Dhaka', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(task.dueAt)); } catch { return '—'; }
 }
 
-function TimelineGroup({ label, items, accent, styles, colors, accents, language }: { label: string; items: DailyPlan['scheduled']; accent?: AccentRole; styles: ReturnType<typeof makeStyles>; colors: ThemeColors; accents: ThemeAccents; language: 'bn' | 'en' }) {
+const TimelineGroup = memo(function TimelineGroup({ label, items, accent, styles, colors, accents, language }: { label: string; items: DailyPlan['scheduled']; accent?: AccentRole; styles: ReturnType<typeof makeStyles>; colors: ThemeColors; accents: ThemeAccents; language: 'bn' | 'en' }) {
   const bn = language === 'bn';
   return (
     <View style={styles.section}>
@@ -235,7 +254,7 @@ function TimelineGroup({ label, items, accent, styles, colors, accents, language
           <Link key={task.id} href={{ pathname: '/task-detail', params: { id: task.id } }} asChild>
             <Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'টাস্ক খুলুন' : 'Open task'} ${task.title}`} style={({ pressed }) => StyleSheet.flatten([styles.tlRow, pressed && styles.pressed])}>
               <View style={styles.tlLeft}>
-                <Text style={styles.tlTime}>{timeStr(task)}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit style={styles.tlTime}>{timeStr(task)}</Text>
                 <View style={styles.tlLine}><View style={[styles.tlDot, { backgroundColor: tone.base, borderColor: tone.soft }]} /></View>
               </View>
               <View style={styles.tlCard}>
@@ -249,7 +268,7 @@ function TimelineGroup({ label, items, accent, styles, colors, accents, language
       })}
     </View>
   );
-}
+});
 
 function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
   return StyleSheet.create({
@@ -283,8 +302,8 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     groupLabel: { color: colors.textSecondary, ...typography.caption, fontFamily: typography.label.fontFamily, letterSpacing: 0.6, marginTop: spacing.sm, marginBottom: spacing.xs },
     emptyDay: { color: colors.textMuted, ...typography.bodySmall, textAlign: 'center', paddingVertical: spacing.md },
     tlRow: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm, marginBottom: spacing.xs },
-    tlLeft: { width: 52, alignItems: 'center' },
-    tlTime: { color: colors.textSecondary, ...typography.section, fontFamily: typography.numeric.fontFamily, marginBottom: spacing.xxs },
+    tlLeft: { width: 64, alignItems: 'center' },
+    tlTime: { color: colors.textSecondary, ...typography.section, fontFamily: typography.numeric.fontFamily, marginBottom: spacing.xxs, textAlign: 'center' },
     tlLine: { flex: 1, width: 2, backgroundColor: colors.border, alignItems: 'center' },
     tlDot: { width: 12, height: 12, borderRadius: radius.pill, borderWidth: 3 },
     tlCard: { flex: 1, minWidth: 0, backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.smd, justifyContent: 'center', ...elevation.soft },

@@ -13,8 +13,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const assets = resolve(root, 'assets');
 mkdirSync(assets, { recursive: true });
 
-const EMERALD_DARK = '#0B7A55';
-const EMERALD_LITE = '#12A574';
+// Design system v5 "Sapphire & Gold" — deep ocean-navy → sapphire, with a gold spark.
+const SAPPHIRE_DARK = '#153E7A';
+const SAPPHIRE_LITE = '#2E68CF';
 const GOLD = '#F2C879';
 const WHITE = '#FFFFFF';
 
@@ -48,8 +49,8 @@ function buildSvg(mode) {
     parts.push(`
       <defs>
         <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="${EMERALD_DARK}" />
-          <stop offset="1" stop-color="${EMERALD_LITE}" />
+          <stop offset="0" stop-color="${SAPPHIRE_DARK}" />
+          <stop offset="1" stop-color="${SAPPHIRE_LITE}" />
         </linearGradient>
         <radialGradient id="sheen" cx="0.32" cy="0.28" r="0.9">
           <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.16" />
@@ -85,7 +86,7 @@ function buildSvg(mode) {
       ${spark(690, 668, 92, { waist: 0.1, fill: '#FFFFFF' })}
     `);
   } else if (mode === 'splash') {
-    // Transparent mark shown centred on the emerald splash background.
+    // Transparent mark shown centred on the sapphire splash background.
     parts.push(`
       ${spark(512, 512, 300, { waist: 0.11 })}
       ${spark(742, 300, 108, { waist: 0.1, fill: GOLD })}

@@ -84,6 +84,26 @@ function actionForIntent(
       if (!resolved.memoryQuery) return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_QUERY') };
       return { status: 'READY', action: { type: 'SEARCH_MEMORY', query: resolved.memoryQuery } };
 
+    case 'ANSWER_QUESTION': {
+      const question = entities.question?.trim();
+      let keywords = entities.keywords ?? [];
+      // A terse follow-up ("আর ভিসারটা?") carries too few words to retrieve on its own —
+      // fold in the previous question's topic so the attribute (e.g. "মেয়াদ") is kept.
+      if (keywords.length < 3 && context.lastKeywords?.length) {
+        keywords = [...new Set([...keywords, ...context.lastKeywords])].slice(0, 6);
+      }
+      if (!question || keywords.length === 0) {
+        return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_QUESTION') };
+      }
+      return { status: 'READY', action: { type: 'ANSWER_QUESTION', question, keywords } };
+    }
+
+    case 'HELP':
+      return { status: 'READY', action: { type: 'SHOW_HELP' } };
+
+    case 'SMALL_TALK':
+      return { status: 'READY', action: { type: 'SMALL_TALK', text: entities.question ?? '' } };
+
     case 'UNKNOWN':
     default:
       return { status: 'UNSUPPORTED', action: clarifyAction('UNKNOWN_INTENT') };

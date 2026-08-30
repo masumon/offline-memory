@@ -13,9 +13,10 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useAppPreferences } from '../app/AppPreferences';
 
 // Branded hand-off. The native splash (emerald + spark) holds until this mounts, then
-// the app logo settles in the centre as a live "3D" element — a soft pulsing halo, a
-// gentle perspective parallax (it tips a few degrees each way), and a slow breathing
-// scale. Around it a field of coloured stars drifts up / down / left / right on its own
+// the app logo settles in the centre as a live "3D" element — concentric ripple rings
+// breathe outward from it (a calm sonar/water-drop pulse), plus a gentle perspective
+// parallax (it tips a few degrees each way) and a slow breathing scale. Around it a
+// field of coloured stars drifts up / down / left / right on its own
 // Lissajous paths, each one twinkling (glow + scale) and slowly turning on a separate
 // clock, so nothing pulses in unison. Below, the "POWERED BY ABO ENTERPRISE" credit is
 // typed out letter by letter with a soft fade-and-rise, then holds still. The emerald
@@ -26,14 +27,47 @@ import { useAppPreferences } from '../app/AppPreferences';
 // Dismissal is driven by a plain timer, so the splash can never get stuck if a render
 // interrupts the cover fade.
 
-const BRAND = '#0B7A55';
-const LOGO = require('../../assets/icon.png');
+const BRAND = '#124E78';
+// The mark is the bare spark on the brand colour — no rounded-square icon tile behind
+// it (that tile is near the background colour and just reads as a faint box).
+const LOGO = require('../../assets/spark-lg.png');
+const LOGO_GOLD = require('../../assets/spark-gold.png');
 const STAR = require('../../assets/spark-lg.png');
 const CREDIT = 'POWERED BY ABO ENTERPRISE';
 const HOLD_MS = 10000;
 const FADE_MS = 520;
 const TYPE_START_MS = 720;
 const TYPE_STEP_MS = 62;
+
+// Concentric rings that expand out of the logo and fade — three of them, evenly phased,
+// so one is always mid-flight. Replaces the old solid halo disc with a lighter,
+// more "premium" wave. Reduce-motion shows them frozen as a still ring set.
+const RIPPLE_MS = 3000;
+const RIPPLES = [0, 1, 2, 3] as const;
+
+function Ripple({ index, reduceMotion }: { index: number; reduceMotion: boolean }) {
+  const enter = useSharedValue(reduceMotion ? 1 : 0);
+  const p = useSharedValue(reduceMotion ? 0.22 + index * 0.24 : 0);
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    enter.value = withTiming(1, { duration: 560, easing: Easing.out(Easing.quad) });
+    p.value = withDelay(
+      200 + index * (RIPPLE_MS / RIPPLES.length),
+      withRepeat(withTiming(1, { duration: RIPPLE_MS, easing: Easing.out(Easing.cubic) }), -1, false),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fade in over the first ~18% of the travel, then ebb to nothing — so a ring never
+  // pops in at the centre or clips out at the edge.
+  const style = useAnimatedStyle(() => ({
+    opacity: enter.value * Math.min(1, p.value * 5.5) * (1 - p.value) * 0.7,
+    transform: [{ scale: 0.34 + p.value * 1.5 }],
+  }));
+
+  return <Animated.View pointerEvents="none" style={[styles.ripple, style]} />;
+}
 
 // Coloured stars scattered around the logo. x/y are the rest position from screen
 // centre; rx/ry the drift amplitude; px/py the drift periods (kept unequal so the path
@@ -42,9 +76,9 @@ const TYPE_STEP_MS = 62;
 const STARS = [
   { color: '#8CF5D8', size: 32, x: -128, y: -168, rx: 20, ry: 26, px: 2200, py: 2900, tw: 900, spin: 16000, delay: 0 },
   { color: '#FFC94D', size: 52, x: 122, y: -132, rx: 26, ry: 18, px: 2700, py: 2100, tw: 1150, spin: -12000, delay: 160 },
-  { color: '#FFFFFF', size: 24, x: 158, y: 54, rx: 22, ry: 26, px: 3100, py: 2500, tw: 760, spin: 21000, delay: 340 },
+  { color: '#F4D48A', size: 24, x: 158, y: 54, rx: 22, ry: 26, px: 3100, py: 2500, tw: 760, spin: 21000, delay: 340 },
   { color: '#B49CFF', size: 38, x: -150, y: 78, rx: 28, ry: 22, px: 2500, py: 3300, tw: 1020, spin: -18000, delay: 240 },
-  { color: '#FF9EC4', size: 28, x: -34, y: 192, rx: 24, ry: 18, px: 2900, py: 2300, tw: 880, spin: 15000, delay: 520 },
+  { color: '#8FB6F2', size: 28, x: -34, y: 192, rx: 24, ry: 18, px: 2900, py: 2300, tw: 880, spin: 15000, delay: 520 },
   { color: '#5EEAD4', size: 22, x: 58, y: -204, rx: 18, ry: 22, px: 2000, py: 2700, tw: 700, spin: -23000, delay: 620 },
   { color: '#FFE08A', size: 26, x: 176, y: 182, rx: 22, ry: 24, px: 2650, py: 3050, tw: 960, spin: 17000, delay: 300 },
   { color: '#7CC4FF', size: 20, x: -186, y: -40, rx: 20, ry: 26, px: 2350, py: 2850, tw: 820, spin: -20000, delay: 440 },
@@ -122,8 +156,6 @@ export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
   const logoTiltX = useSharedValue(0);
   const logoTiltY = useSharedValue(0);
   const logoBreathe = useSharedValue(1);
-  const haloPulse = useSharedValue(0.5);
-  const haloSpin = useSharedValue(0);
 
   const creditIn = useSharedValue(reduceMotion ? 1 : 0);
   const caret = useSharedValue(reduceMotion ? 0 : 1);
@@ -144,8 +176,6 @@ export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
     logoTiltY.value = withDelay(360, drift(9, 2400));
     logoTiltX.value = withDelay(360, drift(5, 3000));
     logoBreathe.value = withDelay(360, pulse(0.97, 1.05, 1500));
-    haloPulse.value = pulse(0.4, 0.78, 1300);
-    haloSpin.value = withRepeat(withTiming(360, { duration: 14000, easing: Easing.linear }), -1, false);
 
     creditIn.value = withDelay(560, withTiming(1, { duration: 420, easing: Easing.out(Easing.quad) }));
     caret.value = withDelay(560, withRepeat(withSequence(withTiming(0.15, { duration: 420 }), withTiming(1, { duration: 420 })), -1, true));
@@ -180,10 +210,6 @@ export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
       { scale: (0.6 + logoIn.value * 0.4) * logoBreathe.value },
     ],
   }));
-  const haloStyle = useAnimatedStyle(() => ({
-    opacity: logoIn.value * haloPulse.value * 0.5,
-    transform: [{ scale: 1 + haloPulse.value * 0.35 }, { rotate: `${haloSpin.value}deg` }],
-  }));
   const creditStyle = useAnimatedStyle(() => ({
     opacity: creditIn.value,
     transform: [{ translateY: (1 - creditIn.value) * 8 }, { scale: 0.92 + creditIn.value * 0.08 }],
@@ -196,8 +222,11 @@ export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
         {STARS.map((cfg) => <Star key={cfg.color + cfg.x} cfg={cfg} reduceMotion={reduceMotion} />)}
       </View>
       <View style={styles.stage}>
-        <Animated.View style={[styles.halo, haloStyle]} />
-        <Animated.Image source={LOGO} resizeMode="contain" style={[styles.logo, logoStyle]} />
+        {RIPPLES.map((i) => <Ripple key={i} index={i} reduceMotion={reduceMotion} />)}
+        <Animated.View style={[styles.mark, logoStyle]}>
+          <Animated.Image source={LOGO} resizeMode="contain" style={styles.logo} />
+          <Animated.Image source={LOGO_GOLD} resizeMode="contain" style={styles.logoGold} />
+        </Animated.View>
       </View>
       <Animated.View style={[styles.credit, creditStyle]}>
         <Animated.Text style={styles.creditText}>
@@ -212,9 +241,11 @@ export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
 const styles = StyleSheet.create({
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: BRAND, alignItems: 'center', justifyContent: 'center', zIndex: 999 },
   starField: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  stage: { width: 260, height: 200, alignItems: 'center', justifyContent: 'center' },
-  halo: { position: 'absolute', width: 190, height: 190, borderRadius: 95, backgroundColor: '#8CF5D8' },
-  logo: { width: 132, height: 132, borderRadius: 30 },
+  stage: { width: 260, height: 260, alignItems: 'center', justifyContent: 'center' },
+  ripple: { position: 'absolute', width: 172, height: 172, borderRadius: 86, borderWidth: 2, borderColor: '#8CF5D8' },
+  mark: { width: 150, height: 150, alignItems: 'center', justifyContent: 'center' },
+  logo: { width: 150, height: 150, tintColor: '#FFFFFF' },
+  logoGold: { position: 'absolute', right: 0, bottom: 8, width: 62, height: 62 },
   credit: { position: 'absolute', bottom: 78, flexDirection: 'row', alignItems: 'center', minHeight: 20 },
   creditText: { color: '#FFFFFF', fontSize: 15, letterSpacing: 2.6, fontWeight: '800' },
   caret: { width: 2.5, height: 16, marginLeft: 4, backgroundColor: '#8CF5D8' },

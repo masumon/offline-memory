@@ -19,7 +19,17 @@ export async function runNotificationScheduler(
       const m = row?.value.match(/^(\d{1,2}):(\d{1,2})$/u);
       if (m) quietHours = { start: Number(m[1]), end: Number(m[2]) };
     } catch { /* quiet hours are optional */ }
-    const candidates = await getNotificationCandidates(db, now, horizonMinutes);
+    // What the OS still has queued — lets the candidate query re-schedule reminders a
+    // battery optimiser or Doze silently dropped. Undefined = keep plain behaviour.
+    let liveScheduledKeys: ReadonlySet<string> | undefined;
+    try {
+      liveScheduledKeys = notificationAdapter.getLiveScheduledKeys
+        ? await notificationAdapter.getLiveScheduledKeys()
+        : undefined;
+    } catch {
+      liveScheduledKeys = undefined;
+    }
+    const candidates = await getNotificationCandidates(db, now, horizonMinutes, { liveScheduledKeys });
     let scheduled = 0;
     for (const candidate of candidates) {
       try {

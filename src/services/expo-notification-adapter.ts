@@ -26,6 +26,10 @@ export function applyQuietHours(due: Date, quiet?: QuietHours | null): Date {
   if (quiet.start >= quiet.end && h >= quiet.start) shifted.setDate(shifted.getDate() + 1); // crossed midnight
   return shifted.getTime() <= Date.now() ? due : shifted;
 }
+/** `taskId:dueAt` keys the OS still has scheduled — for the scheduler to detect and
+ * re-add reminders that a battery optimiser / Doze silently dropped. */
+export async function getLiveScheduledKeys():Promise<ReadonlySet<string>>{const scheduled=await Notifications.getAllScheduledNotificationsAsync();const keys=new Set<string>();for(const notification of scheduled){const{taskId,dueAt}=notificationData(notification);if(taskId&&dueAt)keys.add(`${taskId}:${dueAt}`);}return keys;}
+
 export async function reconcileScheduledTaskNotifications(db:SQLiteDatabase,now=new Date()):Promise<number>{const scheduled=await Notifications.getAllScheduledNotificationsAsync();let cancelled=0;const seen=new Set<string>();for(const notification of scheduled){const{taskId,dueAt}=notificationData(notification);if(!taskId||!dueAt)continue;
  // Collapse duplicate OS reminders for the same task+time regardless of delivered-state
  // (older builds could double-schedule; this is the only pass that isn't delivery-gated).

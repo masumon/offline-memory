@@ -5,6 +5,9 @@ export type NlpIntent =
   | 'RESCHEDULE_TASK'
   | 'CREATE_MEMORY'
   | 'SEARCH_MEMORY'
+  | 'ANSWER_QUESTION'
+  | 'HELP'
+  | 'SMALL_TALK'
   | 'UNKNOWN';
 
 export interface DateEntity {
@@ -25,6 +28,10 @@ export interface NlpEntities {
   taskText?: string;
   memoryText?: string;
   query?: string;
+  /** The full natural-language question, kept verbatim for the retrieval + answer pipeline. */
+  question?: string;
+  /** Salient content words pulled from the input (interrogatives / stop-words removed). */
+  keywords?: string[];
   date?: DateEntity;
   time?: TimeEntity;
   /** Priority inferred from urgency keywords ("urgent", "জরুরি", "!!!"). */

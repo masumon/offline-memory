@@ -85,8 +85,31 @@ export async function smokeTest(modelPath: string, contextLength: number | null)
 
 let liveCtx: { path: string; ctx: LlamaContext } | null = null;
 
+export interface GenerateOptions {
+  maxTokens?: number;
+  temperature?: number;
+  stop?: string[];
+  /** Abort the wait (the native call may keep running, but we stop blocking on it). */
+  signal?: AbortSignal;
+}
+
+const HARD_TOKEN_CAP = 512;
+
+/** Free the warm context and its memory. Safe to call when nothing is loaded. */
+export async function releaseLlama(): Promise<void> {
+  const current = liveCtx;
+  liveCtx = null;
+  try { await current?.ctx.release(); } catch { /* noop */ }
+}
+
 /** Free-form generation for the pluggable AiEngine. Keeps one context warm per model. */
-export async function generateWith(modelPath: string, contextLength: number | null, prompt: string, maxTokens: number): Promise<string> {
+export async function generateWith(
+  modelPath: string,
+  contextLength: number | null,
+  prompt: string,
+  options: GenerateOptions | number = {},
+): Promise<string> {
+  const opts: GenerateOptions = typeof options === 'number' ? { maxTokens: options } : options;
   const mod = loadModule();
   if (!mod) throw new Error(probeRuntime().reason);
   if (!liveCtx || liveCtx.path !== modelPath) {
@@ -96,6 +119,21 @@ export async function generateWith(modelPath: string, contextLength: number | nu
       ctx: await mod.initLlama({ model: modelPath, n_ctx: Math.min(contextLength ?? 4096, 4096), n_gpu_layers: 0 }),
     };
   }
-  const out = await liveCtx.ctx.completion({ prompt, n_predict: maxTokens, temperature: 0.4 });
+  const n_predict = Math.max(1, Math.min(opts.maxTokens ?? 256, HARD_TOKEN_CAP));
+  const run = liveCtx.ctx.completion({
+    prompt,
+    n_predict,
+    temperature: opts.temperature ?? 0.3,
+    stop: opts.stop,
+  });
+  const out = opts.signal
+    ? await Promise.race([
+        run,
+        new Promise<{ text: string }>((_, reject) => {
+          if (opts.signal!.aborted) reject(new Error('aborted'));
+          opts.signal!.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        }),
+      ])
+    : await run;
   return (out.text ?? '').trim();
 }

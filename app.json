@@ -3,11 +3,11 @@
     "name": "Offline Memory",
     "slug": "offline-memory",
     "version": "0.1.0",
-    "orientation": "default",
+    "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "offlinememory",
     "icon": "./assets/icon.png",
-    "backgroundColor": "#0B7A55",
+    "backgroundColor": "#124E78",
     "android": {
       "package": "com.masumon.offlinememory",
       "permissions": [
@@ -19,7 +19,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/monochrome-icon.png",
-        "backgroundColor": "#0B7A55"
+        "backgroundColor": "#2456C9"
       }
     },
     "web": {
@@ -36,13 +36,13 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#0B7A55"
+          "backgroundColor": "#124E78"
         }
       ],
       [
         "expo-notifications",
         {
-          "color": "#0B7A55",
+          "color": "#2456C9",
           "defaultChannel": "task-reminders"
         }
       ],

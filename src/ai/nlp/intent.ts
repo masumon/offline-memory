@@ -31,7 +31,40 @@ function isEnglishImperativeTask(text: string): boolean {
   return first.length > 1 && fuzzyIncludes(first, EN_SINGLEWORD_VERBS);
 }
 
+// Interrogative markers (bilingual). A trailing "?" alone is enough. Bengali markers
+// use a letter/combining-mark boundary so "কে" does not fire inside "…কে" (an object
+// marker) and "কী" is not caught inside a longer word.
+const QUESTION_MARKERS =
+  /(?<![\p{L}\p{M}])(?:কত|কতো|কবে|কখন|কোথায়|কোনখানে|কয়|কয়টা|কতটা|কতগুলো|কোনটা|কেন|কী)(?![\p{L}\p{M}])|(?<![\p{L}\p{M}])(?:কে|কাকে|কার)\s|\b(?:what|whats|what's|when|where|who|whom|whose|which|why|how\s+(?:many|much|old|long|far|often))\b|[?？]\s*$/u;
+
+// Phrasings that are commands even when they contain an interrogative word.
+const NOT_A_QUESTION =
+  /(?:করতে|কিনতে|যেতে|আনতে|নিতে|দিতে|পাঠাতে|লিখতে|জমা\s*দিতে)\s*(?:হবে|লাগবে)|(?<![\p{L}\p{M}])(?:মনে\s*রাখ|টুকে\s*রাখ|সেভ\s*কর|লিখে\s*রাখ|নোট\s*কর)|\b(?:add|create|remind\s+me\s+to|remember|save|note\s+down|make\s+a\s+task)\b/u;
+
+function looksLikeQuestion(text: string): boolean {
+  return QUESTION_MARKERS.test(text) && !NOT_A_QUESTION.test(text);
+}
+
 const RULES: IntentRule[] = [
+  {
+    intent: 'HELP',
+    confidence: 0.9,
+    patterns: [
+      /\b(help me|what can you do|what do you do|how (do|can) i use|how to use|your (features|capabilities)|show (me )?(help|guide)|list (your )?(features|commands))\b/u,
+      /^help\s*$/u,
+      /(সাহায্য|হেল্প|কী কী (করতে )?পার(ো|েন)?|কি কি (করতে )?পার(ো|েন)?|কীভাবে ব্যবহার|কিভাবে ব্যবহার|তুমি কী কর(তে পার)?|তুমি কি কর(তে পার)?|গাইড|নির্দেশনা|ফিচার(গুলো)? (কী|কি|দেখাও)|কী কী করা যায়|অ্যাপ(টা|টি)? (কী|কি) (কাজ কর|করে)|সব ফিচার)/u,
+    ],
+  },
+  {
+    intent: 'SMALL_TALK',
+    confidence: 0.88,
+    patterns: [
+      /^(hi|hii+|hey|hello|helloo+|yo|salam|assalam(u)? ?alaikum|good (morning|afternoon|evening|night)|thanks|thank you|thx|ty|ok(ay)?|cool|nice|great)\b[\s!.]*$/u,
+      /\b(how are you|who are you|what('| i)s your name|are you (a )?(bot|ai|robot)|tumi ke)\b/u,
+      /^(হ্যালো|হাই+|হেই|আসসালামু ?আলাইকুম|সালাম|আদাব|শুভ (সকাল|দুপুর|বিকাল|সন্ধ্যা|রাত্রি|রাত)|ধন্যবাদ|থ্যাংক(স| ইউ)|থ্যাঙ্কস|ঠিক আছে|আচ্ছা|ওকে|বাহ|দারুণ|চমৎকার)[\s!।.]*$/u,
+      /(কেমন আছ(ো|েন)?|তুমি কে|তোমার নাম কি|তোমার নাম কী|তুমি কি (রোবট|বট|এআই| ?ai))/u,
+    ],
+  },
   {
     intent: 'COMPLETE_TASK',
     confidence: 0.96,
@@ -120,6 +153,12 @@ export function classifyIntent(text: string): { intent: NlpIntent; confidence: n
     if (rule.patterns.some((pattern) => pattern.test(normalized))) {
       return { intent: rule.intent, confidence: rule.confidence };
     }
+  }
+
+  // A question the assistant should answer from stored memories/tasks. Checked after
+  // the explicit action rules so "…খুঁজে দাও" still routes to SEARCH_MEMORY.
+  if (looksLikeQuestion(normalized)) {
+    return { intent: 'ANSWER_QUESTION', confidence: 0.8 };
   }
 
   // Fallback: a plain English imperative ("call the supplier tomorrow at 9am").

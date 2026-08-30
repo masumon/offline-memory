@@ -1,5 +1,6 @@
 import type { DateEntity, NlpEntities, NlpIntent, NlpPriority, TimeEntity } from './types';
 import { PRIORITY_KEYWORDS, TAG_HINTS } from './lexicon';
+import { extractKeywords } from './keywords';
 
 const WEEKDAYS: Record<string, number> = {
   sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
@@ -157,7 +158,14 @@ export function extractEntities(text: string, intent: NlpIntent, now = new Date(
       .trim();
     return { taskText: taskText || undefined, date, time, priority: extractPriority(text), tags: extractTags(text) };
   }
-  if (intent === 'CREATE_MEMORY') return { memoryText: content || undefined, tags: extractTags(text) };
-  if (intent === 'SEARCH_MEMORY') return { query: content || undefined };
+  if (intent === 'CREATE_MEMORY') return { memoryText: content || undefined, keywords: extractKeywords(content || text), tags: extractTags(text) };
+  if (intent === 'SEARCH_MEMORY') return { query: content || undefined, keywords: extractKeywords(content || text) };
+  if (intent === 'ANSWER_QUESTION') {
+    const question = text.trim();
+    return { question: question || undefined, keywords: extractKeywords(text), date, time };
+  }
+  if (intent === 'HELP' || intent === 'SMALL_TALK') {
+    return { question: text.trim() || undefined };
+  }
   return { date, time };
 }

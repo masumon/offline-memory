@@ -11,7 +11,7 @@ import { listLinkedTasks } from '../src/services/relation-service';
 import type { Task } from '../src/types/task-model';
 import { formatBangladeshDateTime } from '../src/i18n/date-time';
 import { localizeMemoryKind } from '../src/i18n/domain-labels';
-import { border, control, icon, layout, opacity, radius, spacing, typography, memoryKindAccentName, type ThemeAccents, type ThemeColors } from '../src/theme';
+import { border, control, icon, layout, opacity, radius, spacing, typography, memoryKindAccentName, memoryKindIcon, type ThemeAccents, type ThemeColors } from '../src/theme';
 
 function ts(v: string | null | undefined, language: 'bn' | 'en'): string | null { if (!v) return null; try { return formatBangladeshDateTime(v, language); } catch { return v; } }
 
@@ -55,7 +55,7 @@ export default function MemoryDetailScreen() {
   if (!loaded) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   if (!memory) return (
     <View style={styles.center}>
-      <View style={styles.notFoundIcon}><AppIcon name="brain" size={icon.xl} color={colors.warning} /></View>
+      <View style={styles.notFoundIcon}><AppIcon name="bookmark-off-outline" size={icon.xl} color={colors.warning} /></View>
       <Text style={styles.notFoundText}>{c.notFound}</Text>
       <Link href="/memory" asChild><Pressable accessibilityRole="button" style={({ pressed }) => StyleSheet.flatten([styles.secondary, pressed && styles.pressed])}><Text style={styles.secondaryText}>{c.back}</Text></Pressable></Link>
     </View>
@@ -74,7 +74,7 @@ export default function MemoryDetailScreen() {
         </View>
 
         <View style={styles.headRow}>
-          <View style={[styles.kindIcon, { backgroundColor: tone.soft }]}><AppIcon name="brain" size={icon.lg} color={tone.on} /></View>
+          <View style={[styles.kindIcon, { backgroundColor: tone.soft }]}><AppIcon name={memoryKindIcon(memory.kind)} size={icon.lg} color={tone.on} /></View>
           <View style={styles.headCopy}>
             <Text style={styles.badge}>{c.badge}</Text>
             <View style={styles.kindLine}>

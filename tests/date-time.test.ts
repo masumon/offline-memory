@@ -15,11 +15,14 @@ describe('Bangladesh date and time formatting', () => {
     expect(result).toContain('August');
   });
 
-  it('keeps date-time and time formatting deterministic for both languages', () => {
-    expect(formatBangladeshDateTime(value, 'bn')).toContain('২১');
-    expect(formatBangladeshDateTime(value, 'en')).toContain('21');
-    expect(formatBangladeshTime(value, 'bn')).toContain('২১');
-    expect(formatBangladeshTime(value, 'en')).toContain('21');
+  it('shows Bangladesh clock time in 12-hour AM/PM form for both languages', () => {
+    // 15:30 UTC → 21:30 Asia/Dhaka → 9:30 PM
+    expect(formatBangladeshTime(value, 'en')).toMatch(/9[:.]30/);
+    expect(formatBangladeshTime(value, 'en')).toMatch(/PM/i);
+    expect(formatBangladeshDateTime(value, 'en')).toMatch(/9[:.]30/);
+    expect(formatBangladeshDateTime(value, 'en')).toMatch(/PM/i);
+    expect(formatBangladeshTime(value, 'bn')).toMatch(/৯[:.]৩০|9[:.]30/);
+    expect(formatBangladeshTime(value, 'bn')).not.toMatch(/২১[:.]/);
   });
 
   it('uses the Bangladesh calendar day for relative dates', () => {
@@ -30,6 +33,8 @@ describe('Bangladesh date and time formatting', () => {
   });
 
   it('formats clock time in Asia/Dhaka independently of device timezone', () => {
-    expect(formatBangladeshTime('2026-08-26T18:00:00.000Z', 'en')).toMatch(/00:00/);
+    // 18:00 UTC → 00:00 Asia/Dhaka → 12:00 AM
+    expect(formatBangladeshTime('2026-08-26T18:00:00.000Z', 'en')).toMatch(/12[:.]00/);
+    expect(formatBangladeshTime('2026-08-26T18:00:00.000Z', 'en')).toMatch(/AM/i);
   });
 });

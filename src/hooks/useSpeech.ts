@@ -11,8 +11,24 @@ import {
 // result, so it works even when an offline language pack is not installed and it can
 // still pick up the odd word in another language. TTS uses the OS voices. Everything
 // degrades gracefully when the recogniser is unavailable.
+//
+// Long-utterance handling: Android's recogniser often emits several `isFinal` chunks
+// for one sentence (it finalises each time you pause). We accumulate every finalised
+// chunk plus the live interim, and only hand the *whole* transcript to the caller when
+// the session ends — so "half the sentence" can no longer be lost.
 
 type SpeechError = 'no-speech' | 'unavailable' | 'permission' | null;
+
+function joinTranscript(base: string, next: string): string {
+  const a = base.trim();
+  const b = next.trim();
+  if (!b) return a;
+  if (!a) return b;
+  // The recogniser sometimes re-sends the running transcript as a "final" chunk.
+  if (a === b || a.endsWith(b)) return a;
+  if (b.startsWith(a)) return b;
+  return `${a} ${b}`;
+}
 
 export function useSpeech(language: 'bn' | 'en') {
   const locale = language === 'bn' ? 'bn-BD' : 'en-US';
@@ -23,8 +39,14 @@ export function useSpeech(language: 'bn' | 'en') {
     try { return ExpoSpeechRecognitionModule.isRecognitionAvailable?.() ?? true; } catch { return false; }
   });
   const onFinalRef = useRef<((text: string) => void) | null>(null);
-  const lastTextRef = useRef('');
+  const finalizedRef = useRef('');
+  const interimRef = useRef('');
   const deliveredRef = useRef(false);
+
+  const runningTranscript = useCallback(
+    () => joinTranscript(finalizedRef.current, interimRef.current),
+    [],
+  );
 
   const deliver = useCallback((text: string) => {
     const clean = text.trim();
@@ -35,28 +57,36 @@ export function useSpeech(language: 'bn' | 'en') {
 
   useSpeechRecognitionEvent('result', (e) => {
     const text = e.results?.[0]?.transcript ?? '';
-    if (text) lastTextRef.current = text;
-    if (e.isFinal) { deliver(text); setPartial(''); }
-    else setPartial(text);
+    if (e.isFinal) {
+      // Fold this finalised chunk into the accumulator; keep listening for more.
+      finalizedRef.current = joinTranscript(finalizedRef.current, text);
+      interimRef.current = '';
+      setPartial(finalizedRef.current);
+    } else if (text) {
+      interimRef.current = text;
+      setPartial(joinTranscript(finalizedRef.current, text));
+    }
   });
   useSpeechRecognitionEvent('end', () => {
     setListening(false);
+    const full = runningTranscript();
     setPartial('');
-    // If the engine stopped without a "final" event but we heard something, use it.
-    if (lastTextRef.current.trim()) deliver(lastTextRef.current);
+    if (full.trim()) deliver(full);
     else if (!deliveredRef.current) setLastError('no-speech');
   });
   useSpeechRecognitionEvent('error', (e) => {
     setListening(false);
     setPartial('');
-    if (lastTextRef.current.trim()) { deliver(lastTextRef.current); return; }
+    const full = runningTranscript();
+    if (full.trim()) { deliver(full); return; }
     const code = (e as { error?: string })?.error ?? '';
     setLastError(code === 'no-speech' || code === 'no-match' || code === 'speech-timeout' ? 'no-speech' : 'unavailable');
   });
 
   const startListening = useCallback(async (onFinal: (text: string) => void) => {
     onFinalRef.current = onFinal;
-    lastTextRef.current = '';
+    finalizedRef.current = '';
+    interimRef.current = '';
     deliveredRef.current = false;
     setLastError(null);
     try {
@@ -74,9 +104,10 @@ export function useSpeech(language: 'bn' | 'en') {
         addsPunctuation: true,
         androidIntentOptions: {
           EXTRA_LANGUAGE_MODEL: 'free_form',
-          EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: 9000,
-          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 2200,
-          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 1800,
+          EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: 12000,
+          // Give a spoken sentence room to breathe — do not cut off on a short pause.
+          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 3500,
+          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 2600,
         },
       });
       return true;

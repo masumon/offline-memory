@@ -23,9 +23,11 @@ export function updateContext(
   entities: NlpEntities,
   previous: OrchestrationContext = {},
 ): OrchestrationContext {
+  const keywords = entities.keywords?.length ? entities.keywords : previous.lastKeywords;
   return {
     lastTaskText: entities.taskText ?? previous.lastTaskText,
     lastMemoryQuery: entities.query ?? previous.lastMemoryQuery,
     lastIntent: intent === 'UNKNOWN' ? previous.lastIntent : intent,
+    lastKeywords: keywords,
   };
 }

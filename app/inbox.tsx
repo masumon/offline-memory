@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { planInboxTasks } from '../src/services/planning-service';
 import { useTaskStore } from '../src/store/task.store';
@@ -20,6 +20,7 @@ function capturedLabel(iso: string, language: 'bn' | 'en'): string { try { retur
 
 export default function InboxScreen() {
   const db = useSQLiteContext();
+  const router = useRouter();
   const { colors, accents, language } = useAppPreferences();
   const bn = language === 'bn';
   const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
@@ -44,9 +45,9 @@ export default function InboxScreen() {
     return () => { alive = false; };
   }, [db, inboxIdKey]);
 
-  const c = bn
+  const c = useMemo(() => (bn
     ? { eyebrow: 'দ্রুত লেখা', title: 'ইনবক্স', subtitle: 'তাড়াহুড়োয় যা লিখে রেখেছেন, কিন্তু এখনও গুছিয়ে নেননি।', banner: (n: number) => `${n}টি জিনিস গোছানোর অপেক্ষায়`, clear: 'ইনবক্স খালি', clearText: 'মাথায় যা আসে সাথে সাথে এখানে লিখে রাখুন — যেমন “বসকে কল করতে হবে”, “নতুন একটা আইডিয়া”, “ওষুধ কিনতে হবে”। পরে একটা একটা করে কাজ বা মেমোরিতে সরিয়ে নিন।', captured: 'লেখা হয়েছে', toTask: 'কাজে নিন', toMemory: 'মনে রাখুন', later: 'পরে', del: 'মুছুন', processAll: (n: number) => `সব গুছিয়ে নিন (${n})`, retry: 'আবার চেষ্টা করুন', taskDone: 'আজকের পরিকল্পনায় যোগ হয়েছে', memDone: 'মেমোরিতে রাখা হয়েছে', laterDone: 'কালকের জন্য রাখা হয়েছে', failed: 'কাজটা হলো না', delTitle: 'এটি মুছবেন?', delDesc: 'একবার মুছলে আর ফেরানো যাবে না।', delOk: 'মুছুন', cancel: 'বাতিল', add: 'নতুন', howTitle: 'ইনবক্স কীভাবে কাজে লাগে', howBody: 'ব্যস্ত থাকলে শুধু এক লাইন লিখে রাখুন। হাতে সময় এলে প্রতিটিতে “কাজে নিন” (পরিকল্পনায় চলে যাবে), “মনে রাখুন” (মেমোরি হবে) বা “পরে” চাপুন।', examples: ['বসকে কল করতে হবে', 'নতুন একটা আইডিয়া', 'ওষুধ কিনতে হবে'] }
-    : { eyebrow: 'QUICK CAPTURE', title: 'Inbox', subtitle: 'Things you jotted down in a hurry but haven’t sorted yet.', banner: (n: number) => `${n} to sort out`, clear: 'Inbox is empty', clearText: 'Drop anything on your mind here as it comes up — like “call the boss”, “a new idea”, “buy medicine”. Sort each one into a task or a memory when you have a moment.', captured: 'Added', toTask: 'Make a task', toMemory: 'Keep as memory', later: 'Later', del: 'Delete', processAll: (n: number) => `Sort all (${n})`, retry: 'Retry', taskDone: 'Added to today’s plan', memDone: 'Kept as a memory', laterDone: 'Kept for tomorrow', failed: 'That didn’t work', delTitle: 'Delete this?', delDesc: 'Once it’s gone, it’s gone.', delOk: 'Delete', cancel: 'Cancel', add: 'New', howTitle: 'What the inbox is for', howBody: 'When you’re busy, just write one line. Later, on each item tap “Make a task” (it goes to your plan), “Keep as memory”, or “Later”.', examples: ['call the boss', 'a new idea', 'buy medicine'] };
+    : { eyebrow: 'QUICK CAPTURE', title: 'Inbox', subtitle: 'Things you jotted down in a hurry but haven’t sorted yet.', banner: (n: number) => `${n} to sort out`, clear: 'Inbox is empty', clearText: 'Drop anything on your mind here as it comes up — like “call the boss”, “a new idea”, “buy medicine”. Sort each one into a task or a memory when you have a moment.', captured: 'Added', toTask: 'Make a task', toMemory: 'Keep as memory', later: 'Later', del: 'Delete', processAll: (n: number) => `Sort all (${n})`, retry: 'Retry', taskDone: 'Added to today’s plan', memDone: 'Kept as a memory', laterDone: 'Kept for tomorrow', failed: 'That didn’t work', delTitle: 'Delete this?', delDesc: 'Once it’s gone, it’s gone.', delOk: 'Delete', cancel: 'Cancel', add: 'New', howTitle: 'What the inbox is for', howBody: 'When you’re busy, just write one line. Later, on each item tap “Make a task” (it goes to your plan), “Keep as memory”, or “Later”.', examples: ['call the boss', 'a new idea', 'buy medicine'] }), [bn]);
 
   useEffect(() => { if (!undo) return; const timer = setTimeout(() => setUndo(null), 6000); return () => clearTimeout(timer); }, [undo]);
   const runUndo = useCallback(async () => {
@@ -65,13 +66,17 @@ export default function InboxScreen() {
     finally { setBusyId(null); }
   }, [busyId, bulkBusy, load, db, showSnackbar, c.failed]);
 
-  const toTask = (t: Task) => run(t.id, () => planInboxTasks(db, [t.id]), c.taskDone, () => update(db, t.id, { status: 'INBOX', plannedDate: null, dueAt: null }));
-  const toLater = (t: Task) => run(t.id, () => planInboxTasks(db, [t.id], tomorrow()), c.laterDone, () => update(db, t.id, { status: 'INBOX', plannedDate: null, dueAt: null }));
-  const toMemory = (t: Task) => run(t.id, async () => { const m = await createMemory(db, { content: t.title }); if (!m) throw new Error('memory'); await remove(db, t.id); }, c.memDone, async () => {
+  const toTask = useCallback((t: Task) => run(t.id, () => planInboxTasks(db, [t.id]), c.taskDone, () => update(db, t.id, { status: 'INBOX', plannedDate: null, dueAt: null })), [run, db, c.taskDone, update]);
+  const toLater = useCallback((t: Task) => run(t.id, () => planInboxTasks(db, [t.id], tomorrow()), c.laterDone, () => update(db, t.id, { status: 'INBOX', plannedDate: null, dueAt: null })), [run, db, c.laterDone, update]);
+  const toMemory = useCallback((t: Task) => run(t.id, async () => { const m = await createMemory(db, { content: t.title }); if (!m) throw new Error('memory'); await remove(db, t.id); }, c.memDone, async () => {
     const memory = useMemoryStore.getState().memories.find(mm => mm.content === t.title);
     if (memory) await removeMemory(db, memory.id);
     return useTaskStore.getState().create(db, { title: t.title, priority: t.priority, notes: t.notes });
-  });
+  }), [run, db, c.memDone, createMemory, remove, removeMemory]);
+  const onDeleteRow = useCallback((t: Task) => setPendingDelete(t), []);
+  const renderRow = useCallback(({ item }: { item: Task }) => (
+    <InboxRow task={item} busy={busyId === item.id} styles={styles} colors={colors} accents={accents} language={language} bn={bn} c={c} thumbUri={thumbs.get(item.id)} onTask={toTask} onMemory={toMemory} onLater={toLater} onDelete={onDeleteRow} />
+  ), [busyId, styles, colors, accents, language, bn, c, thumbs, toTask, toMemory, toLater, onDeleteRow]);
   const doDelete = async () => {
     if (!pendingDelete) return;
     const id = pendingDelete.id; setPendingDelete(null); setBusyId(id);
@@ -122,6 +127,10 @@ export default function InboxScreen() {
         <FlatList
           data={inbox}
           keyExtractor={item => item.id}
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          removeClippedSubviews
           contentContainerStyle={inbox.length ? styles.list : styles.emptyList}
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={inbox.length ? (
@@ -136,47 +145,7 @@ export default function InboxScreen() {
               {bulkBusy ? <ActivityIndicator color={colors.onPrimary} /> : <><AppIcon name="checkbox-multiple-marked-outline" size={icon.sm} color={colors.onPrimary} /><Text style={styles.processAllText}>{c.processAll(inbox.length)}</Text></>}
             </Pressable>
           ) : null}
-          renderItem={({ item }) => {
-            const tone = accents[priorityAccentName(item.priority)];
-            const rowBusy = busyId === item.id;
-            return (
-              <View style={styles.card}>
-                <View style={[styles.priorityBar, { backgroundColor: tone.base }]} />
-                <View style={styles.cardBody}>
-                  <View style={styles.cardHeadRow}>
-                    <RowLeading thumbUri={thumbs.get(item.id)} icon="inbox-arrow-down-outline" tone="orange" size={40} />
-                    <Link href={{ pathname: '/task-detail', params: { id: item.id } }} asChild>
-                      <Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'খুলুন' : 'Open'}: ${item.title}`} style={({ pressed }) => StyleSheet.flatten([styles.cardTap, pressed && styles.pressed])}>
-                        <Text numberOfLines={3} style={styles.cardTitle}>{item.title}</Text>
-                        <Text style={styles.cardMeta}>{c.captured}: {capturedLabel(item.createdAt, language)}</Text>
-                      </Pressable>
-                    </Link>
-                  </View>
-                  {rowBusy ? (
-                    <View style={styles.actionRowBusy}><ActivityIndicator color={colors.primary} /></View>
-                  ) : (
-                    <View style={styles.actionRow}>
-                      <Pressable accessibilityRole="button" accessibilityLabel={`${c.toTask}: ${item.title}`} onPress={() => void toTask(item)} style={({ pressed }) => StyleSheet.flatten([styles.actBtn, styles.actPrimary, pressed && styles.pressed])}>
-                        <AppIcon name="calendar-check-outline" size={icon.xs} color={accents.green.on} />
-                        <Text style={[styles.actText, { color: accents.green.on }]}>{c.toTask}</Text>
-                      </Pressable>
-                      <Pressable accessibilityRole="button" accessibilityLabel={`${c.toMemory}: ${item.title}`} onPress={() => void toMemory(item)} style={({ pressed }) => StyleSheet.flatten([styles.actBtn, styles.actMemory, pressed && styles.pressed])}>
-                        <AppIcon name="brain" size={icon.xs} color={accents.purple.on} />
-                        <Text style={[styles.actText, { color: accents.purple.on }]}>{c.toMemory}</Text>
-                      </Pressable>
-                      <Pressable accessibilityRole="button" accessibilityLabel={`${c.later}: ${item.title}`} onPress={() => void toLater(item)} style={({ pressed }) => StyleSheet.flatten([styles.actBtn, pressed && styles.pressed])}>
-                        <AppIcon name="clock-outline" size={icon.xs} color={colors.textSecondary} />
-                        <Text style={[styles.actText, { color: colors.textSecondary }]}>{c.later}</Text>
-                      </Pressable>
-                      <Pressable accessibilityRole="button" accessibilityLabel={`${c.del}: ${item.title}`} onPress={() => setPendingDelete(item)} style={({ pressed }) => StyleSheet.flatten([styles.actIcon, pressed && styles.pressed])}>
-                        <AppIcon name="trash-can-outline" size={icon.sm} color={colors.danger} />
-                      </Pressable>
-                    </View>
-                  )}
-                </View>
-              </View>
-            );
-          }}
+          renderItem={renderRow}
         />
       )}
 
@@ -190,11 +159,14 @@ export default function InboxScreen() {
         </View>
       ) : null}
 
-      <Link href="/task-editor" asChild>
-        <Pressable accessibilityRole="button" accessibilityLabel={c.add} style={({ pressed }) => StyleSheet.flatten([styles.fab, pressed && styles.pressed])}>
-          <AppIcon name="plus" size={icon.lg} color={colors.onPrimary} />
-        </Pressable>
-      </Link>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={c.add}
+        onPress={() => router.push('/task-editor')}
+        style={({ pressed }) => StyleSheet.flatten([styles.fab, pressed && styles.pressed])}
+      >
+        <AppIcon name="plus" size={icon.lg} color={colors.onPrimary} />
+      </Pressable>
 
       <AppConfirmDialog
         visible={Boolean(pendingDelete)}
@@ -209,6 +181,52 @@ export default function InboxScreen() {
     </View>
   );
 }
+
+type InboxRowCopy = { captured: string; toTask: string; toMemory: string; later: string; del: string };
+
+const InboxRow = memo(function InboxRow({ task, busy, styles, colors, accents, language, bn, c, thumbUri, onTask, onMemory, onLater, onDelete }: {
+  task: Task; busy: boolean; styles: ReturnType<typeof makeStyles>; colors: ThemeColors; accents: ThemeAccents; language: 'bn' | 'en'; bn: boolean; c: InboxRowCopy; thumbUri?: string;
+  onTask: (t: Task) => void; onMemory: (t: Task) => void; onLater: (t: Task) => void; onDelete: (t: Task) => void;
+}) {
+  const tone = accents[priorityAccentName(task.priority)];
+  return (
+    <View style={styles.card}>
+      <View style={[styles.priorityBar, { backgroundColor: tone.base }]} />
+      <View style={styles.cardBody}>
+        <View style={styles.cardHeadRow}>
+          <RowLeading thumbUri={thumbUri} icon="inbox-arrow-down-outline" tone="orange" size={40} />
+          <Link href={{ pathname: '/task-detail', params: { id: task.id } }} asChild>
+            <Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'খুলুন' : 'Open'}: ${task.title}`} style={({ pressed }) => StyleSheet.flatten([styles.cardTap, pressed && styles.pressed])}>
+              <Text numberOfLines={3} style={styles.cardTitle}>{task.title}</Text>
+              <Text style={styles.cardMeta}>{c.captured}: {capturedLabel(task.createdAt, language)}</Text>
+            </Pressable>
+          </Link>
+        </View>
+        {busy ? (
+          <View style={styles.actionRowBusy}><ActivityIndicator color={colors.primary} /></View>
+        ) : (
+          <View style={styles.actionRow}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`${c.toTask}: ${task.title}`} onPress={() => void onTask(task)} style={({ pressed }) => StyleSheet.flatten([styles.actBtn, styles.actPrimary, pressed && styles.pressed])}>
+              <AppIcon name="calendar-check-outline" size={icon.xs} color={accents.green.on} />
+              <Text style={[styles.actText, { color: accents.green.on }]}>{c.toTask}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`${c.toMemory}: ${task.title}`} onPress={() => void onMemory(task)} style={({ pressed }) => StyleSheet.flatten([styles.actBtn, styles.actMemory, pressed && styles.pressed])}>
+              <AppIcon name="bookmark-plus-outline" size={icon.xs} color={accents.purple.on} />
+              <Text style={[styles.actText, { color: accents.purple.on }]}>{c.toMemory}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`${c.later}: ${task.title}`} onPress={() => void onLater(task)} style={({ pressed }) => StyleSheet.flatten([styles.actBtn, pressed && styles.pressed])}>
+              <AppIcon name="clock-outline" size={icon.xs} color={colors.textSecondary} />
+              <Text style={[styles.actText, { color: colors.textSecondary }]}>{c.later}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`${c.del}: ${task.title}`} onPress={() => onDelete(task)} style={({ pressed }) => StyleSheet.flatten([styles.actIcon, pressed && styles.pressed])}>
+              <AppIcon name="trash-can-outline" size={icon.sm} color={colors.danger} />
+            </Pressable>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+});
 
 function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
   return StyleSheet.create({
@@ -250,7 +268,7 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     actIcon: { minHeight: layout.minTouchTarget, minWidth: layout.minTouchTarget, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
     processAll: { minHeight: control.buttonHeight, marginTop: spacing.smd, borderRadius: radius.md, backgroundColor: accents.purple.base, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, ...elevation.raised },
     processAllText: { color: colors.onPrimary, ...typography.callout, fontFamily: typography.label.fontFamily },
-    fab: { position: 'absolute', right: spacing.lg, bottom: layout.compactNavHeight + spacing.xxl, width: 56, height: 56, borderRadius: radius.xl, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...elevation.floating },
+    fab: { position: 'absolute', right: spacing.lg, bottom: layout.compactNavHeight + spacing.xxl, width: 58, height: 58, borderRadius: 29, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...elevation.floating },
     undoBar: { position: 'absolute', left: spacing.lg, right: spacing.lg + 56 + spacing.sm, bottom: layout.compactNavHeight + spacing.xxl, minHeight: control.buttonHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, ...elevation.floating },
     undoText: { flex: 1, minWidth: 0, color: colors.textPrimary, ...typography.caption, fontWeight: '700' },
     undoBtn: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingHorizontal: spacing.smd, borderRadius: radius.md, backgroundColor: colors.primary },

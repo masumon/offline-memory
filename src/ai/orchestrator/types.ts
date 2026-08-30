@@ -31,6 +31,18 @@ export type OrchestratedAction =
       query: string;
     }
   | {
+      type: 'ANSWER_QUESTION';
+      question: string;
+      keywords: string[];
+    }
+  | {
+      type: 'SHOW_HELP';
+    }
+  | {
+      type: 'SMALL_TALK';
+      text: string;
+    }
+  | {
       type: 'CLARIFY';
       reason:
         | 'UNKNOWN_INTENT'
@@ -38,6 +50,7 @@ export type OrchestratedAction =
         | 'MISSING_TASK_REFERENCE'
         | 'MISSING_MEMORY_TEXT'
         | 'MISSING_QUERY'
+        | 'MISSING_QUESTION'
         | 'MISSING_SCHEDULE';
     };
 

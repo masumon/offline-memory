@@ -9,6 +9,7 @@ export * from './normalize';
 export * from './intent';
 export * from './entities';
 export * from './lexicon';
+export * from './keywords';
 
 export function parseLocalNlp(input: string, now = new Date()): NlpResult {
   const normalizedText = normalizeText(input);
