@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Linking, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from './AppText';
 import Animated, { Easing, FadeInDown, LinearTransition, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -15,7 +16,8 @@ import { getStreak } from '../services/streak-service';
 import { editTask } from '../services/task-service';
 import { useSpeech } from '../hooks/useSpeech';
 import { AppIcon, type IconName } from '../ui/AppIcon';
-import { AppState } from '../ui/AppSurface';
+import { AppSkeletonList, AppState } from '../ui/AppSurface';
+import { success as hapticSuccess, tapLight } from '../ui/haptics';
 import { RowLeading } from '../ui/RowLeading';
 import { HeroMascot } from '../ui/HeroMascot';
 import { loadImageThumbs } from '../services/attachment-thumbs';
@@ -26,6 +28,9 @@ import { border, control, elevation, gradients, icon, layout, radius, spacing, t
 import type { Task } from '../types/task-model';
 
 const dateKey = (date: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka' }).format(date);
+// The Asia/Dhaka calendar day of an ISO timestamp — NOT `iso.slice(0,10)`, which is the
+// UTC day and misfiles anything due between 00:00 and 05:59 local.
+const dayKeyOf = (iso: string | null | undefined) => (iso ? dateKey(new Date(iso)) : null);
 const pad = (value: number) => String(value).padStart(2, '0');
 const clockLabel = (minutes: number) => { const h = Math.floor(minutes / 60); const h12 = h % 12 || 12; return `${h12}:${pad(minutes % 60)} ${h < 12 ? 'AM' : 'PM'}`; };
 
@@ -126,11 +131,22 @@ export default function HomeScreen() {
     ? (voiceBase ? voiceBase + ' ' : '') + voicePartial
     : title;
 
-  const refreshSmarts = useMemo(() => async () => {
+  const refreshSmarts = useCallback(async () => {
     try { setSuggestions(await getSuggestions(db, new Date(), language)); } catch { setSuggestions([]); }
     try { setFrequent(await topFrequentTasks(db, 4)); } catch { setFrequent([]); }
     try { setStreak(await getStreak(db)); } catch { setStreak(0); }
   }, [db, language]);
+
+  // Swipe-down anywhere on the list re-pulls tasks, memories, subtask progress and the
+  // learned "smarts" — the same work the screen does on mount.
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([load(db), loadMemories(db), loadSubtaskProgress(db)]);
+      await refreshSmarts();
+    } finally { setRefreshing(false); }
+  }, [db, load, loadMemories, loadSubtaskProgress, refreshSmarts]);
 
   useEffect(() => {
     void load(db);
@@ -178,12 +194,12 @@ export default function HomeScreen() {
   const active = useMemo(() => tasks.filter(task => !['COMPLETED', 'ARCHIVED', 'CANCELLED'].includes(task.status)), [tasks]);
   const focus = useMemo(() => ({
     overdue: active.filter(task => task.dueAt && new Date(task.dueAt).getTime() < today.getTime()).length,
-    dueToday: active.filter(task => task.dueAt?.slice(0, 10) === todayKey || task.plannedDate === todayKey).length,
+    dueToday: active.filter(task => dayKeyOf(task.dueAt) === todayKey || task.plannedDate === todayKey).length,
     highPriority: active.filter(task => task.priority === 'HIGH' || task.priority === 'URGENT').length,
   }), [active, today, todayKey]);
   const todayTasks = useMemo(() => active.filter(task => {
     const overdue = Boolean(task.dueAt && new Date(task.dueAt).getTime() < today.getTime());
-    return overdue || task.dueAt?.slice(0, 10) === todayKey || task.plannedDate === todayKey || task.status === 'IN_PROGRESS';
+    return overdue || dayKeyOf(task.dueAt) === todayKey || task.plannedDate === todayKey || task.status === 'IN_PROGRESS';
   }).slice(0, 5), [active, today, todayKey]);
   const inboxCount = useMemo(() => tasks.filter(t => t.status === 'INBOX').length, [tasks]);
   const [thumbs, setThumbs] = useState<Map<string, string>>(() => new Map());
@@ -196,8 +212,8 @@ export default function HomeScreen() {
     return () => { alive = false; };
   }, [db, todayTaskIdKey]);
   const progress = useMemo(() => {
-    const isToday = (task: Task) => task.dueAt?.slice(0, 10) === todayKey || task.plannedDate === todayKey;
-    const doneToday = tasks.filter(t => t.status === 'COMPLETED' && (t.completedAt?.slice(0, 10) === todayKey || isToday(t))).length;
+    const isToday = (task: Task) => dayKeyOf(task.dueAt) === todayKey || task.plannedDate === todayKey;
+    const doneToday = tasks.filter(t => t.status === 'COMPLETED' && (dayKeyOf(t.completedAt) === todayKey || isToday(t))).length;
     const plannedToday = active.filter(isToday).length + doneToday;
     return { done: doneToday, total: plannedToday, pct: plannedToday ? Math.round((doneToday / plannedToday) * 100) : 0 };
   }, [tasks, active, todayKey]);
@@ -208,12 +224,15 @@ export default function HomeScreen() {
   const heroBlock = useMemo(() => (
     <LinearGradient colors={gradients.heroBrand} locations={[0, 0.42, 0.72, 1]} start={{ x: 0.05, y: 0 }} end={{ x: 0.95, y: 1 }} style={styles.hero}>
       <LinearGradient colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0)']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 0.7 }} style={StyleSheet.absoluteFill} pointerEvents="none" />
-      <View style={styles.heroMascotSlot} pointerEvents="none"><HeroMascot /></View>
+      <View style={styles.heroMascotSlot} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden><HeroMascot /></View>
       <View style={styles.headerTop}>
         <View style={styles.headerCopy}>
           <Text style={styles.greeting}>{greeting}</Text>
           <Text style={styles.date}>{formatBangladeshWeekdayDate(today, language)}</Text>
         </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'সার্চ' : 'Search'} onPress={() => router.push('/search')} style={({ pressed }) => StyleSheet.flatten([styles.heroBell, pressed && styles.pressed])}>
+          <AppIcon name="magnify" size={icon.md} color={colors.onPrimary} />
+        </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'রিমাইন্ডার' : 'Reminders'} onPress={() => router.push('/reminders')} style={({ pressed }) => StyleSheet.flatten([styles.heroBell, pressed && styles.pressed])}>
           <AppIcon name="bell-outline" size={icon.md} color={colors.onPrimary} />
         </Pressable>
@@ -222,7 +241,7 @@ export default function HomeScreen() {
         <AppIcon name="shield-check-outline" size={icon.sm} color={colors.onPrimary} />
         <Text style={styles.heroBadgeText}>{copy.offline}</Text>
       </View>
-      <Text style={styles.heroPurpose}>{bn ? 'এক লাইনে লিখুন বা বলুন — অ্যাপ বুঝে টাস্ক বা মেমোরি বানায়, সময় হলে মনে করায়। সব এই ফোনেই।' : 'Type or say one line — the app turns it into a task or a memory and reminds you. All on this phone.'}</Text>
+      <Text style={styles.heroPurpose}>{bn ? 'এক লাইনে লিখুন বা বলুন — বাকিটা অ্যাপ বোঝে।' : 'Write or say one line — the app does the rest.'}</Text>
     </LinearGradient>
   ), [greeting, today, language, bn, styles, colors, copy]);
 
@@ -231,10 +250,10 @@ export default function HomeScreen() {
     setCreating(true);
     try {
       if (plan.kind === 'memory') {
-        if (await createMemory(db, { content: plan.title, tags: plan.tags })) { void recordIntentChoice(db, plan.title, 'MEMORY'); setTitle(''); }
+        if (await createMemory(db, { content: plan.title, tags: plan.tags })) { hapticSuccess(); void recordIntentChoice(db, plan.title, 'MEMORY'); setTitle(''); }
       } else {
         const created = await create(db, { title: plan.title, plannedDate: plan.plannedDate, dueAt: plan.dueAt, priority: plan.priority ?? undefined });
-        if (created) { void recordIntentChoice(db, plan.title, 'TASK'); setTitle(''); void refreshSmarts(); }
+        if (created) { hapticSuccess(); void recordIntentChoice(db, plan.title, 'TASK'); setTitle(''); void refreshSmarts(); }
       }
     } finally { setCreating(false); }
   };
@@ -256,6 +275,7 @@ export default function HomeScreen() {
   };
 
   const runSuggestion = async (s: Suggestion) => {
+    tapLight();
     setSuggestions(prev => prev.filter(x => x.id !== s.id));
     const a = s.action;
     try {
@@ -274,7 +294,7 @@ export default function HomeScreen() {
   const handleComplete = useCallback(async (id: string) => {
     if (completingId) return;
     setCompletingId(id);
-    try { await complete(db, id); } finally { setCompletingId(null); }
+    try { await complete(db, id); hapticSuccess(); } finally { setCompletingId(null); }
   }, [completingId, complete, db]);
   const openTask = useCallback((id: string) => router.push({ pathname: '/task-detail', params: { id } }), []);
   const renderTask = useCallback(({ item }: { item: Task }) => (
@@ -304,6 +324,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} progressBackgroundColor={colors.surface} />}
         ListHeaderComponent={
           <>
             {heroBlock}
@@ -311,7 +332,7 @@ export default function HomeScreen() {
             <View style={styles.capture}>
               <View style={styles.captureLabelRow}>
                 <AppIcon name="lightning-bolt-outline" size={icon.sm} color={colors.primary} />
-                <Text style={styles.captureLabel}>{copy.placeholder}</Text>
+                <Text style={styles.captureLabel}>{bn ? 'এক লাইনে লিখুন বা বলুন' : 'Write or say one line'}</Text>
               </View>
               <View style={styles.composer}>
                 <View style={styles.inputWrap}>
@@ -380,12 +401,12 @@ export default function HomeScreen() {
                     {plan.kind === 'task' ? (
                       <Pressable disabled={creating} accessibilityRole="button" accessibilityLabel={bn ? 'বরং মেমোরি হিসেবে রাখুন' : 'Keep as a memory instead'} onPress={() => void saveMemory()} style={({ pressed }) => StyleSheet.flatten([styles.altBtn, { borderColor: accents.purple.border, backgroundColor: accents.purple.soft }, pressed && styles.pressed])}>
                         <AppIcon name="bookmark-plus-outline" size={icon.xs} color={accents.purple.on} />
-                        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.altText, { color: accents.purple.on }]}>{bn ? 'মেমোরিতে বদলান' : 'Make it a memory'}</Text>
+                        <Text numberOfLines={2} style={[styles.altText, { color: accents.purple.on }]}>{bn ? 'মেমোরিতে বদলান' : 'Make it a memory'}</Text>
                       </Pressable>
                     ) : (
                       <Pressable disabled={creating} accessibilityRole="button" accessibilityLabel={bn ? 'বরং টাস্ক হিসেবে রাখুন' : 'Keep as a task instead'} onPress={() => void switchPlanToTask()} style={({ pressed }) => StyleSheet.flatten([styles.altBtn, { borderColor: accents.green.border, backgroundColor: accents.green.soft }, pressed && styles.pressed])}>
                         <AppIcon name="clipboard-check-outline" size={icon.xs} color={accents.green.on} />
-                        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.altText, { color: accents.green.on }]}>{bn ? 'টাস্কে বদলান' : 'Make it a task'}</Text>
+                        <Text numberOfLines={2} style={[styles.altText, { color: accents.green.on }]}>{bn ? 'টাস্কে বদলান' : 'Make it a task'}</Text>
                       </Pressable>
                     )}
                     <Pressable disabled={creating} accessibilityRole="button" accessibilityLabel={bn ? 'এডিট করুন' : 'Edit'} onPress={editPlan} style={({ pressed }) => StyleSheet.flatten([styles.ghostBtn, pressed && styles.pressed])}>
@@ -440,7 +461,14 @@ export default function HomeScreen() {
                   <Text style={styles.progressCount}>{progress.done}/{progress.total || 0}</Text>
                 </View>
               </View>
-              <View style={styles.progressTrack}><Animated.View layout={anim(LinearTransition.duration(400))} style={[styles.progressFill, { width: `${progress.total ? progress.pct : 0}%` }]} /></View>
+              <View
+                style={styles.progressTrack}
+                accessibilityRole="progressbar"
+                accessibilityLabel={bn ? 'আজকের অগ্রগতি' : "Today's progress"}
+                accessibilityValue={{ min: 0, max: progress.total || 0, now: progress.done, text: `${progress.done} / ${progress.total || 0}` }}
+              >
+                <Animated.View layout={anim(LinearTransition.duration(400))} style={[styles.progressFill, { width: `${progress.total ? progress.pct : 0}%` }]} />
+              </View>
               <Text style={styles.psychText}>
                 {progress.total === 0
                   ? (bn ? 'আজকের জন্য কিছু যোগ করুন — উপরের বক্সে লিখুন।' : 'Add something for today — use the box above.')
@@ -456,7 +484,7 @@ export default function HomeScreen() {
                 <Text style={styles.suggestText}>{s.message}</Text>
                 <View style={styles.suggestActions}>
                   <Pressable accessibilityRole="button" accessibilityLabel={s.actionLabel} onPress={() => void runSuggestion(s)} style={({ pressed }) => StyleSheet.flatten([styles.suggestGo, pressed && styles.pressed])}>
-                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.suggestGoText}>{s.actionLabel}</Text>
+                    <Text numberOfLines={2} style={styles.suggestGoText}>{s.actionLabel}</Text>
                   </Pressable>
                   <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'বাতিল' : 'Dismiss'} onPress={() => dismissSuggestion(s)} hitSlop={8} style={({ pressed }) => StyleSheet.flatten([styles.suggestX, pressed && styles.pressed])}>
                     <AppIcon name="close" size={icon.sm} color={colors.textMuted} />
@@ -465,12 +493,20 @@ export default function HomeScreen() {
               </Animated.View>
             ))}
 
-            <SectionHeader title={copy.tasks} action={copy.view} onPress={() => router.push('/planning')} styles={styles} colors={colors} />
+            <SectionHeader title={copy.tasks} action={todayTasks.length || active.length ? copy.view : undefined} onPress={todayTasks.length || active.length ? () => router.push('/planning') : undefined} styles={styles} colors={colors} />
             {todayTasks.length ? <Text style={styles.sectionHint}>{copy.tasksHint}</Text> : null}
           </>
         }
         renderItem={renderTask}
-        ListEmptyComponent={isLoading ? <AppState loading title={copy.loadTasks} /> : <AppState icon="white-balance-sunny" title={copy.emptyTask} description={copy.emptyTaskHint} />}
+        ListEmptyComponent={isLoading
+          ? <AppSkeletonList rows={4} />
+          : <AppState
+              icon="white-balance-sunny"
+              title={copy.emptyTask}
+              description={copy.emptyTaskHint}
+              actionLabel={tasks.length ? undefined : (bn ? 'ডেমো ডেটা দিয়ে দেখুন' : 'Explore with demo data')}
+              onAction={tasks.length ? undefined : () => router.push('/diagnostics')}
+            />}
         ListFooterComponent={
           <>
             <View style={styles.moreWrap}>
@@ -533,14 +569,16 @@ export default function HomeScreen() {
   );
 }
 
-function SectionHeader({ title, action, onPress, styles, colors }: { title: string; action: string; onPress: () => void; styles: ReturnType<typeof makeStyles>; colors: ThemeColors }) {
+function SectionHeader({ title, action, onPress, styles, colors }: { title: string; action?: string; onPress?: () => void; styles: ReturnType<typeof makeStyles>; colors: ThemeColors }) {
   return (
     <View style={styles.sectionHeader}>
       <Text numberOfLines={1} style={styles.sectionTitle}>{title}</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel={action} onPress={onPress} hitSlop={8} style={({ pressed }) => StyleSheet.flatten([styles.textAction, pressed && styles.pressed])}>
-        <Text style={styles.textActionText}>{action}</Text>
-        <AppIcon name="chevron-right" size={icon.sm} color={colors.primary} />
-      </Pressable>
+      {action && onPress ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={action} onPress={onPress} hitSlop={8} style={({ pressed }) => StyleSheet.flatten([styles.textAction, pressed && styles.pressed])}>
+          <Text style={styles.textActionText}>{action}</Text>
+          <AppIcon name="chevron-right" size={icon.sm} color={colors.primary} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -643,15 +681,15 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     heroBell: { width: control.iconButtonSize, height: control.iconButtonSize, borderRadius: radius.md, borderWidth: border.thin, borderColor: 'rgba(255,255,255,0.28)', backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
     heroBadge: { alignSelf: 'flex-start', marginTop: spacing.smd, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderColor: 'rgba(255,255,255,0.28)', borderWidth: border.thin, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.16)', paddingHorizontal: spacing.smd, paddingVertical: spacing.xs },
     heroBadgeText: { color: colors.onPrimary, ...typography.caption, fontWeight: '800' },
-    heroPurpose: { color: 'rgba(255,255,255,0.92)', ...typography.caption, lineHeight: 18, marginTop: spacing.sm, maxWidth: '52%' },
+    heroPurpose: { color: 'rgba(255,255,255,0.92)', ...typography.caption, lineHeight: 18, marginTop: spacing.sm, maxWidth: '74%' },
     capture: { borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.xl, backgroundColor: colors.surface, padding: spacing.md, marginBottom: spacing.sm, ...elevation.raised },
     captureLabelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
-    captureLabel: { color: colors.textSecondary, ...typography.label, fontWeight: '900', letterSpacing: 0.6 },
+    captureLabel: { color: colors.textSecondary, ...typography.label, fontWeight: '700', letterSpacing: 0.6 },
     composer: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
     inputWrap: { flex: 1, minWidth: 0, position: 'relative' },
     input: { minWidth: 0, minHeight: control.inputHeight, maxHeight: 132, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surfaceMuted, color: colors.textPrimary, paddingHorizontal: spacing.md, paddingTop: spacing.smd, paddingBottom: spacing.smd, ...typography.body, textAlignVertical: 'top' },
     voiceTag: { position: 'absolute', top: spacing.xs, right: spacing.xs, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border },
-    voiceTagText: { color: colors.danger, ...typography.caption, fontWeight: '900' },
+    voiceTagText: { color: colors.danger, ...typography.caption, fontWeight: '700' },
     micBtnActive: { backgroundColor: colors.danger, borderColor: colors.danger },
     voiceNote: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.sm, paddingHorizontal: spacing.smd, paddingVertical: spacing.xs, borderRadius: radius.md, borderWidth: border.thin, borderColor: accents.orange.border, backgroundColor: accents.orange.soft },
     voiceNoteText: { flex: 1, minWidth: 0, color: accents.orange.on, ...typography.caption, fontWeight: '700' },
@@ -659,9 +697,9 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     micBtn: { width: control.iconButtonSize, height: control.iconButtonSize, borderRadius: radius.lg, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
     understand: { marginTop: spacing.md, borderWidth: border.thin, borderColor: accents.green.border, borderRadius: radius.lg, backgroundColor: accents.green.soft, padding: spacing.md },
     understandHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
-    understandTitle: { color: accents.green.on, ...typography.cardTitle, fontWeight: '900' },
+    understandTitle: { color: accents.green.on, ...typography.cardTitle, fontWeight: '700' },
     understandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
-    understandRowLabel: { color: accents.green.on, ...typography.caption, fontWeight: '900', minWidth: 56 },
+    understandRowLabel: { color: accents.green.on, ...typography.caption, fontWeight: '700', minWidth: 56 },
     understandRowValue: { flex: 1, minWidth: 0, color: colors.textPrimary, ...typography.bodySmall, fontWeight: '700' },
     understandActions: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm, marginTop: spacing.sm },
     confirmBtn: { minHeight: control.buttonHeight, alignSelf: 'stretch', paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, marginTop: spacing.smd },
@@ -680,33 +718,33 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     toolBtn: { flex: 1, minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: radius.md, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface },
     toolText: { color: colors.primary, ...typography.caption, fontWeight: '800' },
     freqRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.md },
-    freqChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, maxWidth: 200, minHeight: 34, paddingHorizontal: spacing.smd, borderRadius: radius.pill, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
+    freqChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, maxWidth: 220, minHeight: layout.minTouchTarget - spacing.smd, paddingHorizontal: spacing.smd, borderRadius: radius.pill, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
     freqText: { flexShrink: 1, color: colors.textSecondary, ...typography.caption, fontWeight: '700' },
-    suggestCard: { marginTop: spacing.sm, borderWidth: border.thin, borderColor: accents.blue.border, borderRadius: radius.lg, backgroundColor: accents.blue.soft, padding: spacing.md, gap: spacing.sm },
-    suggestIcon: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.md, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+    suggestCard: { marginTop: spacing.sm, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface, padding: spacing.md, gap: spacing.sm, ...elevation.soft },
+    suggestIcon: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.md, backgroundColor: accents.blue.soft, alignItems: 'center', justifyContent: 'center' },
     suggestText: { color: colors.textPrimary, ...typography.bodySmall, fontWeight: '700' },
     suggestActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
     suggestGo: { flex: 1, minHeight: control.buttonHeight, paddingHorizontal: spacing.sm, borderRadius: radius.md, backgroundColor: accents.blue.base, alignItems: 'center', justifyContent: 'center' },
-    suggestGoText: { color: colors.onPrimary, ...typography.bodySmall, fontWeight: '900', textAlign: 'center' },
+    suggestGoText: { color: colors.onPrimary, ...typography.bodySmall, fontWeight: '700', textAlign: 'center' },
     suggestX: { width: 44, height: control.buttonHeight, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface },
     moreWrap: { marginTop: spacing.md, alignItems: 'center' },
     moreFade: { position: 'absolute', left: 0, right: 0, top: -spacing.xl, height: spacing.xl },
     moreToggle: { minHeight: control.buttonHeight, alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface, ...elevation.soft },
-    moreToggleText: { color: colors.primary, ...typography.bodySmall, fontWeight: '900', textAlign: 'center' },
+    moreToggleText: { color: colors.primary, ...typography.bodySmall, fontWeight: '700', textAlign: 'center' },
     understandHint: { color: accents.green.on, ...typography.caption, marginTop: spacing.sm, opacity: 0.9 },
     hintPreview: { marginTop: spacing.sm, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
     hintEyebrow: { color: colors.primary, ...typography.label, fontWeight: '800' },
     hintValue: { color: colors.textPrimary, ...typography.bodySmall, fontWeight: '700', marginTop: spacing.xxs },
     error: { color: colors.danger, ...typography.bodySmall, marginTop: spacing.md },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.lg, marginBottom: spacing.sm },
-    sectionTitle: { color: colors.textPrimary, ...typography.heading, fontWeight: '900', flexShrink: 1, flexGrow: 1 },
-    sectionHint: { color: colors.textMuted, ...typography.caption, lineHeight: 16, marginTop: -spacing.xxs, marginBottom: spacing.sm },
+    sectionTitle: { color: colors.textPrimary, ...typography.heading, fontWeight: '700', flexShrink: 1, flexGrow: 1 },
+    sectionHint: { color: colors.textMuted, ...typography.caption, marginTop: -spacing.xxs, marginBottom: spacing.sm },
     textAction: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingLeft: spacing.smd, paddingRight: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.primaryTint },
-    textActionText: { color: colors.primary, ...typography.bodySmall, fontWeight: '900' },
+    textActionText: { color: colors.primary, ...typography.bodySmall, fontWeight: '700' },
     focusGrid: { flexDirection: 'row', gap: spacing.sm },
     focusCard: { flex: 1, minHeight: control.rowMinHeight + spacing.lg, borderWidth: border.thin, borderRadius: radius.lg, padding: spacing.md },
     focusIcon: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-    focusValue: { ...typography.title, fontWeight: '900', marginTop: spacing.sm },
+    focusValue: { ...typography.title, fontWeight: '700', marginTop: spacing.sm },
     focusLabel: { ...typography.caption, fontWeight: '700', marginTop: spacing.xxs },
     taskRow: { minHeight: control.rowMinHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface, padding: spacing.sm, marginBottom: spacing.sm, ...elevation.card },
     checkbox: { width: control.iconButtonSize, height: control.iconButtonSize, borderRadius: radius.md, borderWidth: border.thin, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
@@ -721,16 +759,16 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     memoryIcon: { width: control.iconButtonSize, height: control.iconButtonSize, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
     memoryTitle: { flex: 1, minWidth: 0, color: colors.textPrimary, ...typography.bodySmall, fontWeight: '700' },
     quickRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
-    psychCard: { marginTop: spacing.xl, borderWidth: border.thin, borderColor: accents.green.border, borderRadius: radius.lg, backgroundColor: accents.green.soft, padding: spacing.md, gap: spacing.sm },
-    psychTitle: { flexShrink: 1, color: accents.green.on, ...typography.caption, fontFamily: typography.label.fontFamily },
+    psychCard: { marginTop: spacing.lg, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface, padding: spacing.md, gap: spacing.sm, ...elevation.soft },
+    psychTitle: { flexShrink: 1, color: colors.textSecondary, ...typography.caption, fontFamily: typography.label.fontFamily },
     psychRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
     psychText: { color: colors.textSecondary, ...typography.caption, lineHeight: 18 },
     progressHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     progressRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     streakChip: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: radius.pill, borderWidth: border.thin, borderColor: colors.accent, backgroundColor: accents.yellow.soft },
-    streakText: { color: colors.accent, ...typography.caption, fontFamily: typography.numeric.fontFamily, fontWeight: '900' },
-    progressCount: { color: accents.green.on, ...typography.cardTitle, fontFamily: typography.numeric.fontFamily },
-    progressTrack: { height: 8, borderRadius: radius.pill, backgroundColor: colors.surface, overflow: 'hidden' },
+    streakText: { color: colors.accent, ...typography.caption, fontFamily: typography.numeric.fontFamily, fontWeight: '700' },
+    progressCount: { color: colors.textPrimary, ...typography.cardTitle, fontFamily: typography.numeric.fontFamily },
+    progressTrack: { height: 8, borderRadius: radius.pill, backgroundColor: colors.surfaceMuted, overflow: 'hidden' },
     progressFill: { height: 8, borderRadius: radius.pill, backgroundColor: colors.primary },
     quickAction: { flex: 1, minHeight: control.rowMinHeight, borderWidth: border.thin, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingVertical: spacing.smd, paddingHorizontal: spacing.xs },
     quickLabel: { ...typography.caption, fontWeight: '800' },

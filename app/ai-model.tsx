@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '../src/ui/AppText';
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import * as Clipboard from 'expo-clipboard';
@@ -51,7 +52,7 @@ export default function AiModelScreen() {
     setPicking(true);
     setReport(null);
     try {
-      const m = await pickAndImportModel(db);
+      const m = await pickAndImportModel(db, language);
       if (m) { setModel(m); showSnackbar(bn ? 'মডেল যোগ হয়েছে — এবার যাচাই করুন।' : 'Model added — now verify it.', 'success'); }
     } catch (e) {
       const msg = e instanceof ModelImportError ? e.message : (bn ? 'যোগ করা গেল না।' : 'Could not add it.');
@@ -254,16 +255,16 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
     titleIcon: { width: 44, height: 44, borderRadius: radius.lg, backgroundColor: accents.purple.soft, alignItems: 'center', justifyContent: 'center' },
     titleCopy: { flex: 1, minWidth: 0 },
-    eyebrow: { color: colors.primary, ...typography.label, fontWeight: '900', letterSpacing: 0.8 },
-    title: { color: colors.textPrimary, ...typography.titleLarge, fontWeight: '900', marginTop: spacing.xxs },
+    eyebrow: { color: colors.primary, ...typography.label, fontWeight: '700', letterSpacing: 0.8 },
+    title: { color: colors.textPrimary, ...typography.titleLarge, fontWeight: '700', marginTop: spacing.xxs },
     intro: { color: colors.textSecondary, ...typography.bodySmall, lineHeight: 20, marginTop: spacing.sm },
     content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxl },
-    section: { color: colors.textMuted, ...typography.section, fontWeight: '900', letterSpacing: 1.1, marginTop: spacing.lg, marginBottom: spacing.sm },
+    section: { color: colors.textMuted, ...typography.section, fontWeight: '700', letterSpacing: 1.1, marginTop: spacing.lg, marginBottom: spacing.sm },
     card: { backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.md, ...elevation.soft, marginBottom: spacing.sm },
     modelHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     modelIcon: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: accents.blue.soft, alignItems: 'center', justifyContent: 'center' },
     modelCopy: { flex: 1, minWidth: 0 },
-    modelName: { color: colors.textPrimary, ...typography.body, fontWeight: '900' },
+    modelName: { color: colors.textPrimary, ...typography.body, fontWeight: '700' },
     modelMeta: { color: colors.textMuted, ...typography.caption, marginTop: spacing.xxs },
     specRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
     spec: { flex: 1, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.sm, paddingVertical: spacing.smd },
@@ -272,7 +273,7 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     actionRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
     primaryBtn: { flex: 1, minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: radius.md, backgroundColor: colors.primary, paddingHorizontal: spacing.md },
     primaryBtnWide: { marginTop: spacing.md },
-    primaryBtnText: { color: colors.onPrimary, ...typography.bodySmall, fontWeight: '900' },
+    primaryBtnText: { color: colors.onPrimary, ...typography.bodySmall, fontWeight: '700' },
     ghostBtn: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: radius.md, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: spacing.md },
     ghostBtnText: { color: colors.primary, ...typography.bodySmall, fontWeight: '800' },
     removeLink: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, marginTop: spacing.xs },
@@ -281,7 +282,7 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     disabled: { opacity: 0.5 },
     reportCard: { borderWidth: border.thin },
     reportHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
-    reportTitle: { ...typography.body, fontWeight: '900' },
+    reportTitle: { ...typography.body, fontWeight: '700' },
     step: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginTop: spacing.sm },
     stepCopy: { flex: 1, minWidth: 0 },
     stepLabel: { color: colors.textPrimary, ...typography.bodySmall, fontWeight: '800' },
@@ -289,10 +290,10 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     reportTime: { color: colors.textMuted, ...typography.caption, marginTop: spacing.md },
     noticeCard: { backgroundColor: accents.blue.soft, borderColor: accents.blue.border },
     noticeHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    noticeTitle: { color: accents.blue.on, ...typography.body, fontWeight: '900' },
+    noticeTitle: { color: accents.blue.on, ...typography.body, fontWeight: '700' },
     noticeBody: { color: colors.textSecondary, ...typography.caption, lineHeight: 18, marginTop: spacing.xs },
     freeIntro: { color: colors.textSecondary, ...typography.caption, lineHeight: 17, marginBottom: spacing.sm },
-    freeName: { color: colors.textPrimary, ...typography.body, fontWeight: '900' },
+    freeName: { color: colors.textPrimary, ...typography.body, fontWeight: '700' },
     freeStrength: { color: colors.textSecondary, ...typography.caption, lineHeight: 17, marginTop: spacing.xxs },
     freeMetaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
     freeMeta: { color: colors.textMuted, ...typography.caption, fontWeight: '700' },

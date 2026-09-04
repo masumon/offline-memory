@@ -3,6 +3,7 @@ import type { CreateTaskInput, Task, TaskRecurrence, UpdateTaskInput } from '../
 import { TASK_RECURRENCES } from '../types/task-model';
 import type { TaskStatus } from '../types';
 import { createTask, deleteTask, findTasksByExactTitle, getTask, listTasks, searchTasks, updateTask } from './task-repository';
+import { bangladeshDateKey } from '../i18n/date-time';
 
 const ALLOWED_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
   INBOX: ['PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'ARCHIVED'],
@@ -17,7 +18,9 @@ const ALLOWED_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
 function dateKeyFromIso(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) throw new Error('A valid due date is required');
-  return date.toISOString().slice(0, 10);
+  // Use the Asia/Dhaka calendar day, not the UTC slice — otherwise a task due
+  // 00:00–05:59 local lands on the previous day's plan.
+  return bangladeshDateKey(date);
 }
 
 function validatePlannedDate(value: string | null | undefined): string | null | undefined {
@@ -36,7 +39,10 @@ function validateDueAt(value: string | null | undefined): string | null | undefi
   if (value === '') return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) throw new Error('Due date/time must be a valid date and time');
-  return value;
+  // Canonicalise to a full UTC ISO string. Some entry paths (the local assistant) build
+  // a naive "YYYY-MM-DDTHH:MM:00" with no zone; storing mixed formats broke string-based
+  // scheduler comparisons and the notification de-dup key.
+  return date.toISOString();
 }
 
 export async function addTask(db: SQLiteDatabase, input: CreateTaskInput): Promise<Task> {
@@ -93,13 +99,31 @@ export function advanceRecurrence(iso: string, rule: TaskRecurrence, from = new 
   const next = new Date(from);
   if (rule === 'DAILY') next.setDate(next.getDate() + 1);
   else if (rule === 'WEEKLY') next.setDate(next.getDate() + 7);
-  else if (rule === 'MONTHLY') next.setMonth(next.getMonth() + 1);
+  else if (rule === 'MONTHLY') {
+    // Clamp to the last day of the target month so Jan 31 → Feb 28, not "Mar 3".
+    const day = next.getDate();
+    next.setDate(1);
+    next.setMonth(next.getMonth() + 1);
+    const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+    next.setDate(Math.min(day, lastDay));
+  }
   else if (rule === 'WEEKDAYS') { do { next.setDate(next.getDate() + 1); } while (next.getDay() === 0 || next.getDay() === 6); }
   return next.toISOString();
 }
 
 export async function completeTask(db: SQLiteDatabase, id: string): Promise<Task | null> {
   return editTask(db, id, { status: 'COMPLETED' });
+}
+
+/**
+ * "Skip this one" — move a recurring task to its next occurrence without completing
+ * it or spawning a duplicate. No-op (returns null) for a one-off task or one with no
+ * due date, since there is no next occurrence to jump to.
+ */
+export async function skipRecurrence(db: SQLiteDatabase, id: string): Promise<Task | null> {
+  const task = await getTask(db, id);
+  if (!task || !task.recurrence || !task.dueAt) return null;
+  return editTask(db, id, { dueAt: advanceRecurrence(task.dueAt, task.recurrence) });
 }
 
 export async function rescheduleTask(db: SQLiteDatabase, id: string, dueAt: string): Promise<Task | null> {

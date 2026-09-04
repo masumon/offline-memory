@@ -7,10 +7,14 @@ import {
 
 // Voice input. The OS speech recogniser turns speech into text; our app records,
 // stores and sends nothing itself. We hint the recogniser with the app's language
-// (Bangla → bn-BD, English → en-US) but let it use whatever engine actually returns a
-// result, so it works even when an offline language pack is not installed and it can
-// still pick up the odd word in another language. TTS uses the OS voices. Everything
-// degrades gracefully when the recogniser is unavailable.
+// (Bangla → bn-BD, English → en-US).
+//
+// Privacy-first engine choice: when the platform reports on-device recognition is
+// available we ask for it (`requiresOnDeviceRecognition: true`) so nothing leaves the
+// phone. If that attempt fails for this locale (no on-device language pack) we retry
+// once WITHOUT the constraint, letting the OS use whatever engine works — so voice never
+// simply "stops working". TTS uses the OS voices. Everything degrades gracefully when
+// the recogniser is unavailable.
 //
 // Long-utterance handling: Android's recogniser often emits several `isFinal` chunks
 // for one sentence (it finalises each time you pause). We accumulate every finalised
@@ -42,6 +46,15 @@ export function useSpeech(language: 'bn' | 'en') {
   const finalizedRef = useRef('');
   const interimRef = useRef('');
   const deliveredRef = useRef(false);
+  // Whether the current attempt asked for on-device only, and whether we already fell
+  // back to the unconstrained engine for this session (retry at most once).
+  const onDeviceAttemptRef = useRef(false);
+  const triedFallbackRef = useRef(false);
+  // Set when the user stops (or a new session starts) so a scheduled fallback retry from
+  // a just-failed on-device attempt can't re-open the recogniser behind their back.
+  const cancelFallbackRef = useRef(false);
+  // Bumped every startListening() — a queued fallback checks it still owns the session.
+  const sessionRef = useRef(0);
 
   const runningTranscript = useCallback(
     () => joinTranscript(finalizedRef.current, interimRef.current),
@@ -54,6 +67,28 @@ export function useSpeech(language: 'bn' | 'en') {
     deliveredRef.current = true;
     onFinalRef.current?.(clean);
   }, []);
+
+  // One place that actually kicks off the recogniser. `onDevice` maps straight to
+  // `requiresOnDeviceRecognition` so nothing leaves the phone when a local pack exists.
+  const beginRecognition = useCallback((onDevice: boolean) => {
+    onDeviceAttemptRef.current = onDevice;
+    setPartial('');
+    setListening(true);
+    ExpoSpeechRecognitionModule.start({
+      lang: locale,
+      interimResults: true,
+      continuous: false,
+      requiresOnDeviceRecognition: onDevice,
+      addsPunctuation: true,
+      androidIntentOptions: {
+        EXTRA_LANGUAGE_MODEL: 'free_form',
+        EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: 12000,
+        // Give a spoken sentence room to breathe — do not cut off on a short pause.
+        EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 3500,
+        EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 2600,
+      },
+    });
+  }, [locale]);
 
   useSpeechRecognitionEvent('result', (e) => {
     const text = e.results?.[0]?.transcript ?? '';
@@ -68,58 +103,70 @@ export function useSpeech(language: 'bn' | 'en') {
     }
   });
   useSpeechRecognitionEvent('end', () => {
-    setListening(false);
+    // While a fallback retry is queued it owns the "listening" state; otherwise the
+    // session is really over.
+    const fallbackQueued = triedFallbackRef.current && onDeviceAttemptRef.current && !cancelFallbackRef.current;
+    if (!fallbackQueued) setListening(false);
     const full = runningTranscript();
     setPartial('');
     if (full.trim()) deliver(full);
     else if (!deliveredRef.current) setLastError('no-speech');
   });
   useSpeechRecognitionEvent('error', (e) => {
+    const full = runningTranscript();
+    if (full.trim()) { setListening(false); setPartial(''); deliver(full); return; }
+    const code = (e as { error?: string })?.error ?? '';
+    const recoverable = code !== 'no-speech' && code !== 'no-match' && code !== 'speech-timeout' && code !== 'aborted';
+    // On-device was asked for but this locale has no local pack → one silent retry with
+    // the unconstrained engine so voice still works.
+    if (onDeviceAttemptRef.current && !triedFallbackRef.current && recoverable) {
+      triedFallbackRef.current = true;
+      deliveredRef.current = false;
+      finalizedRef.current = '';
+      interimRef.current = '';
+      const token = sessionRef.current;
+      // Let the failed recogniser session fully tear down before re-arming.
+      setTimeout(() => {
+        if (token === sessionRef.current && !cancelFallbackRef.current && !deliveredRef.current) beginRecognition(false);
+      }, 180);
+      return;
+    }
     setListening(false);
     setPartial('');
-    const full = runningTranscript();
-    if (full.trim()) { deliver(full); return; }
-    const code = (e as { error?: string })?.error ?? '';
     setLastError(code === 'no-speech' || code === 'no-match' || code === 'speech-timeout' ? 'no-speech' : 'unavailable');
   });
 
   const startListening = useCallback(async (onFinal: (text: string) => void) => {
+    // If a previous session is still winding down (user tapped stop then mic again fast),
+    // abort it and mark it delivered so its late `end`/`error` can't push a stale
+    // transcript into this new session.
+    deliveredRef.current = true;
+    try { ExpoSpeechRecognitionModule.abort(); } catch { /* nothing was running */ }
     onFinalRef.current = onFinal;
     finalizedRef.current = '';
     interimRef.current = '';
     deliveredRef.current = false;
+    triedFallbackRef.current = false;
+    cancelFallbackRef.current = false;
+    sessionRef.current += 1;
     setLastError(null);
     try {
       const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!perm.granted) { setLastError('permission'); return false; }
-      setPartial('');
-      setListening(true);
-      ExpoSpeechRecognitionModule.start({
-        lang: locale,
-        interimResults: true,
-        continuous: false,
-        // Let the platform choose the engine (online or on-device) — forcing on-device
-        // makes start() fail on phones without that language pack.
-        requiresOnDeviceRecognition: false,
-        addsPunctuation: true,
-        androidIntentOptions: {
-          EXTRA_LANGUAGE_MODEL: 'free_form',
-          EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: 12000,
-          // Give a spoken sentence room to breathe — do not cut off on a short pause.
-          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 3500,
-          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 2600,
-        },
-      });
+      let onDevice = false;
+      try { onDevice = ExpoSpeechRecognitionModule.supportsOnDeviceRecognition?.() ?? false; } catch { onDevice = false; }
+      beginRecognition(onDevice);
       return true;
     } catch {
       setListening(false);
       setLastError('unavailable');
       return false;
     }
-  }, [locale]);
+  }, [beginRecognition]);
 
   const stopListening = useCallback(() => {
     // stop() asks for a final result; abort() would drop it. Prefer stop().
+    cancelFallbackRef.current = true;
     try { ExpoSpeechRecognitionModule.stop(); } catch { /* noop */ }
     setListening(false);
   }, []);
@@ -131,6 +178,7 @@ export function useSpeech(language: 'bn' | 'en') {
   const stopSpeaking = useCallback(() => { try { Speech.stop(); } catch { /* noop */ } }, []);
 
   useEffect(() => () => {
+    cancelFallbackRef.current = true;
     try { ExpoSpeechRecognitionModule.abort(); } catch { /* noop */ }
     try { Speech.stop(); } catch { /* noop */ }
   }, []);

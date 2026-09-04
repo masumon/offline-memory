@@ -31,3 +31,9 @@ android/app/.cxx/
 android/app/release/
 *.log
 .metro-health-check*
+
+# Personal ledger spreadsheets — real names, phone numbers and amounts.
+# This repository is public; these must never be committed. `.example.xlsx` is a
+# non-personal template: copy it to assets/debt-import-sheet.xlsx to build.
+*.xlsx
+!*.example.xlsx

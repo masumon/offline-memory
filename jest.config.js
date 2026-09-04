@@ -17,6 +17,12 @@ const projects = (universal.projects || []).map((project) => {
   const { watchPlugins: _watchPlugins, ...projectConfig } = project;
   return {
     ...projectConfig,
+    // RNTL component tests run under their own config (jest.components.config.js) with
+    // react-test-renderer — they must not be picked up by the universal multi-env suite.
+    testPathIgnorePatterns: [
+      ...(projectConfig.testPathIgnorePatterns || ['/node_modules/']),
+      '<rootDir>/tests/components/',
+    ],
     setupFilesAfterEnv: [
       ...(projectConfig.setupFilesAfterEnv || []),
       safeWarnSetup,

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '../src/ui/AppText';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useAppPreferences } from '../src/app/AppPreferences';
@@ -120,16 +121,16 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.lg },
     brandIcon: { width: control.titleIconSize, height: control.titleIconSize, borderRadius: radius.xl },
     brandCopy: { flex: 1, minWidth: 0 },
-    eyebrow: { color: colors.primary, ...typography.label, fontWeight: '900', letterSpacing: 0.8 },
-    title: { color: colors.textPrimary, ...typography.titleLarge, fontWeight: '900', marginTop: spacing.xxs },
+    eyebrow: { color: colors.primary, ...typography.label, fontWeight: '700', letterSpacing: 0.8 },
+    title: { color: colors.textPrimary, ...typography.titleLarge, fontWeight: '700', marginTop: spacing.xxs },
     tagline: { color: colors.textSecondary, ...typography.body, marginTop: spacing.md, lineHeight: 22 },
     privacy: { marginTop: spacing.lg, padding: spacing.md, borderRadius: radius.lg, backgroundColor: accents.green.soft, borderWidth: border.thin, borderColor: accents.green.border, flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
     privacyIcon: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.md, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
     privacyCopy: { flex: 1, minWidth: 0 },
-    privacyTitle: { color: accents.green.on, ...typography.body, fontWeight: '900' },
+    privacyTitle: { color: accents.green.on, ...typography.body, fontWeight: '700' },
     privacyText: { color: colors.textSecondary, ...typography.meta, marginTop: spacing.xs, lineHeight: 19 },
     card: { marginTop: spacing.lg, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border, ...elevation.soft },
-    section: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '900', marginBottom: spacing.sm },
+    section: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '700', marginBottom: spacing.sm },
     row: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     rowText: { color: colors.textSecondary, ...typography.bodySmall, flex: 1 },
     legalRow: { marginTop: spacing.md, minHeight: layout.minTouchTarget + spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border, ...elevation.soft },
@@ -139,11 +140,11 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     legalHint: { color: colors.textMuted, ...typography.caption, marginTop: spacing.xxs },
     credits: { marginTop: spacing.xl, alignItems: 'center', gap: spacing.xs },
     creditsBadge: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.lg, marginBottom: spacing.xxs },
-    creditsApp: { color: colors.textPrimary, ...typography.body, fontWeight: '900' },
+    creditsApp: { color: colors.textPrimary, ...typography.body, fontWeight: '700' },
     creditsVersion: { color: colors.textMuted, ...typography.caption, fontWeight: '700', fontFamily: typography.numeric.fontFamily },
     creditLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' },
     creditLabel: { color: colors.textMuted, ...typography.caption },
-    creditName: { color: colors.primary, ...typography.caption, fontWeight: '900' },
+    creditName: { color: colors.primary, ...typography.caption, fontWeight: '700' },
     rights: { color: colors.textMuted, textAlign: 'center', ...typography.caption, marginTop: spacing.xs },
     pressed: { opacity: 0.78 },
   });

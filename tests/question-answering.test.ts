@@ -43,6 +43,19 @@ describe('local question answering (no LLM, no network)', () => {
     expect(result.sources[0]?.id).toBe('m1');
   });
 
+  it('extracts a full plate/ID value after the subject, not just the first digit', async () => {
+    jest.mocked(memorySearch.searchRankedMemories).mockResolvedValue([
+      mem('car1', 'আমার গাড়ির নম্বর ঢাকা মেট্রো গ ১২-৩৪৫৬'),
+    ] as never);
+    const action = orchestrate('আমার গাড়ির নম্বর কত?').action as Extract<
+      ReturnType<typeof orchestrate>['action'], { type: 'ANSWER_QUESTION' }
+    >;
+    const result = await answerQuestion(db, { question: action.question, keywords: action.keywords, language: 'bn' });
+    expect(result.type).toBe('ANSWER');
+    expect(result.span).toContain('ঢাকা');
+    expect(result.span).toContain('12-3456');
+  });
+
   it('answers the English form "when does my passport expire?"', async () => {
     jest.mocked(memorySearch.searchRankedMemories).mockResolvedValue([
       mem('m2', 'My passport expires in 2030.', 'Passport'),
@@ -56,6 +69,21 @@ describe('local question answering (no LLM, no network)', () => {
     expect(result.type).toBe('ANSWER');
     expect(result.span).toContain('2030');
     expect(result.text).toContain('2030');
+  });
+
+  it('returns a best-effort sourced answer when the note is on-subject but coverage is partial', async () => {
+    // Only "পাসপোর্ট" overlaps literally; "নবায়ন"/"তারিখ" do not — below the strict
+    // floor, but the note is unmistakably about the passport the user asked about.
+    jest.mocked(memorySearch.searchRankedMemories).mockResolvedValue([
+      mem('soft1', 'পাসপোর্ট বইয়ের ভেতরে লেখা আছে ইস্যু ২০২২, বৈধতা দশ বছর'),
+    ] as never);
+    const action = orchestrate('আমার পাসপোর্ট নবায়নের তারিখ কত?').action as Extract<
+      ReturnType<typeof orchestrate>['action'], { type: 'ANSWER_QUESTION' }
+    >;
+    const result = await answerQuestion(db, { question: action.question, keywords: action.keywords, language: 'bn' });
+    expect(result.type).toBe('ANSWER');
+    expect(result.sources[0]?.id).toBe('soft1');
+    expect(result.confidence).toBeLessThan(0.75);
   });
 
   it('says it does not know when nothing is stored', async () => {

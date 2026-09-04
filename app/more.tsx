@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '../src/ui/AppText';
 import { useMemo } from 'react';
-import Constants from 'expo-constants';
 import { useAppPreferences } from '../src/app/AppPreferences';
 import { more } from '../src/i18n/more';
 import { AppIcon, type IconName } from '../src/ui/AppIcon';
@@ -27,6 +27,10 @@ const GROUPS: Group[] = [
     accent: 'blue',
     items: [
       { href: '/search', icon: 'magnify', copyKey: 'search' },
+      { href: '/review', icon: 'chart-box-outline', copyKey: 'review' },
+      { href: '/focus', icon: 'timer-outline', copyKey: 'focus' },
+      { href: '/tags', icon: 'tag-multiple-outline', copyKey: 'tags' },
+      { href: '/on-this-day', icon: 'calendar-heart', copyKey: 'onThisDay' },
       { href: '/assistant', icon: 'robot-happy-outline', copyKey: 'assistant' },
     ],
   },
@@ -44,6 +48,7 @@ const GROUPS: Group[] = [
     key: 'System',
     accent: 'purple',
     items: [
+      { href: '/whats-new', icon: 'star-four-points-outline', copyKey: 'whatsNew' },
       { href: '/diagnostics', icon: 'heart-pulse', copyKey: 'diagnostics' },
       { href: '/settings', icon: 'cog-outline', copyKey: 'settings' },
       { href: '/about', icon: 'information-outline', copyKey: 'about' },
@@ -67,17 +72,21 @@ export default function MoreScreen() {
         <Text style={styles.subtitle}>{copy.subtitle}</Text>
       </View>
 
-      <View style={styles.brandCard}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={bn ? 'অ্যাপ সম্পর্কে' : 'About the app'}
+        onPress={() => router.push('/about')}
+        style={({ pressed }) => StyleSheet.flatten([styles.brandCard, pressed && styles.pressed])}
+      >
         <View style={styles.brandBadge}>
           <AppIcon name="shield-check-outline" size={iconToken.md} color={colors.onPrimary} />
         </View>
         <View style={styles.brandCopy}>
           <Text style={styles.brandName}>{bn ? 'অফলাইন মেমোরি' : 'Offline Memory'}</Text>
-          <Text style={styles.brandMeta}>
-            {bn ? 'সংস্করণ' : 'Version'} {Constants.expoConfig?.version ?? '0.1.0'} · {bn ? '১০০% অফলাইন' : '100% offline'}
-          </Text>
+          <Text style={styles.brandMeta}>{bn ? '১০০% অফলাইন · অ্যাপ সম্পর্কে জানুন' : '100% offline · tap to learn more'}</Text>
         </View>
-      </View>
+        <AppIcon name="chevron-right" size={iconToken.md} color={colors.textMuted} />
+      </Pressable>
 
       {GROUPS.map((group) => {
         const groupCopy = copy.groups[group.key as keyof typeof copy.groups] as GroupCopy;
@@ -89,22 +98,24 @@ export default function MoreScreen() {
               <Text style={styles.section}>{groupCopy.title}</Text>
             </View>
             <View style={styles.grid}>
-              {group.items.map((item, i) => {
+              {group.items.map((item) => {
                 const itemCopy = groupCopy.items[item.copyKey]!;
-                const wide = group.items.length % 2 === 1 && i === group.items.length - 1;
                 return (
                   <Pressable
                     key={item.href}
                     accessibilityRole="button"
                     accessibilityLabel={itemCopy.title}
                     onPress={() => router.push(item.href as never)}
-                    style={({ pressed }) => StyleSheet.flatten([styles.tile, wide && styles.tileWide, pressed && styles.pressed])}
+                    style={({ pressed }) => StyleSheet.flatten([styles.tile, pressed && styles.pressed])}
                   >
                     <View style={[styles.iconWrap, { backgroundColor: tone.soft, borderColor: tone.border }]}>
                       <AppIcon name={item.icon} size={iconToken.md} color={tone.on} />
                     </View>
-                    <Text numberOfLines={1} style={styles.tileTitle}>{itemCopy.title}</Text>
-                    <Text numberOfLines={2} style={styles.tileDesc}>{itemCopy.description}</Text>
+                    <View style={styles.tileCopy}>
+                      <Text numberOfLines={1} style={styles.tileTitle}>{itemCopy.title}</Text>
+                      <Text numberOfLines={2} style={styles.tileDesc}>{itemCopy.description}</Text>
+                    </View>
+                    <AppIcon name="chevron-right" size={iconToken.md} color={colors.textMuted} />
                   </Pressable>
                 );
               })}
@@ -132,13 +143,13 @@ function makeStyles(colors: ThemeColors) {
     group: { marginBottom: spacing.lg },
     sectionRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm },
     sectionDot: { width: 7, height: 7, borderRadius: radius.pill },
-    section: { color: colors.textMuted, ...typography.section, fontWeight: '900', letterSpacing: 1.1 },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-    tile: { width: '47.8%', flexGrow: 1, maxWidth: '48.5%', minHeight: 132, backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.md, gap: spacing.xs, ...elevation.soft },
-    tileWide: { width: '100%', maxWidth: '100%' },
-    iconWrap: { width: control.listIconContainer, height: control.listIconContainer, borderRadius: radius.md, borderWidth: border.thin, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
+    section: { color: colors.textMuted, ...typography.section, fontWeight: '700', letterSpacing: 1.1 },
+    grid: { gap: spacing.sm },
+    tile: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: control.rowMinHeight + spacing.smd, backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.md, ...elevation.soft },
+    iconWrap: { width: control.listIconContainer, height: control.listIconContainer, borderRadius: radius.md, borderWidth: border.thin, alignItems: 'center', justifyContent: 'center' },
+    tileCopy: { flex: 1, minWidth: 0 },
     tileTitle: { color: colors.textPrimary, ...typography.body, fontWeight: '800' },
-    tileDesc: { color: colors.textSecondary, ...typography.caption, lineHeight: 17 },
+    tileDesc: { color: colors.textSecondary, ...typography.caption, marginTop: spacing.xxs },
     pressed: { opacity: 0.78 },
   });
 }

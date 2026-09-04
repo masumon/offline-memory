@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { create } from 'zustand';
 import { addMemory, archiveStoredMemory, editMemory, findMemories, getActiveMemories, getArchivedMemories, removeMemory, restoreStoredMemory } from '../services/memory-service';
+import { restoreMemory as untrashMemory } from '../services/memory-repository';
 import type { CreateMemoryInput, Memory, UpdateMemoryInput } from '../types/memory-model';
 
 interface MemoryStore {
@@ -13,6 +14,7 @@ interface MemoryStore {
   archive: (db: SQLiteDatabase, id: string) => Promise<Memory | null>;
   restore: (db: SQLiteDatabase, id: string) => Promise<Memory | null>;
   remove: (db: SQLiteDatabase, id: string) => Promise<boolean>;
+  untrash: (db: SQLiteDatabase, id: string) => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -26,5 +28,6 @@ export const useMemoryStore = create<MemoryStore>((set) => ({
   archive: async (db, id) => { set({ error: null }); try { const memory = await archiveStoredMemory(db, id); if (memory) set((state) => ({ memories: state.memories.filter((item) => item.id !== id) })); return memory; } catch (error) { set({ error: error instanceof Error ? error.message : 'Unable to archive memory' }); return null; } },
   restore: async (db, id) => { set({ error: null }); try { const memory = await restoreStoredMemory(db, id); if (memory) set((state) => ({ memories: [memory, ...state.memories.filter((item) => item.id !== id)] })); return memory; } catch (error) { set({ error: error instanceof Error ? error.message : 'Unable to restore memory' }); return null; } },
   remove: async (db, id) => { set({ error: null }); try { const removed = await removeMemory(db, id); if (removed) set((state) => ({ memories: state.memories.filter((item) => item.id !== id) })); return removed; } catch (error) { set({ error: error instanceof Error ? error.message : 'Unable to delete memory' }); return false; } },
+  untrash: async (db, id) => { set({ error: null }); try { const ok = await untrashMemory(db, id); if (ok) { try { set({ memories: await getActiveMemories(db) }); } catch { /* keep list */ } } return ok; } catch (error) { set({ error: error instanceof Error ? error.message : 'Unable to restore memory' }); return false; } },
   clearError: () => set({ error: null }),
 }));

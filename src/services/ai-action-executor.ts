@@ -91,7 +91,7 @@ export async function executeAiAction(
       if (!task) throw new Error('Task disappeared before rescheduling');
       return { type: 'TASK_RESCHEDULED', task };
     }
-    case 'CREATE_MEMORY': return { type: 'MEMORY_CREATED', memory: await addMemory(db, { content: action.content }) };
+    case 'CREATE_MEMORY': return { type: 'MEMORY_CREATED', memory: await addMemory(db, { content: action.content, tags: action.tags }) };
     case 'SEARCH_MEMORY': {
       // Hybrid: exact/keyword matches first (these also refresh last-accessed), then
       // semantically-close notes the keyword search would have missed.

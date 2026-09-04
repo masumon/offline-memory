@@ -19,16 +19,45 @@ export function numberWordsToDigits(value: string): string {
   return out;
 }
 
-export function normalizeText(input: string): string {
-  const base = toAsciiDigits(input)
+/** NFKC + Bengali→ASCII digits + smart-quote/dash normalisation + whitespace collapse,
+ * WITHOUT lower-casing or number-word expansion. Used to recover the user's original
+ * capitalisation for stored content (passwords, names) after the lower-cased pipeline
+ * has decided *what* to keep. */
+export function normalizeKeepCase(input: string): string {
+  return toAsciiDigits(input)
     .normalize('NFKC')
     .replace(/[“”„‟]/g, '"')
     .replace(/[‘’]/g, "'")
     .replace(/[–—]/g, '-')
     .replace(/\s+/g, ' ')
-    .trim()
-    .toLocaleLowerCase();
+    .trim();
+}
+
+export function normalizeText(input: string): string {
+  const base = normalizeKeepCase(input).toLocaleLowerCase();
   return numberWordsToDigits(base);
+}
+
+/**
+ * Re-apply the original capitalisation of `source` onto `lowered` (a cleaned, lower-cased
+ * fragment). Matches token-by-token, forward-only, so it survives the cleaner having
+ * removed date/time spans or leading verbs. Unmatched tokens keep their lower-cased form.
+ */
+export function recoverCase(source: string, lowered: string): string {
+  const low = lowered.trim();
+  if (!low) return low;
+  const srcTokens = source.split(/\s+/).filter(Boolean);
+  const lowTokens = low.split(/\s+/).filter(Boolean);
+  const out: string[] = [];
+  let cursor = 0;
+  for (const token of lowTokens) {
+    let matched: string | undefined;
+    for (let k = cursor; k < srcTokens.length; k += 1) {
+      if (srcTokens[k]!.toLocaleLowerCase() === token) { matched = srcTokens[k]; cursor = k + 1; break; }
+    }
+    out.push(matched ?? token);
+  }
+  return out.join(' ');
 }
 
 export function tokenize(input: string): string[] {

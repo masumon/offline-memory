@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Link } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from '../src/ui/AppText';
+import { Link, useRouter } from 'expo-router';
+import { useSQLiteContext, type SQLiteDatabase } from 'expo-sqlite';
 import { searchAll, type UnifiedSearchResult } from '../src/services/unified-search-service';
 import { useAppPreferences } from '../src/app/AppPreferences';
 import { search } from '../src/i18n/search';
@@ -11,19 +12,37 @@ import { border, control, elevation, icon, layout, opacity, radius, spacing, typ
 import { localizeMemoryKind, localizeTaskPriority, localizeTaskStatus } from '../src/i18n/domain-labels';
 
 const EMPTY_RESULT: UnifiedSearchResult = { tasks: [], memories: [] };
-const recentSearches: string[] = [];
-function rememberSearch(value: string) {
+const RECENTS_KEY = 'searchHistory';
+let recentSearches: string[] = [];
+let recentsHydrated = false;
+async function hydrateRecents(db: SQLiteDatabase) {
+  if (recentsHydrated) return;
+  recentsHydrated = true;
+  try {
+    const row = await db.getFirstAsync<{ value: string }>("SELECT value FROM app_preferences WHERE key = ?", RECENTS_KEY);
+    const parsed = row?.value ? JSON.parse(row.value) : [];
+    if (Array.isArray(parsed)) recentSearches = parsed.filter((v): v is string => typeof v === 'string').slice(0, 6);
+  } catch { /* history is a nicety, not critical */ }
+}
+function rememberSearch(db: SQLiteDatabase, value: string) {
   const v = value.trim();
   if (v.length < 2) return;
   const i = recentSearches.indexOf(v);
   if (i >= 0) recentSearches.splice(i, 1);
   recentSearches.unshift(v);
   if (recentSearches.length > 6) recentSearches.length = 6;
+  void db.runAsync(
+    "INSERT INTO app_preferences (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    RECENTS_KEY, JSON.stringify(recentSearches),
+  ).catch(() => {});
 }
 type SearchFilter = 'ALL' | 'TASKS' | 'MEMORIES';
 
 export default function SearchScreen() {
   const db = useSQLiteContext();
+  const router = useRouter();
+  const [, forceRender] = useState(0);
+  useEffect(() => { void hydrateRecents(db).then(() => forceRender(n => n + 1)); }, [db]);
   const { colors, accents, language } = useAppPreferences();
   const copy = search(language);
   const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
@@ -38,7 +57,7 @@ export default function SearchScreen() {
     setLoading(true);
     setError(null);
     void searchAll(db, value)
-      .then((next) => { if (request === requestId.current) { setResult(next); if (next.tasks.length || next.memories.length) rememberSearch(value); } })
+      .then((next) => { if (request === requestId.current) { setResult(next); if (next.tasks.length || next.memories.length) rememberSearch(db, value); } })
       .catch(() => { if (request === requestId.current) setError(copy.failedDescription); })
       .finally(() => { if (request === requestId.current) setLoading(false); });
   }, [copy.failedDescription, db]);
@@ -61,10 +80,10 @@ export default function SearchScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
-        <Link href="/" asChild><Pressable accessibilityRole="button" style={({ pressed }) => StyleSheet.flatten([styles.back, pressed && styles.pressed])}><AppIcon name="arrow-left" size={icon.md} color={colors.primary} /><Text style={styles.backText}>{copy.back}</Text></Pressable></Link>
+        <Pressable accessibilityRole="button" accessibilityLabel={copy.back} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} style={({ pressed }) => StyleSheet.flatten([styles.back, pressed && styles.pressed])}><AppIcon name="arrow-left" size={icon.md} color={colors.primary} /><Text style={styles.backText}>{copy.back}</Text></Pressable>
         <View style={styles.titleRow}>
           <View style={styles.titleIcon}><AppIcon name="magnify" size={icon.lg} color={accents.blue.on} /></View>
-          <View style={styles.titleCopy}><Text style={styles.eyebrow}>{copy.eyebrow}</Text><Text style={styles.title}>{copy.title}</Text></View>
+          <View style={styles.titleCopy}><Text style={styles.eyebrow}>{copy.eyebrow}</Text><Text accessibilityRole="header" style={styles.title}>{copy.title}</Text></View>
         </View>
         <Text style={styles.subtitle}>{copy.subtitle}</Text>
       </View>
@@ -158,8 +177,8 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     titleIcon: { width: control.titleIconSize, height: control.titleIconSize, borderRadius: radius.lg, backgroundColor: accents.blue.soft, alignItems: 'center', justifyContent: 'center' },
     titleCopy: { flex: 1, minWidth: 0 },
-    eyebrow: { color: colors.primary, ...typography.label, fontWeight: '900', letterSpacing: 1.2 },
-    title: { color: colors.textPrimary, ...typography.title, fontWeight: '900', marginTop: spacing.xxs },
+    eyebrow: { color: colors.primary, ...typography.label, fontWeight: '700', letterSpacing: 1.2 },
+    title: { color: colors.textPrimary, ...typography.title, fontWeight: '700', marginTop: spacing.xxs },
     subtitle: { color: colors.textSecondary, ...typography.bodySmall, marginTop: spacing.xs },
     searchBox: { minHeight: control.searchHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface, paddingHorizontal: spacing.md, ...elevation.card },
     input: { flex: 1, minHeight: control.inputHeight, color: colors.textPrimary, ...typography.body },
@@ -177,7 +196,7 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     loadingRow: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginTop: spacing.md },
     loadingText: { color: colors.textSecondary, ...typography.bodySmall },
     section: { marginTop: spacing.xl },
-    sectionTitle: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '900', marginBottom: spacing.sm },
+    sectionTitle: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '700', marginBottom: spacing.sm },
     resultCard: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.sm, marginBottom: spacing.sm, ...elevation.soft },
     resultIcon: { width: spacing.lgPlus, height: spacing.lgPlus, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
     resultCopy: { flex: 1, minWidth: 0 },

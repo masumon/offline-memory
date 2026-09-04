@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { AppText as Text } from './AppText';
 import Animated, {
   Easing,
   FadeIn,

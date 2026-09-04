@@ -69,11 +69,17 @@ export function extractKeywords(input: string, limit = 8): string[] {
 
   for (const token of raw) {
     if (STOP_WORDS.has(token)) continue; // don't stem a stop-word into a fake keyword
-    push(token);
+    // For an inflected Bengali word emit ONLY the stem ("পাসপোর্টের" → "পাসপোর্ট").
+    // Emitting both used to double-count one concept and dilute keyword-coverage in
+    // retrieval, so a correct note could fall below the acceptance floor.
     if (/[ঀ-৿]/u.test(token)) {
       const stem = stripBengaliSuffix(token);
-      if (stem !== token && !STOP_WORDS.has(stem)) push(stem);
+      if (stem !== token && stem.length >= 2 && !STOP_WORDS.has(stem)) {
+        push(stem);
+        continue;
+      }
     }
+    push(token);
   }
   return out.slice(0, limit);
 }
@@ -83,6 +89,15 @@ export type QuestionType = 'QUANTITY' | 'TIME' | 'PLACE' | 'PERSON' | 'REASON' |
 
 export function classifyQuestionType(input: string): QuestionType {
   const t = normalizeText(input);
+  // Validity / expiry / renewal questions are about a DATE even when they are phrased
+  // with "কত" ("মেয়াদ কত?"). Decide TIME first so the span extractor looks for a
+  // date, not a stray number — unless the sentence is clearly about an amount of money.
+  if (
+    /(?<![\p{L}\p{M}])মেয়াদ(?![\p{L}\p{M}])|\bexpir|\bvalidity\b|\brenew|নবায়ন|রিনিউ/u.test(t) &&
+    !/(কত\s*টাকা|how much|\bprice\b|\bfee\b|দাম|ভাড়া|ব্যালেন্স|balance)/u.test(t)
+  ) {
+    return 'TIME';
+  }
   if (/(?<![\p{L}\p{M}])(কত|কতো|কয়|কয়টা|কতটা|কতগুলো)(?![\p{L}\p{M}])|\bhow (many|much|old|long)\b|\bnumber\b/u.test(t)) return 'QUANTITY';
   if (/(?<![\p{L}\p{M}])(কবে|কখন)(?![\p{L}\p{M}])|\bwhen\b|\bwhat (date|time|day|year)\b|\bexpir|\bdue\b|মেয়াদ|তারিখ|সময়/u.test(t)) return 'TIME';
   if (/(?<![\p{L}\p{M}])(কোথায়|কোনখানে)(?![\p{L}\p{M}])|\bwhere\b|ঠিকানা|address|location/u.test(t)) return 'PLACE';

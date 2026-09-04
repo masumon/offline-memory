@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '../src/ui/AppText';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useMemoryStore } from '../src/store/memory.store';
+import { readMemory, findMemories } from '../src/services/memory-service';
+import type { Memory } from '../src/types/memory-model';
 import { useAppPreferences } from '../src/app/AppPreferences';
 import { AppConfirmDialog, useAppFeedback } from '../src/ui/AppFeedback';
 import { AppIcon } from '../src/ui/AppIcon';
@@ -23,17 +26,24 @@ export default function MemoryDetailScreen() {
   const bn = language === 'bn';
   const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
   const { showSnackbar } = useAppFeedback();
-  const { memories, load, loadArchived, archive, restore, remove } = useMemoryStore();
+  const { memories, archive, restore, remove, untrash } = useMemoryStore();
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const memory = memories.find(m => m.id === id);
+  const [fetched, setFetched] = useState<Memory | null>(null);
+  // Fetch the memory directly by id (active OR archived). Reading it off the shared list
+  // store used to race load()/loadArchived() and flash "not found" for archived memories.
+  const memory = memories.find(m => m.id === id) ?? (fetched?.id === id ? fetched : null);
   const [linkedTasks, setLinkedTasks] = useState<Task[]>([]);
+  const [related, setRelated] = useState<Memory[]>([]);
 
   useEffect(() => {
-    if (memory) { void Promise.resolve().then(() => setLoaded(true)); return; }
-    void Promise.all([load(db), loadArchived(db)]).finally(() => setLoaded(true));
-  }, [db, load, loadArchived, memory]);
+    let active = true;
+    void (id ? readMemory(db, id).catch(() => null) : Promise.resolve(null))
+      .then(direct => { if (active && direct) setFetched(direct); })
+      .finally(() => { if (active) setLoaded(true); });
+    return () => { active = false; };
+  }, [db, id]);
   useEffect(() => {
     let active = true;
     void Promise.resolve()
@@ -42,14 +52,26 @@ export default function MemoryDetailScreen() {
       .catch(() => { if (active) setLinkedTasks([]); });
     return () => { active = false; };
   }, [db, id]);
+  // Surface a few semantically-near memories. The query is the first handful of words
+  // from this memory; self and anything already linked-adjacent is filtered out.
+  useEffect(() => {
+    const seed = `${memory?.title ?? ''} ${memory?.content ?? ''}`.trim().split(/\s+/u).slice(0, 8).join(' ');
+    let active = true;
+    void Promise.resolve()
+      .then(() => (seed.length >= 3 ? findMemories(db, seed) : []))
+      .then(rows => { if (active) setRelated(rows.filter(m => m.id !== id).slice(0, 3)); })
+      .catch(() => { if (active) setRelated([]); });
+    return () => { active = false; };
+  }, [db, id, memory?.title, memory?.content]);
 
   const c = bn
     ? { back: 'ফিরুন', badge: 'মেমোরি ডিটেইল', importance: 'গুরুত্ব', tags: 'ট্যাগ', content: 'কনটেন্ট', attachments: 'সংযুক্ত ফাইল', created: 'তৈরি', updated: 'সর্বশেষ আপডেট', edit: 'সম্পাদনা', archive: 'আর্কাইভ', restore: 'রিস্টোর', share: 'শেয়ার', del: 'মুছুন', notFound: 'মেমোরি পাওয়া যায়নি', archived: 'আর্কাইভ করা হয়েছে', restored: 'ফিরিয়ে আনা হয়েছে', failed: 'কাজটি সম্পন্ন হয়নি', delTitle: 'মেমোরি মুছবেন?', delDesc: 'এই ডিভাইস থেকে মেমোরিটি স্থায়ীভাবে মুছে যাবে।', delOk: 'মুছুন', cancel: 'বাতিল' }
     : { back: 'Back', badge: 'MEMORY DETAIL', importance: 'importance', tags: 'Tags', content: 'Content', attachments: 'Attachments', created: 'Created', updated: 'Last updated', edit: 'Edit', archive: 'Archive', restore: 'Restore', share: 'Share', del: 'Delete', notFound: 'Memory not found', archived: 'Archived', restored: 'Restored', failed: 'That action did not complete', delTitle: 'Delete memory?', delDesc: 'This permanently removes the memory from this device.', delOk: 'Delete', cancel: 'Cancel' };
 
-  const doArchive = async () => { if (!id || busy) return; setBusy(true); try { if (await archive(db, id)) { showSnackbar(c.archived, 'success'); router.back(); } else showSnackbar(c.failed, 'danger'); } catch { showSnackbar(c.failed, 'danger'); } finally { setBusy(false); } };
-  const doRestore = async () => { if (!id || busy) return; setBusy(true); try { if (await restore(db, id)) showSnackbar(c.restored, 'success'); else showSnackbar(c.failed, 'danger'); } catch { showSnackbar(c.failed, 'danger'); } finally { setBusy(false); } };
-  const doDelete = async () => { if (!id || busy) return; setBusy(true); try { if (await remove(db, id)) router.replace('/memory'); } finally { setBusy(false); setConfirmDelete(false); } };
+  const leave = () => (router.canGoBack() ? router.back() : router.replace('/memory'));
+  const doArchive = async () => { if (!id || busy) return; setBusy(true); try { if (await archive(db, id)) { showSnackbar(c.archived, 'success'); leave(); } else showSnackbar(c.failed, 'danger'); } catch { showSnackbar(c.failed, 'danger'); } finally { setBusy(false); } };
+  const doRestore = async () => { if (!id || busy) return; setBusy(true); try { const r = await restore(db, id); if (r) { setFetched(r); showSnackbar(c.restored, 'success'); leave(); } else showSnackbar(c.failed, 'danger'); } catch { showSnackbar(c.failed, 'danger'); } finally { setBusy(false); } };
+  const doDelete = async () => { if (!id || busy) return; const mid = id; setBusy(true); try { if (await remove(db, mid)) { router.replace('/memory'); showSnackbar(bn ? 'ট্র্যাশে সরানো হয়েছে' : 'Moved to trash', 'info', { label: bn ? 'ফিরিয়ে আনুন' : 'Undo', onPress: () => void untrash(db, mid) }); } } finally { setBusy(false); setConfirmDelete(false); } };
   const doShare = () => { if (memory) void Share.share({ message: memory.title ? `${memory.title}\n\n${memory.content}` : memory.content }).catch(() => {}); };
 
   if (!loaded) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
@@ -85,7 +107,7 @@ export default function MemoryDetailScreen() {
           </View>
         </View>
 
-        {memory.title ? <Text style={styles.title}>{memory.title}</Text> : null}
+        {memory.title ? <Text accessibilityRole="header" style={styles.title}>{memory.title}</Text> : null}
         <Text style={styles.contentText}>{memory.content}</Text>
 
         {memory.tags.length ? (
@@ -99,6 +121,19 @@ export default function MemoryDetailScreen() {
               <Pressable key={t.id} accessibilityRole="button" accessibilityLabel={t.title} onPress={() => router.push({ pathname: '/task-detail', params: { id: t.id } })} style={({ pressed }) => StyleSheet.flatten([styles.linkedRow, pressed && styles.pressed])}>
                 <AppIcon name="link-variant" size={icon.sm} color={colors.primary} />
                 <Text numberOfLines={2} style={styles.linkedText}>{t.title}</Text>
+                <AppIcon name="chevron-right" size={icon.sm} color={colors.textMuted} />
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {related.length ? (
+          <View style={styles.linkedWrap}>
+            <Text style={styles.linkedTitle}>{bn ? 'সম্পর্কিত মেমোরি' : 'Related memories'}</Text>
+            {related.map(m => (
+              <Pressable key={m.id} accessibilityRole="button" accessibilityLabel={(m.title || m.content).slice(0, 60)} onPress={() => router.push({ pathname: '/memory-detail', params: { id: m.id } })} style={({ pressed }) => StyleSheet.flatten([styles.linkedRow, pressed && styles.pressed])}>
+                <AppIcon name={memoryKindIcon(m.kind)} size={icon.sm} color={colors.textMuted} />
+                <Text numberOfLines={2} style={styles.linkedText}>{m.title || m.content}</Text>
                 <AppIcon name="chevron-right" size={icon.sm} color={colors.textMuted} />
               </Pressable>
             ))}
@@ -156,7 +191,7 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     tagChip: { borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs },
     tagText: { color: colors.textSecondary, ...typography.caption },
     linkedWrap: { marginTop: spacing.lg, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface, padding: spacing.md, gap: spacing.xs },
-    linkedTitle: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '900', marginBottom: spacing.xxs },
+    linkedTitle: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '700', marginBottom: spacing.xxs },
     linkedRow: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     linkedText: { flex: 1, minWidth: 0, color: colors.textSecondary, ...typography.bodySmall },
     metaCard: { marginTop: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surfaceMuted, padding: spacing.md, gap: spacing.xxs },

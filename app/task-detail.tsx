@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '../src/ui/AppText';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useTaskStore } from '../src/store/task.store';
+import { ALLOWED_TRANSITIONS, getTask } from '../src/services/task-service';
+import type { Task } from '../src/types/task-model';
 import { useAppPreferences } from '../src/app/AppPreferences';
 import { AppConfirmDialog, useAppFeedback } from '../src/ui/AppFeedback';
 import { AppIcon } from '../src/ui/AppIcon';
+import { success, warn } from '../src/ui/haptics';
 import { AttachmentPanel } from '../src/ui/AttachmentPanel';
 import { SubtaskList } from '../src/ui/SubtaskList';
 import { findMemories } from '../src/services/memory-service';
@@ -26,21 +30,31 @@ export default function TaskDetailScreen() {
   const bn = language === 'bn';
   const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
   const { showSnackbar } = useAppFeedback();
-  const { tasks, load, update, remove } = useTaskStore();
+  const { tasks, load, update, remove, restore, skipOccurrence } = useTaskStore();
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const task = tasks.find(t => t.id === id);
+  const [fetched, setFetched] = useState<Task | null>(null);
+  // Prefer the shared store (instant), but fall back to a direct fetch so a filtered /
+  // stale list never makes an existing task look "not found" (e.g. opened from a reminder).
+  const task = tasks.find(t => t.id === id) ?? (fetched?.id === id ? fetched : null);
   const [related, setRelated] = useState<Memory[]>([]);
   const [linked, setLinked] = useState<Memory[]>([]);
   const [linkBusy, setLinkBusy] = useState<string | null>(null);
 
-  const refreshLinks = useMemo(() => async () => {
+  const refreshLinks = useCallback(async () => {
     if (!id) { setLinked([]); return; }
     try { setLinked(await listLinkedMemories(db, id)); } catch { setLinked([]); }
   }, [db, id]);
 
-  useEffect(() => { if (task) { void Promise.resolve().then(() => setLoaded(true)); return; } void load(db).finally(() => setLoaded(true)); }, [db, load, task]);
+  useEffect(() => {
+    if (task) { void Promise.resolve().then(() => setLoaded(true)); return; }
+    let active = true;
+    void Promise.all([load(db), id ? getTask(db, id).catch(() => null) : Promise.resolve(null)])
+      .then(([, direct]) => { if (active && direct) setFetched(direct); })
+      .finally(() => { if (active) setLoaded(true); });
+    return () => { active = false; };
+  }, [db, load, task, id]);
   useEffect(() => { void Promise.resolve().then(() => refreshLinks()); }, [refreshLinks]);
   useEffect(() => {
     const title = task?.title?.trim();
@@ -55,22 +69,35 @@ export default function TaskDetailScreen() {
 
 
   const c = bn
-    ? { back: 'ফিরুন', badge: 'টাস্ক ডিটেইল', date: 'তারিখ', due: 'ডিউ সময়', planned: 'পরিকল্পিত', status: 'স্ট্যাটাস', note: 'নোট', noNote: '—', attachments: 'সংযুক্ত ফাইল', complete: 'সম্পন্ন করুন', reopen: 'আবার খুলুন', edit: 'সম্পাদনা', toInbox: 'ইনবক্সে পাঠান', share: 'শেয়ার', del: 'মুছুন', notFound: 'টাস্ক পাওয়া যায়নি', done: 'সম্পন্ন হয়েছে', reopened: 'আবার খোলা হয়েছে', movedInbox: 'ইনবক্সে পাঠানো হয়েছে', failed: 'কাজটি সম্পন্ন হয়নি', delTitle: 'টাস্ক মুছবেন?', delDesc: 'এই ডিভাইস থেকে টাস্কটি স্থায়ীভাবে মুছে যাবে।', delOk: 'মুছুন', cancel: 'বাতিল' }
-    : { back: 'Back', badge: 'TASK DETAIL', date: 'Date', due: 'Due', planned: 'Planned', status: 'Status', note: 'Note', noNote: '—', attachments: 'Attachments', complete: 'Mark complete', reopen: 'Reopen', edit: 'Edit', toInbox: 'Move to inbox', share: 'Share', del: 'Delete', notFound: 'Task not found', done: 'Marked complete', reopened: 'Reopened', movedInbox: 'Moved to inbox', failed: 'That action did not complete', delTitle: 'Delete task?', delDesc: 'This permanently removes the task from this device.', delOk: 'Delete', cancel: 'Cancel' };
+    ? { back: 'ফিরুন', badge: 'টাস্ক ডিটেইল', date: 'তারিখ', due: 'ডিউ সময়', planned: 'পরিকল্পিত', status: 'স্ট্যাটাস', note: 'নোট', noNote: '—', attachments: 'সংযুক্ত ফাইল', complete: 'সম্পন্ন করুন', reopen: 'আবার খুলুন', edit: 'সম্পাদনা', toInbox: 'ইনবক্সে পাঠান', share: 'শেয়ার', del: 'মুছুন', notFound: 'টাস্ক পাওয়া যায়নি', done: 'সম্পন্ন হয়েছে', reopened: 'আবার খোলা হয়েছে', movedInbox: 'ইনবক্সে পাঠানো হয়েছে', failed: 'কাজটি সম্পন্ন হয়নি', delTitle: 'টাস্ক মুছবেন?', delDesc: 'এই ডিভাইস থেকে টাস্কটি স্থায়ীভাবে মুছে যাবে।', delOk: 'মুছুন', cancel: 'বাতিল', skipOne: 'এইবারেরটা বাদ দিন', skipped: 'পরের বারের জন্য সরানো হয়েছে', stopRepeat: 'পুনরাবৃত্তি বন্ধ', stoppedRepeat: 'আর পুনরাবৃত্তি হবে না' }
+    : { back: 'Back', badge: 'TASK DETAIL', date: 'Date', due: 'Due', planned: 'Planned', status: 'Status', note: 'Note', noNote: '—', attachments: 'Attachments', complete: 'Mark complete', reopen: 'Reopen', edit: 'Edit', toInbox: 'Move to inbox', share: 'Share', del: 'Delete', notFound: 'Task not found', done: 'Marked complete', reopened: 'Reopened', movedInbox: 'Moved to inbox', failed: 'That action did not complete', delTitle: 'Delete task?', delDesc: 'This permanently removes the task from this device.', delOk: 'Delete', cancel: 'Cancel', skipOne: 'Skip this one', skipped: 'Moved to the next occurrence', stopRepeat: 'Stop repeating', stoppedRepeat: 'This task won’t repeat any more' };
 
   const mutate = async (patch: Parameters<typeof update>[2], okMsg: string) => {
     if (!id || busy) return;
     setBusy(true);
-    try { const r = await update(db, id, patch); if (r) showSnackbar(okMsg, 'success'); else showSnackbar(c.failed, 'danger'); }
+    try { const r = await update(db, id, patch); if (r) { success(); showSnackbar(okMsg, 'success'); } else showSnackbar(c.failed, 'danger'); }
     catch { showSnackbar(c.failed, 'danger'); }
     finally { setBusy(false); }
   };
   const doDelete = async () => {
     if (!id || busy) return;
+    const taskId = id;
     setBusy(true);
-    try { if (await remove(db, id)) router.replace('/planning'); } finally { setBusy(false); setConfirmDelete(false); }
+    try {
+      if (await remove(db, taskId)) {
+        router.replace('/planning');
+        showSnackbar(bn ? 'ট্র্যাশে সরানো হয়েছে' : 'Moved to trash', 'info', { label: bn ? 'ফিরিয়ে আনুন' : 'Undo', onPress: () => void restore(db, taskId) });
+      }
+    } finally { setBusy(false); setConfirmDelete(false); }
   };
   const doShare = () => { if (task) void Share.share({ message: task.notes ? `${task.title}\n\n${task.notes}` : task.title }).catch(() => {}); };
+  const doSkip = async () => {
+    if (!id || busy) return;
+    setBusy(true);
+    try { const r = await skipOccurrence(db, id); if (r) { success(); showSnackbar(c.skipped, 'success'); } else showSnackbar(c.failed, 'danger'); }
+    catch { showSnackbar(c.failed, 'danger'); }
+    finally { setBusy(false); }
+  };
   const doLink = async (memoryId: string) => {
     if (!id || linkBusy) return;
     setLinkBusy(memoryId);
@@ -95,6 +122,10 @@ export default function TaskDetailScreen() {
 
   const tone = accents[priorityAccentName(task.priority)];
   const isClosed = ['COMPLETED', 'CANCELLED', 'ARCHIVED'].includes(task.status);
+  const allowed = ALLOWED_TRANSITIONS[task.status] ?? [];
+  // CANCELLED can't go straight to IN_PROGRESS — it reopens into the inbox.
+  const reopenTarget: TaskStatus | null = allowed.includes('IN_PROGRESS') ? 'IN_PROGRESS' : allowed.includes('INBOX') ? 'INBOX' : null;
+  const canToInbox = allowed.includes('INBOX');
   const planned = dateLabel(task.plannedDate, language);
   const due = dateLabel(task.dueAt, language);
 
@@ -107,7 +138,7 @@ export default function TaskDetailScreen() {
         </View>
 
         <Text style={styles.badge}>{c.badge}</Text>
-        <Text style={styles.title}>{task.title}</Text>
+        <Text accessibilityRole="header" style={styles.title}>{task.title}</Text>
         <View style={[styles.priorityChip, { backgroundColor: tone.soft, borderColor: tone.border }]}>
           <View style={[styles.dot, { backgroundColor: tone.base }]} />
           <Text style={[styles.priorityChipText, { color: tone.on }]}>{localizeTaskPriority(task.priority, bn)}</Text>
@@ -155,17 +186,28 @@ export default function TaskDetailScreen() {
           <Pressable accessibilityRole="button" accessibilityState={{ busy }} onPress={() => void mutate({ status: 'COMPLETED' }, c.done)} style={({ pressed }) => StyleSheet.flatten([styles.primary, busy && styles.disabled, pressed && styles.pressed])}>
             {busy ? <ActivityIndicator color={colors.onPrimary} /> : <><AppIcon name="check" size={icon.sm} color={colors.onPrimary} /><Text style={styles.primaryText}>{c.complete}</Text></>}
           </Pressable>
-        ) : task.status === 'COMPLETED' || task.status === 'CANCELLED' ? (
-          <Pressable accessibilityRole="button" onPress={() => void mutate({ status: 'IN_PROGRESS' as TaskStatus }, c.reopened)} style={({ pressed }) => StyleSheet.flatten([styles.primary, pressed && styles.pressed])}>
-            <AppIcon name="backup-restore" size={icon.sm} color={colors.onPrimary} /><Text style={styles.primaryText}>{c.reopen}</Text>
+        ) : (task.status === 'COMPLETED' || task.status === 'CANCELLED') && reopenTarget ? (
+          <Pressable accessibilityRole="button" accessibilityState={{ busy }} onPress={() => void mutate({ status: reopenTarget }, c.reopened)} style={({ pressed }) => StyleSheet.flatten([styles.primary, busy && styles.disabled, pressed && styles.pressed])}>
+            {busy ? <ActivityIndicator color={colors.onPrimary} /> : <><AppIcon name="backup-restore" size={icon.sm} color={colors.onPrimary} /><Text style={styles.primaryText}>{c.reopen}</Text></>}
           </Pressable>
+        ) : null}
+
+        {task.recurrence && !isClosed ? (
+          <View style={styles.recurRow}>
+            <Pressable accessibilityRole="button" accessibilityState={{ busy }} accessibilityLabel={c.skipOne} onPress={() => void doSkip()} style={({ pressed }) => StyleSheet.flatten([styles.ghost, styles.recurBtn, busy && styles.disabled, pressed && styles.pressed])}>
+              <AppIcon name="skip-next-outline" size={icon.sm} color={colors.primary} /><Text style={styles.ghostText}>{c.skipOne}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityState={{ busy }} accessibilityLabel={c.stopRepeat} onPress={() => void mutate({ recurrence: null }, c.stoppedRepeat)} style={({ pressed }) => StyleSheet.flatten([styles.ghost, styles.recurBtn, busy && styles.disabled, pressed && styles.pressed])}>
+              <AppIcon name="repeat-off" size={icon.sm} color={colors.primary} /><Text style={styles.ghostText}>{c.stopRepeat}</Text>
+            </Pressable>
+          </View>
         ) : null}
 
         <View style={styles.actionBar}>
           <Link href={{ pathname: '/task-editor', params: { id: task.id } }} asChild>
             <Pressable accessibilityRole="button" style={({ pressed }) => StyleSheet.flatten([styles.barBtn, pressed && styles.pressed])}><AppIcon name="pencil-outline" size={icon.sm} color={colors.textSecondary} /><Text style={styles.barText}>{c.edit}</Text></Pressable>
           </Link>
-          {task.status !== 'INBOX' ? (
+          {task.status !== 'INBOX' && canToInbox ? (
             <Pressable accessibilityRole="button" onPress={() => void mutate({ status: 'INBOX' as TaskStatus }, c.movedInbox)} style={({ pressed }) => StyleSheet.flatten([styles.barBtn, pressed && styles.pressed])}><AppIcon name="inbox-arrow-down-outline" size={icon.sm} color={colors.textSecondary} /><Text style={styles.barText}>{c.toInbox}</Text></Pressable>
           ) : null}
           <Pressable accessibilityRole="button" onPress={doShare} style={({ pressed }) => StyleSheet.flatten([styles.barBtn, pressed && styles.pressed])}><AppIcon name="share-variant-outline" size={icon.sm} color={colors.textSecondary} /><Text style={styles.barText}>{c.share}</Text></Pressable>
@@ -173,7 +215,7 @@ export default function TaskDetailScreen() {
         </View>
       </ScrollView>
 
-      <AppConfirmDialog visible={confirmDelete} title={c.delTitle} description={c.delDesc} confirmLabel={c.delOk} cancelLabel={c.cancel} danger onCancel={() => setConfirmDelete(false)} onConfirm={() => void doDelete()} />
+      <AppConfirmDialog visible={confirmDelete} title={c.delTitle} description={c.delDesc} confirmLabel={c.delOk} cancelLabel={c.cancel} danger onCancel={() => setConfirmDelete(false)} onConfirm={() => { warn(); void doDelete(); }} />
     </View>
   );
 }
@@ -212,9 +254,13 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     rowValueMultiline: { textAlign: 'left', ...typography.body },
     primary: { minHeight: control.buttonHeight, marginTop: spacing.lg, borderRadius: radius.md, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, ...elevation.raised },
     primaryText: { color: colors.onPrimary, ...typography.callout, fontFamily: typography.label.fontFamily },
+    ghost: { minHeight: control.buttonHeight, marginTop: spacing.sm, borderRadius: radius.md, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
+    ghostText: { color: colors.primary, ...typography.callout, fontFamily: typography.label.fontFamily },
+    recurRow: { flexDirection: 'row', gap: spacing.sm },
+    recurBtn: { flex: 1, paddingHorizontal: spacing.xs },
     actionBar: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg, borderTopWidth: border.thin, borderTopColor: colors.border, paddingTop: spacing.md },
     relatedWrap: { marginTop: spacing.lg, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface, padding: spacing.md, gap: spacing.xs },
-    relatedTitle: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '900', marginBottom: spacing.xxs },
+    relatedTitle: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '700', marginBottom: spacing.xxs },
     relatedRow: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     relatedTap: { flex: 1, minWidth: 0, minHeight: layout.minTouchTarget, justifyContent: 'center' },
     relatedText: { color: colors.textSecondary, ...typography.bodySmall },

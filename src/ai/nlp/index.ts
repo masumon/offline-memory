@@ -1,7 +1,7 @@
 import { extractEntities } from './entities';
 import { classifyIntent } from './intent';
 import { STEP_SEPARATORS } from './lexicon';
-import { normalizeText, tokenize } from './normalize';
+import { normalizeKeepCase, normalizeText, tokenize } from './normalize';
 import type { NlpResult } from './types';
 
 export * from './types';
@@ -15,7 +15,7 @@ export function parseLocalNlp(input: string, now = new Date()): NlpResult {
   const normalizedText = normalizeText(input);
   const tokens = tokenize(normalizedText);
   const { intent, confidence } = classifyIntent(normalizedText);
-  const entities = extractEntities(normalizedText, intent, now);
+  const entities = extractEntities(normalizedText, intent, now, normalizeKeepCase(input));
 
   return { normalizedText, tokens, intent, confidence, entities };
 }

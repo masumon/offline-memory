@@ -36,7 +36,11 @@ export async function reconcileScheduledTaskNotifications(db:SQLiteDatabase,now=
  const key=`${taskId}|${dueAt}`;if(seen.has(key)){await Notifications.cancelScheduledNotificationAsync(notification.identifier);cancelled+=1;continue;}
  const task=await getTask(db,taskId);const validStatus=task?.status==='PLANNED'||task?.status==='RESCHEDULED';const dueDate=new Date(dueAt);const valid=Boolean(task&&validStatus&&task.dueAt===dueAt&&!Number.isNaN(dueDate.getTime())&&dueDate.getTime()>now.getTime());if(!valid){await Notifications.cancelScheduledNotificationAsync(notification.identifier);cancelled+=1;continue;}
  seen.add(key);}return cancelled;}
-export async function scheduleTaskNotification(db:SQLiteDatabase,candidate:NotificationCandidate,quietHours?:QuietHours|null):Promise<string|null>{if(await hasNotificationBeenDelivered(db,candidate.taskId,candidate.dueAt))return null;const dueAtRaw=new Date(candidate.dueAt);if(Number.isNaN(dueAtRaw.getTime())||dueAtRaw.getTime()<=Date.now())return null;const dueAt=applyQuietHours(dueAtRaw,quietHours);const scheduled=await Notifications.getAllScheduledNotificationsAsync();
+export async function scheduleTaskNotification(db:SQLiteDatabase,candidate:NotificationCandidate,quietHours?:QuietHours|null,leadMinutes=0):Promise<string|null>{if(await hasNotificationBeenDelivered(db,candidate.taskId,candidate.dueAt))return null;const dueAtRaw=new Date(candidate.dueAt);if(Number.isNaN(dueAtRaw.getTime())||dueAtRaw.getTime()<=Date.now())return null;
+ // Fire `leadMinutes` early when that still lands in the future; otherwise fall back to
+ // the due time. The delivered-key and the notification's `dueAt` payload stay the
+ // ORIGINAL so tap-routing and de-dup are unaffected.
+ const leadMs=Math.max(0,leadMinutes)*60000;const early=new Date(dueAtRaw.getTime()-leadMs);const fireBase=leadMs>0&&early.getTime()>Date.now()?early:dueAtRaw;const dueAt=applyQuietHours(fireBase,quietHours);const scheduled=await Notifications.getAllScheduledNotificationsAsync();
  // Collapse any duplicates for this exact task+time (overlapping scheduler passes could
  // previously each create their own OS reminder). Keep the first, cancel the rest.
  const matches=scheduled.filter(item=>{const data=notificationData(item);return data.taskId===candidate.taskId&&data.dueAt===candidate.dueAt;});

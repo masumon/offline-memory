@@ -1,16 +1,18 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '../src/ui/AppText';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { getDailyPlan, planInboxTasks, type DailyPlan } from '../src/services/planning-service';
 import { useTaskStore } from '../src/store/task.store';
 import { useAppPreferences } from '../src/app/AppPreferences';
-import { AppButton, AppCard, AppState } from '../src/ui/AppSurface';
+import { AppButton, AppCard, AppSkeletonList, AppState } from '../src/ui/AppSurface';
 import { AppIcon } from '../src/ui/AppIcon';
+import { tapSelect } from '../src/ui/haptics';
 import { RowLeading } from '../src/ui/RowLeading';
 import { loadImageThumbs } from '../src/services/attachment-thumbs';
-import { formatBangladeshDate, formatBangladeshRelativeDate, formatBangladeshNumber } from '../src/i18n/date-time';
+import { bangladeshDateKey, formatBangladeshDate, formatBangladeshRelativeDate, formatBangladeshNumber } from '../src/i18n/date-time';
 import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, priorityAccentName, type AccentRole, type ThemeAccents, type ThemeColors } from '../src/theme';
 import type { TaskPriority } from '../src/types';
 
@@ -23,16 +25,38 @@ function addDays(base: Date, days: number) { const next = new Date(base); next.s
 
 export default function PlanningScreen() {
   const db = useSQLiteContext();
-  const { colors, accents, language } = useAppPreferences();
+  const { colors, accents, language, weekStartsOn } = useAppPreferences();
   const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
   const bn = language === 'bn';
-  const params = useLocalSearchParams<{ filter?: string }>();
+  const params = useLocalSearchParams<{ filter?: string; date?: string }>();
   const [focusFilter, setFocusFilter] = useState<string | null>(params.filter ?? null);
-  const [cursor, setCursor] = useState(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; });
+  const [cursor, setCursor] = useState(() => {
+    // A `date=YYYY-MM-DD` param (e.g. from the month view) opens straight on that day.
+    if (params.date && /^\d{4}-\d{2}-\d{2}$/u.test(params.date)) {
+      const picked = new Date(`${params.date}T12:00:00`);
+      if (!Number.isNaN(picked.getTime())) return picked;
+    }
+    const d = new Date(); d.setHours(12, 0, 0, 0); return d;
+  });
   const [plan, setPlan] = useState<DailyPlan | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
   const loadTasks = useTaskStore(state => state.load);
+  const allTasks = useTaskStore(state => state.tasks);
+
+  // Load the full task list once so the week strip can show which days already carry
+  // work — the per-day plan only covers `cursor`.
+  useEffect(() => { void loadTasks(db); }, [db, loadTasks]);
+  const dayMarks = useMemo(() => {
+    const s = new Set<string>();
+    for (const t of allTasks) {
+      if (['COMPLETED', 'ARCHIVED', 'CANCELLED'].includes(t.status)) continue;
+      const key = t.plannedDate || (t.dueAt ? bangladeshDateKey(t.dueAt) : null);
+      if (key) s.add(key);
+    }
+    return s;
+  }, [allTasks]);
 
   const loadPlan = useCallback(async (date: Date) => {
     setError(null);
@@ -55,7 +79,7 @@ export default function PlanningScreen() {
   const planTask = useCallback(async (id: string) => {
     if (busyId) return;
     setBusyId(id); setError(null);
-    try { await planInboxTasks(db, [id], cursor); await Promise.all([loadPlan(cursor), loadTasks(db)]); }
+    try { await planInboxTasks(db, [id], cursor); tapSelect(); await Promise.all([loadPlan(cursor), loadTasks(db)]); }
     catch { setError(bn ? 'টাস্ক প্ল্যান করা যায়নি' : 'Unable to plan task'); }
     finally { setBusyId(null); }
   }, [busyId, db, cursor, loadPlan, loadTasks, bn]);
@@ -75,8 +99,10 @@ export default function PlanningScreen() {
     };
     const showOverdue = focusFilter !== 'due';
     const showDay = focusFilter !== 'overdue';
-    const dayTasks = showDay ? [...plan.scheduled, ...plan.inProgress].filter(t => (seen.has(t.id) ? false : (seen.add(t.id), true))).filter(matchFilter) : [];
     const overdueTasks = showOverdue ? plan.overdue.filter(matchFilter) : [];
+    const overdueIds = new Set(plan.overdue.map(t => t.id));
+    // Overdue rows win — never also list the same task inside a time bucket.
+    const dayTasks = showDay ? [...plan.scheduled, ...plan.inProgress].filter(t => (seen.has(t.id) || overdueIds.has(t.id) ? false : (seen.add(t.id), true))).filter(matchFilter) : [];
     const order: BucketKey[] = ['morning', 'noon', 'evening', 'night', 'unset'];
     const bLabels: Record<BucketKey, string> = bn
       ? { morning: 'সকাল', noon: 'দুপুর', evening: 'বিকাল', night: 'সন্ধ্যা', unset: 'সময় নির্ধারিত নয়' }
@@ -95,7 +121,7 @@ export default function PlanningScreen() {
   const isToday = plan?.date === todayKey;
   const relative = formatBangladeshRelativeDate(cursor, language);
 
-  if (!plan && !error) return <AppState loading title={bn ? 'প্ল্যান লোড হচ্ছে…' : 'Loading plan…'} />;
+  if (!plan && !error) return <AppSkeletonList rows={5} />;
 
   return (
     <View style={styles.container}>
@@ -103,14 +129,19 @@ export default function PlanningScreen() {
         <View style={styles.headerRow}>
           <View style={styles.headingCopy}>
             <Text style={styles.eyebrow}>{labels.eyebrow}</Text>
-            <Text style={styles.title}>{plan ? planDateLabel(plan.date, language) : labels.plan}</Text>
+            <Text accessibilityRole="header" style={styles.title}>{plan ? planDateLabel(plan.date, language) : labels.plan}</Text>
           </View>
-          <Link href="/task-editor" asChild><AppButton label={labels.newTask} icon="plus" onPress={() => undefined} /></Link>
+          <View style={styles.headerActions}>
+            <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'মাসিক ভিউ' : 'Month view'} onPress={() => router.push('/calendar' as never)} style={({ pressed }) => StyleSheet.flatten([styles.monthBtn, pressed && styles.pressed])}>
+              <AppIcon name="calendar-month-outline" size={icon.md} color={colors.primary} />
+            </Pressable>
+            <AppButton label={labels.newTask} icon="plus" onPress={() => router.push('/task-editor')} />
+          </View>
         </View>
         <Text style={styles.subtitle}>{labels.subtitle}</Text>
 
         <View style={styles.dateNav}>
-          <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'আগের মাস' : 'Previous month'} onPress={() => setCursor(c => addDays(c, -30))} style={({ pressed }) => StyleSheet.flatten([styles.navArrow, pressed && styles.pressed])}>
+          <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'আগের সপ্তাহ' : 'Previous week'} onPress={() => setCursor(c => addDays(c, -7))} style={({ pressed }) => StyleSheet.flatten([styles.navArrow, pressed && styles.pressed])}>
             <AppIcon name="chevron-double-left" size={icon.md} color={colors.primary} />
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={labels.prev} onPress={() => setCursor(c => addDays(c, -1))} style={({ pressed }) => StyleSheet.flatten([styles.navArrow, pressed && styles.pressed])}>
@@ -123,23 +154,26 @@ export default function PlanningScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel={labels.next} onPress={() => setCursor(c => addDays(c, 1))} style={({ pressed }) => StyleSheet.flatten([styles.navArrow, pressed && styles.pressed])}>
             <AppIcon name="chevron-right" size={icon.md} color={colors.primary} />
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'পরের মাস' : 'Next month'} onPress={() => setCursor(c => addDays(c, 30))} style={({ pressed }) => StyleSheet.flatten([styles.navArrow, pressed && styles.pressed])}>
+          <Pressable accessibilityRole="button" accessibilityLabel={bn ? 'পরের সপ্তাহ' : 'Next week'} onPress={() => setCursor(c => addDays(c, 7))} style={({ pressed }) => StyleSheet.flatten([styles.navArrow, pressed && styles.pressed])}>
             <AppIcon name="chevron-double-right" size={icon.md} color={colors.primary} />
           </Pressable>
         </View>
 
         <View style={styles.weekStrip}>
           {Array.from({ length: 7 }).map((_, i) => {
-            const d = new Date(cursor); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - d.getDay() + i);
+            const d = new Date(cursor); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() - weekStartsOn + 7) % 7) + i);
             const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+            const markKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             const isSel = key === `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`;
             const n = new Date();
             const dayIsToday = key === `${n.getFullYear()}-${n.getMonth()}-${n.getDate()}`;
+            const hasTasks = dayMarks.has(markKey);
             const wd = (bn ? ['রবি', 'সোম', 'মঙ্গল', 'বুধ', 'বৃহ', 'শুক্র', 'শনি'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'])[d.getDay()];
             return (
-              <Pressable key={i} accessibilityRole="button" accessibilityState={{ selected: isSel }} accessibilityLabel={`${wd} ${d.getDate()}`} onPress={() => setCursor(d)} style={({ pressed }) => StyleSheet.flatten([styles.weekDay, isSel && styles.weekDaySel, pressed && styles.pressed])}>
+              <Pressable key={i} accessibilityRole="button" accessibilityState={{ selected: isSel }} accessibilityLabel={`${wd} ${d.getDate()}${hasTasks ? (bn ? ' · কাজ আছে' : ' · has tasks') : ''}`} onPress={() => setCursor(d)} style={({ pressed }) => StyleSheet.flatten([styles.weekDay, isSel && styles.weekDaySel, pressed && styles.pressed])}>
                 <Text style={[styles.weekWd, isSel && styles.weekTextSel]}>{wd}</Text>
                 <Text style={[styles.weekNum, isSel && styles.weekTextSel, !isSel && dayIsToday && styles.weekNumToday]}>{formatBangladeshNumber(d.getDate(), language)}</Text>
+                <View style={[styles.weekDot, hasTasks && (isSel ? styles.weekDotSel : styles.weekDotOn)]} />
               </Pressable>
             );
           })}
@@ -248,7 +282,7 @@ const TimelineGroup = memo(function TimelineGroup({ label, items, accent, styles
   return (
     <View style={styles.section}>
       <Text style={styles.groupLabel}>{label} · {items.length}</Text>
-      {items.slice(0, 12).map(task => {
+      {items.slice(0, 40).map(task => {
         const tone = accent ?? accents[priorityAccentName(task.priority)];
         return (
           <Link key={task.id} href={{ pathname: '/task-detail', params: { id: task.id } }} asChild>
@@ -266,6 +300,7 @@ const TimelineGroup = memo(function TimelineGroup({ label, items, accent, styles
           </Link>
         );
       })}
+      {items.length > 40 ? <Text style={styles.groupLabel}>{bn ? `আরও ${items.length - 40}টি` : `+${items.length - 40} more`}</Text> : null}
     </View>
   );
 });
@@ -275,9 +310,11 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     container: { flex: 1, backgroundColor: colors.background },
     header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md },
     headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.md },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    monthBtn: { width: control.iconButtonSize, height: control.iconButtonSize, borderRadius: radius.md, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
     headingCopy: { flex: 1, minWidth: 0 },
-    eyebrow: { color: colors.primary, ...typography.label, fontWeight: '900', letterSpacing: 0.8 },
-    title: { color: colors.textPrimary, ...typography.title, fontWeight: '900', marginTop: spacing.sm },
+    eyebrow: { color: colors.primary, ...typography.label, fontWeight: '700', letterSpacing: 0.8 },
+    title: { color: colors.textPrimary, ...typography.title, fontWeight: '700', marginTop: spacing.sm },
     subtitle: { color: colors.textSecondary, ...typography.bodySmall, marginTop: spacing.sm },
     dateNav: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
     navArrow: { width: control.iconButtonSize, height: control.iconButtonSize, borderRadius: radius.md, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
@@ -290,11 +327,14 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     weekDaySel: { backgroundColor: colors.primary, borderColor: colors.primary },
     weekWd: { color: colors.textMuted, ...typography.section },
     weekNum: { color: colors.textPrimary, ...typography.meta, fontFamily: typography.numeric.fontFamily },
+    weekDot: { width: 5, height: 5, borderRadius: radius.pill, backgroundColor: 'transparent', marginTop: 1 },
+    weekDotOn: { backgroundColor: colors.primary },
+    weekDotSel: { backgroundColor: colors.onPrimary },
     weekTextSel: { color: colors.onPrimary },
     weekNumToday: { color: colors.primary },
     summaryRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
     summaryPill: { flex: 1, borderWidth: border.thin, borderRadius: radius.lg, paddingVertical: spacing.smd, paddingHorizontal: spacing.sm, alignItems: 'center' },
-    summaryCount: { ...typography.heading, fontWeight: '900' },
+    summaryCount: { ...typography.heading, fontWeight: '700' },
     summaryLabel: { ...typography.caption, fontWeight: '700', marginTop: spacing.xxs },
     list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
     section: { marginBottom: spacing.md },
@@ -310,8 +350,8 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     inboxSection: { position: 'relative', marginTop: spacing.lg },
     inboxFade: { position: 'absolute', left: 0, right: 0, top: -spacing.xl, height: spacing.xl },
     inboxHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
-    linkPill: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingLeft: spacing.smd, paddingRight: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.primaryTint, opacity: 0.5 },
-    linkText: { color: colors.primary, ...typography.bodySmall, fontWeight: '900' },
+    linkPill: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingLeft: spacing.smd, paddingRight: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.primaryTint },
+    linkText: { color: colors.primary, ...typography.bodySmall, fontWeight: '700' },
     compact: { minHeight: control.rowMinHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.sm, marginBottom: spacing.xs, ...elevation.soft },
     compactIcon: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
     compactCopy: { flex: 1, minWidth: 0 },
@@ -321,7 +361,7 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     body: { flex: 1, minWidth: 0, minHeight: control.iconButtonSize, justifyContent: 'center', paddingHorizontal: spacing.xs },
     task: { color: colors.textPrimary, ...typography.meta, fontWeight: '700' },
     meta: { ...typography.section, marginTop: spacing.xxs, fontWeight: '800' },
-    priority: { ...typography.section, fontWeight: '900', maxWidth: spacing.xxl + spacing.md, textAlign: 'right' },
+    priority: { ...typography.section, fontWeight: '700', maxWidth: spacing.xxl + spacing.md, textAlign: 'right' },
     planButton: { minHeight: layout.minTouchTarget, minWidth: control.inputHeight, maxWidth: control.inputHeight + spacing.md, paddingHorizontal: spacing.sm, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: spacing.xxs },
     planText: { color: colors.onPrimary, fontWeight: '800', flexShrink: 1 },
     disabled: { opacity: opacity.disabled },

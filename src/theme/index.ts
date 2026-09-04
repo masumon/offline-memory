@@ -2,12 +2,12 @@
 // Direction: premium, calm, Bengali-first. A deep royal-sapphire brand with an antique
 // gold secondary accent, set on cool paper in light and deep navy-black in dark.
 // Hairline structure; one soft shadow for floating surfaces; glass only on floating
-// chrome. `success` is its own green (done ≠ brand). Type: Hind Siliguri + Inter.
+// chrome. `success` is its own green (done ≠ brand). Type: Noto Sans Bengali + Inter.
 // This file is the single source of truth — there is no second palette anywhere.
 
 // Font family names as registered in app/_layout.tsx (weight-named — do not rely on fontWeight
 // with custom families on Android; pick the family that carries the weight you want).
-export const fonts={regular:'HindSiliguri_400Regular',medium:'HindSiliguri_500Medium',semibold:'HindSiliguri_600SemiBold',bold:'HindSiliguri_700Bold',numRegular:'Inter_400Regular',numMedium:'Inter_500Medium',numSemibold:'Inter_600SemiBold',numBold:'Inter_700Bold'} as const;
+export const fonts={regular:'NotoSansBengali_400Regular',medium:'NotoSansBengali_500Medium',semibold:'NotoSansBengali_600SemiBold',bold:'NotoSansBengali_700Bold',numRegular:'Inter_400Regular',numMedium:'Inter_500Medium',numSemibold:'Inter_600SemiBold',numBold:'Inter_700Bold'} as const;
 
 // textMuted meets WCAG AA (>=4.5:1) for body text on `surface`/`background` while
 // staying visibly lighter than textSecondary so the hierarchy survives.
@@ -18,7 +18,10 @@ export type ThemeColors=typeof lightColors|typeof darkColors;
 export function getThemeColors(mode:'light'|'dark'):ThemeColors{return mode==='dark'?darkColors:lightColors;}
 export const colors=lightColors;
 
-export const spacing={xxs:4,xs:4,sm:8,smd:12,md:16,lg:24,xl:32,xxl:48,mdPlus:20,lgPlus:40} as const;
+// Ascending 4-pt-ish rhythm. `xxs`/`xs` are a deliberate alias (both 4) kept so call
+// sites read intent ("hairline gap" vs "tight gap"); `mdPlus` (20) and `lgPlus` (40) are
+// the two in-between steps. Order here is by value, not by name, on purpose.
+export const spacing={xxs:4,xs:4,sm:8,smd:12,md:16,mdPlus:20,lg:24,xl:32,lgPlus:40,xxl:48} as const;
 export const layout={compactHorizontal:16,regularHorizontal:24,contentMaxWidth:760,expandedNavWidth:104,compactNavHeight:76,minTouchTarget:48,iconButtonSize:48,snackbarMaxWidth:680,dialogMaxWidth:520,feedbackZIndex:1000} as const;
 export const breakpoints={compactWindow:600,mediumWindow:840,expandedNavigation:840,wideContent:900,largeWindow:1200} as const;
 export type WindowSizeClass='compact'|'medium'|'expanded';
@@ -28,20 +31,22 @@ export function getWindowSizeClass(width:number):WindowSizeClass{return width<br
 // system font. Screens may still add fontWeight; on Android the family wins, which is
 // intentional (kills the "everything is 900" heaviness of the old build).
 export const typography={
-  label:{fontSize:12,lineHeight:16,letterSpacing:0.3,fontFamily:fonts.semibold},
-  caption:{fontSize:12,lineHeight:17,fontFamily:fonts.medium},
-  section:{fontSize:11,lineHeight:15,letterSpacing:0.4,fontFamily:fonts.semibold},
-  meta:{fontSize:13,lineHeight:18,fontFamily:fonts.medium},
-  input:{fontSize:15,lineHeight:22,fontFamily:fonts.regular},
-  bodySmall:{fontSize:14,lineHeight:21,fontFamily:fonts.regular},
-  body:{fontSize:15,lineHeight:23,fontFamily:fonts.regular},
-  callout:{fontSize:14,lineHeight:20,fontFamily:fonts.medium},
-  cardTitle:{fontSize:17,lineHeight:23,fontFamily:fonts.semibold},
-  heading:{fontSize:20,lineHeight:26,fontFamily:fonts.semibold},
-  dialogTitle:{fontSize:19,lineHeight:25,fontFamily:fonts.semibold},
-  title:{fontSize:24,lineHeight:30,letterSpacing:-0.2,fontFamily:fonts.bold},
-  titleLarge:{fontSize:27,lineHeight:34,letterSpacing:-0.3,fontFamily:fonts.bold},
-  display:{fontSize:30,lineHeight:37,letterSpacing:-0.4,fontFamily:fonts.bold},
+  // Line-heights carry a little extra headroom: Noto Sans Bengali sits taller than the
+  // old face, and Bengali needs room above (ref/reph) and below (hasanta, ya-phala).
+  label:{fontSize:12,lineHeight:17,letterSpacing:0.3,fontFamily:fonts.semibold},
+  caption:{fontSize:12,lineHeight:18,fontFamily:fonts.medium},
+  section:{fontSize:11,lineHeight:16,letterSpacing:0.4,fontFamily:fonts.semibold},
+  meta:{fontSize:13,lineHeight:19,fontFamily:fonts.medium},
+  input:{fontSize:15,lineHeight:23,fontFamily:fonts.regular},
+  bodySmall:{fontSize:14,lineHeight:22,fontFamily:fonts.regular},
+  body:{fontSize:15,lineHeight:24,fontFamily:fonts.regular},
+  callout:{fontSize:14,lineHeight:21,fontFamily:fonts.medium},
+  cardTitle:{fontSize:17,lineHeight:25,fontFamily:fonts.semibold},
+  heading:{fontSize:20,lineHeight:28,fontFamily:fonts.semibold},
+  dialogTitle:{fontSize:19,lineHeight:27,fontFamily:fonts.semibold},
+  title:{fontSize:24,lineHeight:32,letterSpacing:-0.2,fontFamily:fonts.bold},
+  titleLarge:{fontSize:27,lineHeight:36,letterSpacing:-0.3,fontFamily:fonts.bold},
+  display:{fontSize:30,lineHeight:40,letterSpacing:-0.4,fontFamily:fonts.bold},
   numeric:{fontSize:15,lineHeight:20,fontFamily:fonts.numSemibold},
 } as const;
 

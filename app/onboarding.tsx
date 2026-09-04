@@ -1,8 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, View, useWindowDimensions } from 'react-native';
+import { AppText as Text } from '../src/ui/AppText';
 import { router } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 import { useAppPreferences } from '../src/app/AppPreferences';
 import { initializeNotifications, requestNotificationPermission } from '../src/services/notification.service';
+import { seedDemoData } from '../src/services/demo-data-service';
 import { AppIcon } from '../src/ui/AppIcon';
 import { border, control, icon, layout, opacity, radius, spacing, typography, type ThemeAccents, type ThemeColors } from '../src/theme';
 
@@ -11,13 +14,16 @@ const SLIDES: SlideKey[] = ['privacy', 'capture', 'ready'];
 
 export default function OnboardingScreen() {
   const { colors, accents, language, setLanguage, completeOnboarding } = useAppPreferences();
+  const db = useSQLiteContext();
   const bn = language === 'bn';
   const styles = useMemo(() => makeStyles(colors, accents), [colors, accents]);
   const { width } = useWindowDimensions();
   const scroller = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
   const [remindersOn, setRemindersOn] = useState<boolean | null>(null);
+  const [demoOn, setDemoOn] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [finishing, setFinishing] = useState(false);
 
   const t = bn
     ? {
@@ -32,6 +38,10 @@ export default function OnboardingScreen() {
         langLabel: 'ভাষা', bengali: 'বাংলা', english: 'English',
         remLabel: 'টাস্কের সময় হলে রিমাইন্ডার দিন',
         remOn: 'চালু', remOff: 'পরে', remGranted: 'রিমাইন্ডার চালু হয়েছে', remDenied: 'অনুমতি দেওয়া হয়নি — সেটিংসে পরে চালু করা যাবে',
+        demoLabel: 'ডেমো ডেটা দিয়ে শিখুন',
+        demoBody: 'অ্যাপটা কীভাবে কাজ করে বুঝতে ৩৪টি নমুনা টাস্ক ও মেমোরি যোগ করা হবে — Home, Planning, Memory ও Assistant সব ভরে দেখাবে। যেকোনো সময় Settings → ডায়াগনস্টিকস থেকে এক ট্যাপে মুছে ফেলা যায়।',
+        storageNote: 'আপনার সব তথ্য শুধু এই ফোনের ভেতরেই একটি লোকাল ডেটাবেসে থাকে — কোনো সার্ভারে যায় না, কোনো অ্যাকাউন্ট লাগে না।',
+        seeding: 'ডেমো ডেটা যোগ হচ্ছে…',
       }
     : {
         skip: 'Skip', next: 'Next', start: 'Get started',
@@ -45,6 +55,10 @@ export default function OnboardingScreen() {
         langLabel: 'Language', bengali: 'বাংলা', english: 'English',
         remLabel: 'Remind me when a task is due',
         remOn: 'On', remOff: 'Later', remGranted: 'Reminders enabled', remDenied: 'Permission not granted — you can enable it later in Settings',
+        demoLabel: 'Learn with demo data',
+        demoBody: 'Adds 34 sample tasks and memories so you can see how everything works — Home, Planning, Memory and the Assistant all filled in. Remove it in one tap anytime from Settings → Diagnostics.',
+        storageNote: 'All your data lives only inside this phone in a local database — nothing goes to a server, no account needed.',
+        seeding: 'Adding demo data…',
       };
 
   const go = (next: number) => {
@@ -65,16 +79,26 @@ export default function OnboardingScreen() {
     }
   };
 
-  const finish = async () => {
-    await completeOnboarding();
-    router.replace('/');
+  const finish = async (withDemo = demoOn) => {
+    if (finishing) return;
+    setFinishing(true);
+    try {
+      if (withDemo) {
+        // Best-effort: a demo-seed hiccup must never block the user from entering the app.
+        try { await seedDemoData(db); } catch { /* ignore — app still opens clean */ }
+      }
+      await completeOnboarding();
+      router.replace('/');
+    } finally {
+      setFinishing(false);
+    }
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.topBar}>
         <View style={styles.brand}><View style={styles.brandBadge}><Text style={styles.brandBadgeText}>OM</Text></View><Text style={styles.brandName}>Offline Memory</Text></View>
-        <Pressable accessibilityRole="button" accessibilityLabel={t.skip} onPress={() => void finish()} hitSlop={8} style={({ pressed }) => StyleSheet.flatten([styles.skip, pressed && styles.pressed])}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t.skip} onPress={() => void finish(false)} hitSlop={8} style={({ pressed }) => StyleSheet.flatten([styles.skip, pressed && styles.pressed])}>
           <Text style={styles.skipText}>{t.skip}</Text>
         </Pressable>
       </View>
@@ -135,6 +159,30 @@ export default function OnboardingScreen() {
               <Text style={styles.remNoteText}>{remindersOn ? t.remGranted : t.remDenied}</Text>
             </View>
           )}
+
+          <Text style={styles.fieldLabel}>{t.demoLabel}</Text>
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityState={{ checked: demoOn }}
+            accessibilityLabel={t.demoLabel}
+            onPress={() => setDemoOn(v => !v)}
+            style={({ pressed }) => StyleSheet.flatten([styles.demoToggleRow, demoOn && styles.demoToggleRowOn, pressed && styles.pressed])}
+          >
+            <View style={styles.demoToggleIcon}><AppIcon name="database-plus-outline" size={icon.sm} color={demoOn ? colors.primary : colors.textMuted} /></View>
+            <Text style={styles.demoToggleText}>{t.demoBody}</Text>
+            <Switch
+              value={demoOn}
+              onValueChange={setDemoOn}
+              accessibilityLabel={t.demoLabel}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.onPrimary}
+            />
+          </Pressable>
+
+          <View style={styles.storageNote}>
+            <AppIcon name="shield-lock-outline" size={icon.sm} color={accents.green.on} />
+            <Text style={styles.storageNoteText}>{t.storageNote}</Text>
+          </View>
         </Slide>
       </ScrollView>
 
@@ -144,12 +192,20 @@ export default function OnboardingScreen() {
         </View>
         <Pressable
           accessibilityRole="button"
+          accessibilityState={{ disabled: finishing, busy: finishing }}
+          disabled={finishing}
           accessibilityLabel={index === SLIDES.length - 1 ? t.start : t.next}
           onPress={() => (index === SLIDES.length - 1 ? void finish() : go(index + 1))}
-          style={({ pressed }) => StyleSheet.flatten([styles.cta, pressed && styles.pressed])}
+          style={({ pressed }) => StyleSheet.flatten([styles.cta, finishing && styles.disabled, pressed && styles.pressed])}
         >
-          <Text style={styles.ctaText}>{index === SLIDES.length - 1 ? t.start : t.next}</Text>
-          <AppIcon name={index === SLIDES.length - 1 ? 'check' : 'arrow-right'} size={icon.sm} color={colors.onPrimary} />
+          {finishing ? (
+            <><ActivityIndicator color={colors.onPrimary} /><Text style={styles.ctaText}>{demoOn ? t.seeding : t.start}</Text></>
+          ) : (
+            <>
+              <Text style={styles.ctaText}>{index === SLIDES.length - 1 ? t.start : t.next}</Text>
+              <AppIcon name={index === SLIDES.length - 1 ? 'check' : 'arrow-right'} size={icon.sm} color={colors.onPrimary} />
+            </>
+          )}
         </Pressable>
       </View>
     </View>
@@ -173,21 +229,21 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     brandBadge: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
     brandBadgeText: { color: colors.onPrimary, ...typography.cardTitle, fontFamily: typography.numeric.fontFamily },
-    brandName: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '900' },
+    brandName: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '700' },
     skip: { minHeight: layout.minTouchTarget, justifyContent: 'center', paddingHorizontal: spacing.sm },
     skipText: { color: colors.textSecondary, ...typography.meta, fontWeight: '800' },
     pager: { flex: 1 },
     slide: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.xl, gap: spacing.md },
     iconBadge: { width: 96, height: 96, borderRadius: radius.xxl, borderWidth: border.thin, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm },
-    title: { color: colors.textPrimary, ...typography.titleLarge, fontWeight: '900', textAlign: 'center' },
+    title: { color: colors.textPrimary, ...typography.titleLarge, fontWeight: '700', textAlign: 'center' },
     body: { color: colors.textSecondary, ...typography.body, textAlign: 'center', maxWidth: 420 },
     demoInput: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, alignSelf: 'stretch', maxWidth: 420, marginTop: spacing.md, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surfaceMuted, paddingHorizontal: spacing.md, paddingVertical: spacing.smd },
     demoInputText: { flex: 1, color: colors.textPrimary, ...typography.bodySmall, fontWeight: '700' },
     demoCard: { alignSelf: 'stretch', maxWidth: 420, borderWidth: border.thin, borderColor: accents.green.border, borderRadius: radius.lg, backgroundColor: accents.green.soft, padding: spacing.md, gap: spacing.xs },
     demoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    demoLabel: { color: accents.green.on, ...typography.caption, fontWeight: '900', minWidth: 64 },
+    demoLabel: { color: accents.green.on, ...typography.caption, fontWeight: '700', minWidth: 64 },
     demoValue: { flex: 1, color: colors.textPrimary, ...typography.bodySmall, fontWeight: '700' },
-    fieldLabel: { alignSelf: 'stretch', maxWidth: 420, color: colors.textSecondary, ...typography.label, fontWeight: '900', marginTop: spacing.md },
+    fieldLabel: { alignSelf: 'stretch', maxWidth: 420, color: colors.textSecondary, ...typography.label, fontWeight: '700', marginTop: spacing.md },
     segmented: { flexDirection: 'row', alignSelf: 'stretch', maxWidth: 420, gap: spacing.xs, padding: spacing.xs, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
     segment: { flex: 1, minHeight: layout.minTouchTarget, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
     segmentOn: { backgroundColor: colors.primary },
@@ -195,19 +251,25 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     segmentTextOn: { color: colors.onPrimary },
     remRow: { flexDirection: 'row', alignSelf: 'stretch', maxWidth: 420, gap: spacing.sm },
     remPrimary: { flex: 1, minHeight: control.buttonHeight, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, borderRadius: radius.md, backgroundColor: colors.primary },
-    remPrimaryText: { color: colors.onPrimary, ...typography.bodySmall, fontWeight: '900' },
+    remPrimaryText: { color: colors.onPrimary, ...typography.bodySmall, fontWeight: '700' },
     remGhost: { minHeight: control.buttonHeight, minWidth: layout.minTouchTarget * 2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg, borderRadius: radius.md, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface },
     remGhostText: { color: colors.textSecondary, ...typography.bodySmall, fontWeight: '800' },
     remNote: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, alignSelf: 'stretch', maxWidth: 420, borderWidth: border.thin, borderRadius: radius.md, padding: spacing.md },
     remNoteOk: { borderColor: accents.green.border, backgroundColor: accents.green.soft },
     remNoteWarn: { borderColor: accents.orange.border, backgroundColor: accents.orange.soft },
     remNoteText: { flex: 1, color: colors.textPrimary, ...typography.bodySmall, fontWeight: '700' },
+    demoToggleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, alignSelf: 'stretch', maxWidth: 420, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface, paddingHorizontal: spacing.md, paddingVertical: spacing.smd },
+    demoToggleRowOn: { borderColor: colors.primary, backgroundColor: accents.blue.soft },
+    demoToggleIcon: { width: control.smallIconContainer, height: control.smallIconContainer, borderRadius: radius.sm, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
+    demoToggleText: { flex: 1, color: colors.textSecondary, ...typography.caption, fontWeight: '600' },
+    storageNote: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, alignSelf: 'stretch', maxWidth: 420, marginTop: spacing.md, borderWidth: border.thin, borderColor: accents.green.border, borderRadius: radius.md, backgroundColor: accents.green.soft, paddingHorizontal: spacing.md, paddingVertical: spacing.smd },
+    storageNoteText: { flex: 1, color: accents.green.on, ...typography.caption, fontWeight: '700' },
     footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl, borderTopWidth: border.thin, borderTopColor: colors.border },
     dots: { flexDirection: 'row', gap: spacing.xs },
     dot: { width: 8, height: 8, borderRadius: radius.pill, backgroundColor: colors.border },
     dotOn: { backgroundColor: colors.primary, width: 22 },
     cta: { minHeight: control.buttonHeight, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingHorizontal: spacing.xl, borderRadius: radius.md, backgroundColor: colors.primary },
-    ctaText: { color: colors.onPrimary, ...typography.callout, fontWeight: '900' },
+    ctaText: { color: colors.onPrimary, ...typography.callout, fontWeight: '700' },
     disabled: { opacity: opacity.disabled },
     pressed: { opacity: opacity.pressed },
   });

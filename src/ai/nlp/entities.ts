@@ -1,6 +1,16 @@
 import type { DateEntity, NlpEntities, NlpIntent, NlpPriority, TimeEntity } from './types';
 import { PRIORITY_KEYWORDS, TAG_HINTS } from './lexicon';
 import { extractKeywords } from './keywords';
+import { recoverCase } from './normalize';
+
+// "show all my memories / notes" — a request to list everything, not to search a term.
+// True when, after removing the list/show/all/my scaffolding and the word "memory/note"
+// itself, nothing substantive is left.
+const LIST_SCAFFOLD = /\b(?:all|every|my|show|list|see|view|open|the)\b|(?<![\p{L}\p{M}])(?:সব|সকল|সমস্ত|আমার|আমাদের|দেখাও|দেখাতে|দেখা|দেখি|তালিকা|খুলে|খোলো)(?![\p{L}\p{M}])|(?:মেমোরি|মেমরি|নোট|memor(?:y|ies)|notes?)(?:গুলো|স)?/giu;
+function isListAllMemories(text: string): boolean {
+  if (!/(?:মেমোরি|মেমরি|নোট|memor(?:y|ies)|\bnotes?\b)/iu.test(text)) return false;
+  return !text.replace(LIST_SCAFFOLD, '').replace(/[\s।.,!?]+/gu, '').trim();
+}
 
 const WEEKDAYS: Record<string, number> = {
   sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
@@ -92,7 +102,16 @@ export function extractTags(text: string): string[] {
   const t = text.toLocaleLowerCase();
   const tags: string[] = [];
   for (const [tag, words] of Object.entries(TAG_HINTS)) {
-    if (words.some((w) => t.includes(w))) tags.push(tag);
+    // Whole-word match only — an unanchored `includes` fired "family" for "আমার"
+    // (contains "মা") and "son"/"reason"/"person".
+    const hit = words.some((w) => {
+      const esc = w.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+      const re = /[a-z]/u.test(w[0] ?? '')
+        ? new RegExp(`\\b${esc}\\b`, 'u')
+        : new RegExp(`(?<![\\p{L}\\p{M}])${esc}(?![\\p{L}\\p{M}])`, 'u');
+      return re.test(t);
+    });
+    if (hit) tags.push(tag);
   }
   return tags.slice(0, 3);
 }
@@ -141,12 +160,14 @@ function cleanContent(text: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
-export function extractEntities(text: string, intent: NlpIntent, now = new Date()): NlpEntities {
+export function extractEntities(text: string, intent: NlpIntent, now = new Date(), rawCased?: string): NlpEntities {
   const relative = extractRelativeTime(text, now);
   const date = relative?.date ?? extractDate(text, now);
   const time = relative?.time ?? extractTime(text);
   const cleaned = removeDateTime(text);
   const content = cleanContent(cleaned);
+  // Give stored content back the user's original capitalisation (passwords, proper nouns).
+  const cased = (value: string) => (rawCased ? recoverCase(rawCased, value) : value);
   if (intent === 'CREATE_TASK' || intent === 'RESCHEDULE_TASK') {
     const taskText = content
       .replace(/^(?:রবিবার|সোমবার|মঙ্গলবার|বুধবার|বৃহস্পতিবার|শুক্রবার|শনিবার|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\s+/iu, '')
@@ -156,11 +177,16 @@ export function extractEntities(text: string, intent: NlpIntent, now = new Date(
       .replace(/\s+(?:morning|afternoon|evening|night)\s*$/iu, '')
       .replace(/\s+/g, ' ')
       .trim();
-    return { taskText: taskText || undefined, date, time, priority: extractPriority(text), tags: extractTags(text) };
+    return { taskText: taskText ? cased(taskText) : undefined, date, time, priority: extractPriority(text), tags: extractTags(text) };
   }
-  if (intent === 'CREATE_MEMORY') return { memoryText: content || undefined, keywords: extractKeywords(content || text), tags: extractTags(text) };
-  if (intent === 'SEARCH_MEMORY') return { query: content || undefined, keywords: extractKeywords(content || text) };
-  if (intent === 'ANSWER_QUESTION') {
+  if (intent === 'CREATE_MEMORY') return { memoryText: content ? cased(content) : undefined, keywords: extractKeywords(content || text), tags: extractTags(text) };
+  if (intent === 'SEARCH_MEMORY') {
+    if (isListAllMemories(text)) return { query: '', keywords: [] }; // '' = list everything
+    return { query: content || undefined, keywords: extractKeywords(content || text) };
+  }
+  if (intent === 'ANSWER_QUESTION' || intent === 'UNKNOWN') {
+    // UNKNOWN still gets a question + keywords so the orchestrator can fall back to a
+    // best-effort lookup ("আমার wifi পাসওয়ার্ড দাও") instead of a dead end.
     const question = text.trim();
     return { question: question || undefined, keywords: extractKeywords(text), date, time };
   }

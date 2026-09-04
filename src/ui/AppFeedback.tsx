@@ -1,25 +1,86 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, SlideInUp, ZoomIn } from 'react-native-reanimated';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type PropsWithChildren } from 'react';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { AppText as Text } from './AppText';
+import Animated, { SlideInUp, ZoomIn } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { AppIcon } from './AppIcon';
 import { useAppPreferences } from '../app/AppPreferences';
 import { border, control, elevation, layout, opacity, radius, spacing, typography } from '../theme';
 
 type SnackbarTone = 'success' | 'info' | 'warning' | 'danger';
-type SnackbarState = { id: number; message: string; tone: SnackbarTone } | null;
-type FeedbackContextValue = { showSnackbar: (message: string, tone?: SnackbarTone) => void };
+type SnackbarAction = { label: string; onPress: () => void };
+type SnackbarState = { id: number; message: string; tone: SnackbarTone; action?: SnackbarAction } | null;
+type FeedbackContextValue = { showSnackbar: (message: string, tone?: SnackbarTone, action?: SnackbarAction) => void };
 const FeedbackContext = createContext<FeedbackContextValue | null>(null);
 
 export function AppFeedbackProvider({ children }: PropsWithChildren) {
   const [snackbar, setSnackbar] = useState<SnackbarState>(null);
   const sequence = useRef(0);
-  const showSnackbar = useCallback((message: string, tone: SnackbarTone = 'info') => { sequence.current += 1; setSnackbar({ id: sequence.current, message, tone }); }, []);
-  useEffect(() => { if (!snackbar) return; const timeout = setTimeout(() => setSnackbar(current => current?.id === snackbar.id ? null : current), 2600); return () => clearTimeout(timeout); }, [snackbar]);
+  const showSnackbar = useCallback((message: string, tone: SnackbarTone = 'info', action?: SnackbarAction) => { sequence.current += 1; setSnackbar({ id: sequence.current, message, tone, action }); }, []);
+  // An action snackbar (e.g. Undo) lingers longer so it can actually be tapped.
+  useEffect(() => { if (!snackbar) return; const timeout = setTimeout(() => setSnackbar(current => current?.id === snackbar.id ? null : current), snackbar.action ? 6000 : 2600); return () => clearTimeout(timeout); }, [snackbar]);
+  const dismiss = useCallback(() => setSnackbar(null), []);
   const value = useMemo(() => ({ showSnackbar }), [showSnackbar]);
-  return <FeedbackContext.Provider value={value}>{children}{snackbar ? <AppSnackbar {...snackbar} /> : null}</FeedbackContext.Provider>;
+  return <FeedbackContext.Provider value={value}>{children}{snackbar ? <AppSnackbar {...snackbar} onDismiss={dismiss} /> : null}</FeedbackContext.Provider>;
 }
 export function useAppFeedback() { const value = useContext(FeedbackContext); if (!value) throw new Error('useAppFeedback must be used inside AppFeedbackProvider'); return value; }
-export function AppSnackbar({ message, tone }: { message: string; tone: SnackbarTone }) { const { colors, glass, reduceMotion } = useAppPreferences(); const icon = tone === 'success' ? 'check-circle-outline' : tone === 'warning' ? 'alert-outline' : tone === 'danger' ? 'alert-circle-outline' : 'information-outline'; const color = tone === 'success' ? colors.success : tone === 'warning' ? colors.warning : tone === 'danger' ? colors.danger : colors.info; return <View pointerEvents="none" accessibilityLiveRegion="polite" style={styles.snackbarWrap}><Animated.View entering={reduceMotion ? undefined : SlideInUp.duration(220)} style={styles.snackFull}><BlurView intensity={glass.intensity} tint={glass.tint} accessible accessibilityRole={tone === 'danger' ? 'alert' : 'text'} style={[styles.snackbar, { backgroundColor: glass.scrim, borderColor: glass.border, borderTopColor: glass.highlight }]}><AppIcon name={icon} size={control.iconSize} color={color} /><Text numberOfLines={3} style={[styles.snackbarText, { color: colors.textPrimary }]}>{message}</Text></BlurView></Animated.View></View>; }
-export function AppConfirmDialog({ visible, title, description, confirmLabel, cancelLabel, danger = false, onConfirm, onCancel }: { visible: boolean; title: string; description?: string; confirmLabel: string; cancelLabel: string; danger?: boolean; onConfirm: () => void; onCancel: () => void }) { const { colors, glass, reduceMotion } = useAppPreferences(); return <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}><Animated.View entering={reduceMotion ? undefined : FadeIn.duration(140)} style={[styles.backdrop, { backgroundColor: colors.overlay }]}><Animated.View entering={reduceMotion ? undefined : ZoomIn.duration(170)} style={styles.dialogWrap}><BlurView intensity={glass.intensity + 6} tint={glass.tint} style={[styles.dialog, { backgroundColor: glass.scrim, borderColor: glass.border, borderTopColor: glass.highlight }]}><Text style={[styles.dialogTitle, { color: colors.textPrimary }]}>{title}</Text>{description ? <Text style={[styles.dialogDescription, { color: colors.textSecondary }]}>{description}</Text> : null}<View style={styles.dialogActions}><Pressable accessibilityRole="button" onPress={onCancel} style={({ pressed }) => StyleSheet.flatten([styles.dialogButton, { borderColor: colors.border, backgroundColor: colors.surface }, pressed && styles.pressed])}><Text style={[styles.dialogCancelText, { color: colors.textSecondary }]}>{cancelLabel}</Text></Pressable><Pressable accessibilityRole="button" onPress={onConfirm} style={({ pressed }) => StyleSheet.flatten([styles.dialogButton, { backgroundColor: danger ? colors.danger : colors.primary, borderColor: danger ? colors.danger : colors.primary }, pressed && styles.pressed])}><Text style={[styles.dialogConfirmText, { color: colors.onPrimary }]}>{confirmLabel}</Text></Pressable></View></BlurView></Animated.View></Animated.View></Modal>; }
-const styles = StyleSheet.create({ snackbarWrap: { position: 'absolute', left: spacing.lg, right: spacing.lg, bottom: spacing.lg, zIndex: layout.feedbackZIndex, alignItems: 'center' }, snackFull: { width: '100%', alignItems: 'center' }, dialogWrap: { width: '100%', maxWidth: layout.dialogMaxWidth }, snackbar: { width: '100%', maxWidth: layout.snackbarMaxWidth, minHeight: control.buttonHeight, borderWidth: border.thin, borderRadius: radius.lg, overflow: 'hidden', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, ...elevation.floating }, snackbarText: { ...typography.bodySmall, fontWeight: '700', flex: 1 }, backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg }, dialog: { width: '100%', maxWidth: layout.dialogMaxWidth, borderWidth: border.thin, borderRadius: radius.xl, overflow: 'hidden', padding: spacing.lg, ...elevation.floating }, dialogTitle: { ...typography.dialogTitle, fontWeight: '900' }, dialogDescription: { ...typography.bodySmall, marginTop: spacing.sm }, dialogActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.lg, flexWrap: 'wrap' }, dialogButton: { minHeight: control.buttonHeight, minWidth: layout.minTouchTarget, borderWidth: border.thin, borderRadius: radius.md, paddingHorizontal: spacing.md, alignItems: 'center', justifyContent: 'center' }, dialogCancelText: { fontWeight: '800' }, dialogConfirmText: { fontWeight: '800' }, pressed: { opacity: opacity.pressed } });
+export function AppSnackbar({ message, tone, action, onDismiss }: { message: string; tone: SnackbarTone; action?: SnackbarAction; onDismiss?: () => void }) {
+  const { colors, glass, reduceMotion } = useAppPreferences();
+  const icon = tone === 'success' ? 'check-circle-outline' : tone === 'warning' ? 'alert-outline' : tone === 'danger' ? 'alert-circle-outline' : 'information-outline';
+  const color = tone === 'success' ? colors.success : tone === 'warning' ? colors.warning : tone === 'danger' ? colors.danger : colors.info;
+  return (
+    <View pointerEvents={action ? 'box-none' : 'none'} accessibilityLiveRegion="polite" style={styles.snackbarWrap}>
+      <Animated.View entering={reduceMotion ? undefined : SlideInUp.duration(220)} style={styles.snackFull}>
+        <BlurView intensity={glass.intensity} tint={glass.tint} accessible accessibilityRole={tone === 'danger' ? 'alert' : 'text'} style={[styles.snackbar, { backgroundColor: glass.scrim, borderColor: glass.border, borderTopColor: glass.highlight }]}>
+          <AppIcon name={icon} size={control.iconSize} color={color} />
+          <Text numberOfLines={3} style={[styles.snackbarText, { color: colors.textPrimary }]}>{message}</Text>
+          {action ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={action.label} onPress={() => { action.onPress(); onDismiss?.(); }} hitSlop={8} style={({ pressed }) => [styles.snackAction, pressed && styles.pressed]}>
+              <Text style={[styles.snackActionText, { color: colors.primary }]}>{action.label}</Text>
+            </Pressable>
+          ) : null}
+        </BlurView>
+      </Animated.View>
+    </View>
+  );
+}
+type DialogIconName = ComponentProps<typeof AppIcon>['name'];
+type DialogTone = 'primary' | 'danger' | 'warning' | 'success';
+
+export function AppConfirmDialog({ visible, title, description, confirmLabel, cancelLabel, danger = false, icon, iconTone, confirmIcon, onConfirm, onCancel }: { visible: boolean; title: string; description?: string; confirmLabel: string; cancelLabel: string; danger?: boolean; icon?: DialogIconName; iconTone?: DialogTone; confirmIcon?: DialogIconName; onConfirm: () => void; onCancel: () => void }) {
+  const { colors, reduceMotion } = useAppPreferences();
+  const tone = iconTone ?? (danger ? 'danger' : 'primary');
+  const toneColor = tone === 'danger' ? colors.danger : tone === 'warning' ? colors.warning : tone === 'success' ? colors.success : colors.primary;
+  const accent = danger ? colors.danger : colors.primary;
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onCancel}>
+      {/* Solid, opaque card — no BlurView. On several Android ROMs the blur silently
+          no-ops and the sheet showed see-through. Modal's own fade carries the backdrop
+          in and out; the card gets a small zoom for life. */}
+      <View style={[styles.backdrop, { backgroundColor: colors.overlay }]}>
+        <Pressable style={StyleSheet.absoluteFill} accessibilityLabel={cancelLabel} onPress={onCancel} />
+        <Animated.View entering={reduceMotion ? undefined : ZoomIn.duration(180)} style={styles.dialogWrap}>
+          <View style={[styles.dialog, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {icon ? (
+              <View style={[styles.dialogIcon, { backgroundColor: toneColor + '1F', borderColor: toneColor + '3D' }]}>
+                <AppIcon name={icon} size={control.iconSize + 8} color={toneColor} />
+              </View>
+            ) : null}
+            <Text maxFontSizeMultiplier={1.6} style={[styles.dialogTitle, icon ? styles.dialogTitleCentered : null, { color: colors.textPrimary }]}>{title}</Text>
+            {description ? <Text maxFontSizeMultiplier={1.6} style={[styles.dialogDescription, icon ? styles.dialogTitleCentered : null, { color: colors.textSecondary }]}>{description}</Text> : null}
+            <View style={styles.dialogActions}>
+              <Pressable accessibilityRole="button" onPress={onCancel} style={({ pressed }) => StyleSheet.flatten([styles.dialogButton, styles.dialogButtonGrow, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }, pressed && styles.pressed])}>
+                <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={[styles.dialogCancelText, { color: colors.textSecondary }]}>{cancelLabel}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={onConfirm} style={({ pressed }) => StyleSheet.flatten([styles.dialogButton, styles.dialogButtonGrow, styles.dialogConfirmRow, { backgroundColor: accent, borderColor: accent }, pressed && styles.pressed])}>
+                {confirmIcon ? <AppIcon name={confirmIcon} size={control.iconSize - 2} color={colors.onPrimary} /> : null}
+                <Text maxFontSizeMultiplier={1.5} numberOfLines={2} style={[styles.dialogConfirmText, { color: colors.onPrimary }]}>{confirmLabel}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+const styles = StyleSheet.create({ snackbarWrap: { position: 'absolute', left: spacing.lg, right: spacing.lg, bottom: spacing.lg, zIndex: layout.feedbackZIndex, alignItems: 'center' }, snackFull: { width: '100%', alignItems: 'center' }, dialogWrap: { width: '100%', maxWidth: layout.dialogMaxWidth }, snackbar: { width: '100%', maxWidth: layout.snackbarMaxWidth, minHeight: control.buttonHeight, borderWidth: border.thin, borderRadius: radius.lg, overflow: 'hidden', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, ...elevation.floating }, snackbarText: { ...typography.bodySmall, fontWeight: '700', flex: 1 }, snackAction: { minHeight: control.buttonHeight, justifyContent: 'center', paddingHorizontal: spacing.sm }, snackActionText: { ...typography.bodySmall, fontWeight: '800' }, backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg }, dialog: { width: '100%', maxWidth: layout.dialogMaxWidth, borderWidth: border.thin, borderRadius: radius.xl, overflow: 'hidden', padding: spacing.lg, ...elevation.floating }, dialogIcon: { alignSelf: 'center', width: 64, height: 64, borderRadius: radius.pill, borderWidth: border.thin, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md }, dialogTitle: { ...typography.dialogTitle, fontWeight: '700' }, dialogTitleCentered: { textAlign: 'center' }, dialogDescription: { ...typography.bodySmall, marginTop: spacing.sm }, dialogActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.lg, flexWrap: 'wrap' }, dialogButton: { minHeight: control.buttonHeight, minWidth: layout.minTouchTarget, borderWidth: border.thin, borderRadius: radius.md, paddingHorizontal: spacing.md, alignItems: 'center', justifyContent: 'center' }, dialogButtonGrow: { flex: 1, flexBasis: 120 }, dialogConfirmRow: { flexDirection: 'row', gap: spacing.xs }, dialogCancelText: { fontWeight: '800' }, dialogConfirmText: { fontWeight: '800' }, pressed: { opacity: opacity.pressed } });

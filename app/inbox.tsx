@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '../src/ui/AppText';
 import { Link, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { planInboxTasks } from '../src/services/planning-service';
@@ -31,6 +32,9 @@ export default function InboxScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Task | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [confirmBulkDel, setConfirmBulkDel] = useState(false);
   const [undo, setUndo] = useState<{ label: string; run: () => Promise<unknown> } | null>(null);
 
   useEffect(() => { void load(db); }, [db, load]);
@@ -68,22 +72,58 @@ export default function InboxScreen() {
 
   const toTask = useCallback((t: Task) => run(t.id, () => planInboxTasks(db, [t.id]), c.taskDone, () => update(db, t.id, { status: 'INBOX', plannedDate: null, dueAt: null })), [run, db, c.taskDone, update]);
   const toLater = useCallback((t: Task) => run(t.id, () => planInboxTasks(db, [t.id], tomorrow()), c.laterDone, () => update(db, t.id, { status: 'INBOX', plannedDate: null, dueAt: null })), [run, db, c.laterDone, update]);
-  const toMemory = useCallback((t: Task) => run(t.id, async () => { const m = await createMemory(db, { content: t.title }); if (!m) throw new Error('memory'); await remove(db, t.id); }, c.memDone, async () => {
-    const memory = useMemoryStore.getState().memories.find(mm => mm.content === t.title);
-    if (memory) await removeMemory(db, memory.id);
-    return useTaskStore.getState().create(db, { title: t.title, priority: t.priority, notes: t.notes });
-  }), [run, db, c.memDone, createMemory, remove, removeMemory]);
+  const toMemory = useCallback(async (t: Task) => {
+    if (busyId || bulkBusy) return;
+    setBusyId(t.id);
+    try {
+      const m = await createMemory(db, { content: t.title });
+      if (!m) throw new Error('memory');
+      await remove(db, t.id);
+      await load(db);
+      showSnackbar(c.memDone, 'success');
+      // Undo deletes the exact memory we just made (by id — not a fragile content match)
+      // and re-adds the item to the inbox. Attachments on the original are not recoverable.
+      setUndo({ label: c.memDone, run: async () => {
+        await removeMemory(db, m.id);
+        await useTaskStore.getState().create(db, { title: t.title, priority: t.priority, notes: t.notes });
+      } });
+    } catch { showSnackbar(c.failed, 'danger'); }
+    finally { setBusyId(null); }
+  }, [busyId, bulkBusy, db, createMemory, remove, removeMemory, load, showSnackbar, c.memDone, c.failed]);
   const onDeleteRow = useCallback((t: Task) => setPendingDelete(t), []);
-  const renderRow = useCallback(({ item }: { item: Task }) => (
-    <InboxRow task={item} busy={busyId === item.id} styles={styles} colors={colors} accents={accents} language={language} bn={bn} c={c} thumbUri={thumbs.get(item.id)} onTask={toTask} onMemory={toMemory} onLater={toLater} onDelete={onDeleteRow} />
-  ), [busyId, styles, colors, accents, language, bn, c, thumbs, toTask, toMemory, toLater, onDeleteRow]);
+  const toggleOne = useCallback((id: string) => {
+    setSelected(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  }, []);
+  const exitSelect = useCallback(() => { setSelectMode(false); setSelected(new Set()); }, []);
+  const enterSelect = useCallback((id: string) => { setSelectMode(true); setSelected(new Set([id])); }, []);
+  const bulkToTasks = useCallback(async () => {
+    const ids = [...selected]; exitSelect();
+    if (!ids.length || bulkBusy || busyId) return;
+    setUndo(null); setBulkBusy(true);
+    try { await planInboxTasks(db, ids); await load(db); showSnackbar(c.taskDone, 'success'); }
+    catch { showSnackbar(c.failed, 'danger'); }
+    finally { setBulkBusy(false); }
+  }, [selected, exitSelect, bulkBusy, busyId, db, load, showSnackbar, c.taskDone, c.failed]);
+  const bulkDelete = useCallback(async () => {
+    const ids = [...selected]; exitSelect(); setConfirmBulkDel(false);
+    if (!ids.length || bulkBusy || busyId) return;
+    setUndo(null); setBulkBusy(true);
+    try { for (const id of ids) { try { await remove(db, id); } catch { /* skip one */ } } await load(db); showSnackbar(bn ? `${ids.length}টি মুছে ফেলা হয়েছে` : `${ids.length} deleted`, 'success'); }
+    catch { showSnackbar(c.failed, 'danger'); }
+    finally { setBulkBusy(false); }
+  }, [selected, exitSelect, bulkBusy, busyId, db, remove, load, showSnackbar, bn, c.failed]);
+  const renderRow = useCallback(({ item }: { item: Task }) => {
+    if (selectMode) return <SelectableInboxRow task={item} checked={selected.has(item.id)} onToggle={toggleOne} styles={styles} colors={colors} accents={accents} bn={bn} />;
+    return <InboxRow task={item} busy={busyId === item.id} styles={styles} colors={colors} accents={accents} language={language} bn={bn} c={c} thumbUri={thumbs.get(item.id)} onTask={toTask} onMemory={toMemory} onLater={toLater} onDelete={onDeleteRow} onLongPress={enterSelect} />;
+  }, [selectMode, selected, toggleOne, enterSelect, busyId, styles, colors, accents, language, bn, c, thumbs, toTask, toMemory, toLater, onDeleteRow]);
   const doDelete = async () => {
-    if (!pendingDelete) return;
+    if (!pendingDelete || busyId || bulkBusy) return;
     const id = pendingDelete.id; setPendingDelete(null); setBusyId(id);
     try { await remove(db, id); await load(db); } catch { showSnackbar(c.failed, 'danger'); } finally { setBusyId(null); }
   };
   const processAll = async () => {
-    if (!inbox.length || bulkBusy) return;
+    if (!inbox.length || bulkBusy || busyId) return;
+    setUndo(null);
     setBulkBusy(true);
     try { await planInboxTasks(db, inbox.map(t => t.id)); await load(db); showSnackbar(c.taskDone, 'success'); }
     catch { showSnackbar(c.failed, 'danger'); }
@@ -119,6 +159,23 @@ export default function InboxScreen() {
         </View>
       </View>
 
+      {selectMode ? (
+        <View style={styles.selectBar}>
+          <Pressable accessibilityRole="button" accessibilityLabel={c.cancel} onPress={exitSelect} style={({ pressed }) => StyleSheet.flatten([styles.selectBarBtn, pressed && styles.pressed])}>
+            <AppIcon name="close" size={icon.sm} color={colors.textSecondary} /><Text style={styles.selectBarText}>{bn ? 'সম্পন্ন' : 'Done'}</Text>
+          </Pressable>
+          <Text style={styles.selectCount}>{selected.size} {bn ? 'নির্বাচিত' : 'selected'}</Text>
+          <View style={styles.selectBarActions}>
+            <Pressable accessibilityRole="button" disabled={!selected.size || bulkBusy} accessibilityLabel={c.toTask} onPress={() => void bulkToTasks()} style={({ pressed }) => StyleSheet.flatten([styles.selectBarBtn, (!selected.size || bulkBusy) && styles.disabled, pressed && styles.pressed])}>
+              <AppIcon name="calendar-check-outline" size={icon.sm} color={colors.primary} /><Text style={styles.selectBarText}>{bn ? 'কাজে নিন' : 'Make tasks'}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" disabled={!selected.size || bulkBusy} accessibilityLabel={c.del} onPress={() => setConfirmBulkDel(true)} style={({ pressed }) => StyleSheet.flatten([styles.selectBarBtn, (!selected.size || bulkBusy) && styles.disabled, pressed && styles.pressed])}>
+              <AppIcon name="delete-outline" size={icon.sm} color={colors.danger} /><Text style={[styles.selectBarText, { color: colors.danger }]}>{c.del}</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       {error ? (
         <AppState title={bn ? 'ইনবক্স লোড করা যায়নি' : 'Could not load inbox'} description={bn ? 'ডেটা লোড করতে আবার চেষ্টা করুন।' : 'Unable to load local inbox data.'} icon="alert-circle-outline" actionLabel={c.retry} onAction={() => void load(db)} />
       ) : isLoading && !inbox.length ? (
@@ -126,6 +183,7 @@ export default function InboxScreen() {
       ) : (
         <FlatList
           data={inbox}
+          extraData={selectMode ? selected : null}
           keyExtractor={item => item.id}
           initialNumToRender={8}
           maxToRenderPerBatch={8}
@@ -140,7 +198,7 @@ export default function InboxScreen() {
             </View>
           ) : null}
           ListEmptyComponent={<AppState icon="check-circle-outline" title={c.clear} description={c.clearText} />}
-          ListFooterComponent={inbox.length > 1 ? (
+          ListFooterComponent={!selectMode && inbox.length > 1 ? (
             <Pressable accessibilityRole="button" accessibilityState={{ busy: bulkBusy }} onPress={() => void processAll()} style={({ pressed }) => StyleSheet.flatten([styles.processAll, bulkBusy && styles.disabled, pressed && styles.pressed])}>
               {bulkBusy ? <ActivityIndicator color={colors.onPrimary} /> : <><AppIcon name="checkbox-multiple-marked-outline" size={icon.sm} color={colors.onPrimary} /><Text style={styles.processAllText}>{c.processAll(inbox.length)}</Text></>}
             </Pressable>
@@ -178,15 +236,45 @@ export default function InboxScreen() {
         onCancel={() => setPendingDelete(null)}
         onConfirm={() => void doDelete()}
       />
+
+      <AppConfirmDialog
+        visible={confirmBulkDel}
+        title={bn ? `${selected.size}টি মুছবেন?` : `Delete ${selected.size} item${selected.size === 1 ? '' : 's'}?`}
+        description={c.delDesc}
+        confirmLabel={c.delOk}
+        cancelLabel={c.cancel}
+        danger
+        onCancel={() => setConfirmBulkDel(false)}
+        onConfirm={() => void bulkDelete()}
+      />
     </View>
   );
 }
 
+const SelectableInboxRow = memo(function SelectableInboxRow({ task, checked, onToggle, styles, colors, accents, bn }: {
+  task: Task; checked: boolean; onToggle: (id: string) => void; styles: ReturnType<typeof makeStyles>; colors: ThemeColors; accents: ThemeAccents; bn: boolean;
+}) {
+  const tone = accents[priorityAccentName(task.priority)];
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={task.title}
+      onPress={() => onToggle(task.id)}
+      style={({ pressed }) => StyleSheet.flatten([styles.selRow, checked && styles.selRowOn, pressed && styles.pressed])}
+    >
+      <AppIcon name={checked ? 'checkbox-marked' : 'checkbox-blank-outline'} size={icon.md} color={checked ? colors.primary : colors.textMuted} />
+      <View style={[styles.selRowBar, { backgroundColor: tone.base }]} />
+      <Text numberOfLines={2} style={styles.selRowText}>{task.title}</Text>
+    </Pressable>
+  );
+});
+
 type InboxRowCopy = { captured: string; toTask: string; toMemory: string; later: string; del: string };
 
-const InboxRow = memo(function InboxRow({ task, busy, styles, colors, accents, language, bn, c, thumbUri, onTask, onMemory, onLater, onDelete }: {
+const InboxRow = memo(function InboxRow({ task, busy, styles, colors, accents, language, bn, c, thumbUri, onTask, onMemory, onLater, onDelete, onLongPress }: {
   task: Task; busy: boolean; styles: ReturnType<typeof makeStyles>; colors: ThemeColors; accents: ThemeAccents; language: 'bn' | 'en'; bn: boolean; c: InboxRowCopy; thumbUri?: string;
-  onTask: (t: Task) => void; onMemory: (t: Task) => void; onLater: (t: Task) => void; onDelete: (t: Task) => void;
+  onTask: (t: Task) => void; onMemory: (t: Task) => void; onLater: (t: Task) => void; onDelete: (t: Task) => void; onLongPress?: (id: string) => void;
 }) {
   const tone = accents[priorityAccentName(task.priority)];
   return (
@@ -196,7 +284,7 @@ const InboxRow = memo(function InboxRow({ task, busy, styles, colors, accents, l
         <View style={styles.cardHeadRow}>
           <RowLeading thumbUri={thumbUri} icon="inbox-arrow-down-outline" tone="orange" size={40} />
           <Link href={{ pathname: '/task-detail', params: { id: task.id } }} asChild>
-            <Pressable accessibilityRole="button" accessibilityLabel={`${bn ? 'খুলুন' : 'Open'}: ${task.title}`} style={({ pressed }) => StyleSheet.flatten([styles.cardTap, pressed && styles.pressed])}>
+            <Pressable accessibilityRole="button" accessibilityHint={bn ? 'একটানা চেপে ধরলে একাধিক নির্বাচন' : 'Long-press to select multiple'} accessibilityLabel={`${bn ? 'খুলুন' : 'Open'}: ${task.title}`} onLongPress={onLongPress ? () => onLongPress(task.id) : undefined} delayLongPress={350} style={({ pressed }) => StyleSheet.flatten([styles.cardTap, pressed && styles.pressed])}>
               <Text numberOfLines={3} style={styles.cardTitle}>{task.title}</Text>
               <Text style={styles.cardMeta}>{c.captured}: {capturedLabel(task.createdAt, language)}</Text>
             </Pressable>
@@ -272,7 +360,16 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     undoBar: { position: 'absolute', left: spacing.lg, right: spacing.lg + 56 + spacing.sm, bottom: layout.compactNavHeight + spacing.xxl, minHeight: control.buttonHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, ...elevation.floating },
     undoText: { flex: 1, minWidth: 0, color: colors.textPrimary, ...typography.caption, fontWeight: '700' },
     undoBtn: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingHorizontal: spacing.smd, borderRadius: radius.md, backgroundColor: colors.primary },
-    undoBtnText: { color: colors.onPrimary, ...typography.caption, fontWeight: '900' },
+    undoBtnText: { color: colors.onPrimary, ...typography.caption, fontWeight: '700' },
+    selectBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginHorizontal: spacing.lg, marginBottom: spacing.sm, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    selectBarActions: { flexDirection: 'row', gap: spacing.xs },
+    selectBarBtn: { minHeight: layout.minTouchTarget, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingHorizontal: spacing.xs },
+    selectBarText: { color: colors.primary, ...typography.meta, fontWeight: '800' },
+    selectCount: { flex: 1, textAlign: 'center', color: colors.textSecondary, ...typography.meta, fontWeight: '800', fontFamily: typography.numeric.fontFamily },
+    selRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: layout.minTouchTarget, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    selRowOn: { borderColor: colors.primary, backgroundColor: colors.primaryTint },
+    selRowBar: { width: 4, alignSelf: 'stretch', borderRadius: radius.pill },
+    selRowText: { flex: 1, minWidth: 0, color: colors.textPrimary, ...typography.bodySmall, fontWeight: '600' },
     disabled: { opacity: opacity.disabled },
     pressed: { opacity: opacity.pressed },
   });

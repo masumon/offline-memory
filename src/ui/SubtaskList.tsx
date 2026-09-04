@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from './AppText';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useSubtaskStore } from '../store/subtask.store';
 import { useAppPreferences } from '../app/AppPreferences';

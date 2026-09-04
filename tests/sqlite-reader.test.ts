@@ -16,6 +16,7 @@ describe('SQLite backup reader', () => {
     } as unknown as SQLiteDatabase;
 
     await expect(readSQLiteBackupData(db)).resolves.toEqual({
+      debt: {},
       appMetadata: [{ key: 'a', value: '1', updated_at: '2026-08-24T00:00:00Z' }],
       appPreferences: [{ key: 'language', value: 'bn' }, { key: 'themeMode', value: 'dark' }],
       tasks: [{ id: 'task-1' }],

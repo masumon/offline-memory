@@ -18,8 +18,11 @@ export function SchedulerBootstrap() {
       try {
         await runNotificationScheduler(db);
       } catch {
-        // Background scheduling must never create an unhandled rejection or block the app.
-        // The next interval/foreground transition retries the reconciliation.
+        // Scheduling must never create an unhandled rejection or block the app. Note the
+        // interval only fires while the app is foregrounded (JS timers are suspended in
+        // the background) — the every-15-min tick is really "while open", plus a run on
+        // every foreground transition. Actual delivery relies on the OS-scheduled
+        // notifications, which fire regardless.
       } finally {
         running.current = false;
       }

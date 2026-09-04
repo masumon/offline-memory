@@ -97,7 +97,8 @@ export async function removeModel(db: SQLiteDatabase): Promise<void> {
 export class ModelImportError extends Error {}
 
 /** Opens the system file picker, copies the chosen .gguf in, reads its header, persists it. */
-export async function pickAndImportModel(db: SQLiteDatabase): Promise<InstalledModel | null> {
+export async function pickAndImportModel(db: SQLiteDatabase, language: 'bn' | 'en' = 'bn'): Promise<InstalledModel | null> {
+  const L = (bn: string, en: string) => (language === 'bn' ? bn : en);
   const picked = await DocumentPicker.getDocumentAsync({
     type: ['application/octet-stream', '*/*'],
     copyToCacheDirectory: true,
@@ -105,13 +106,19 @@ export async function pickAndImportModel(db: SQLiteDatabase): Promise<InstalledM
   });
   if (picked.canceled) return null;
   const asset = picked.assets[0];
-  if (!asset?.uri) throw new ModelImportError('ফাইলটি খোলা গেল না।');
+  if (!asset?.uri) throw new ModelImportError(L('ফাইলটি খোলা গেল না।', 'Could not open the file.'));
 
   const looksGguf = asset.name?.toLowerCase().endsWith('.gguf') ?? false;
   const pickedInfo = await LegacyFS.getInfoAsync(asset.uri);
   const size = asset.size ?? (pickedInfo.exists ? pickedInfo.size : 0) ?? 0;
   if (size > 0 && size < 1024 * 1024) {
-    throw new ModelImportError('ফাইলটি খুব ছোট — এটি কোনো মডেল ফাইল বলে মনে হচ্ছে না।');
+    throw new ModelImportError(L('ফাইলটি খুব ছোট — এটি কোনো মডেল ফাইল বলে মনে হচ্ছে না।', 'The file is too small to be a model.'));
+  }
+
+  // Don't start a multi-GB copy that can't finish.
+  const free = await LegacyFS.getFreeDiskStorageAsync().catch(() => null);
+  if (free != null && size > 0 && free < size * 1.1) {
+    throw new ModelImportError(L('ফোনে যথেষ্ট খালি জায়গা নেই — কিছু জায়গা খালি করে আবার চেষ্টা করুন।', 'Not enough free storage on the phone — free up some space and try again.'));
   }
 
   // Peek the header before committing a multi-GB copy.
@@ -119,14 +126,14 @@ export async function pickAndImportModel(db: SQLiteDatabase): Promise<InstalledM
   try {
     head = await readHeadBytes(asset.uri, HEADER_READ_BYTES);
   } catch {
-    throw new ModelImportError('ফাইলটি পড়া গেল না। আবার চেষ্টা করুন বা অন্য ফাইল বেছে নিন।');
+    throw new ModelImportError(L('ফাইলটি পড়া গেল না। আবার চেষ্টা করুন বা অন্য ফাইল বেছে নিন।', 'Could not read the file. Try again or pick another one.'));
   }
   const header = parseGgufHeader(head);
   if (!header) {
     throw new ModelImportError(
       looksGguf
-        ? 'ফাইলটির নাম .gguf কিন্তু ভেতরের গঠন GGUF নয় — ডাউনলোডটি সম্ভবত অসম্পূর্ণ।'
-        : 'এটি GGUF মডেল ফাইল নয়। llama.cpp-ধরনের .gguf ফাইল বেছে নিন।',
+        ? L('ফাইলটির নাম .gguf কিন্তু ভেতরের গঠন GGUF নয় — ডাউনলোডটি সম্ভবত অসম্পূর্ণ।', 'The name ends in .gguf but the contents are not GGUF — the download is likely incomplete.')
+        : L('এটি GGUF মডেল ফাইল নয়। llama.cpp-ধরনের .gguf ফাইল বেছে নিন।', 'This is not a GGUF model file. Pick a llama.cpp-style .gguf file.'),
     );
   }
 
@@ -137,8 +144,11 @@ export async function pickAndImportModel(db: SQLiteDatabase): Promise<InstalledM
     await LegacyFS.deleteAsync(destPath, { idempotent: true });
     await LegacyFS.copyAsync({ from: asset.uri, to: destPath });
   } catch {
-    throw new ModelImportError('মডেলটি অ্যাপে কপি করা গেল না — স্টোরেজে জায়গা আছে কিনা দেখুন।');
+    throw new ModelImportError(L('মডেলটি অ্যাপে কপি করা গেল না — স্টোরেজে জায়গা আছে কিনা দেখুন।', 'Could not copy the model into the app — check that there is free storage.'));
   }
+  // The picker already copied the file into the cache; drop that copy now that it is
+  // safely in the app's model folder, so a big model isn't stored twice.
+  void LegacyFS.deleteAsync(asset.uri, { idempotent: true }).catch(() => {});
   const finalInfo = await LegacyFS.getInfoAsync(destPath);
 
   const model: InstalledModel = {

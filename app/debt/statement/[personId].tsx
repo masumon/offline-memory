@@ -1,0 +1,100 @@
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '../../../src/ui/AppText';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
+import { getPersonStatement, type PersonStatement } from '../../../src/services/debt/statements';
+import { AppIcon } from '../../../src/ui/AppIcon';
+import { Card, DebtHeader, EmptyNote, Stat, useDebt } from '../../../src/ui/DebtKit';
+import { icon, spacing } from '../../../src/theme';
+
+export default function PersonStatementScreen() {
+  const db = useSQLiteContext();
+  const { personId } = useLocalSearchParams<{ personId?: string }>();
+  const { s, c, bn, colors, accents, money } = useDebt();
+
+  const [st, setSt] = useState<PersonStatement | null>(null);
+  const [ready, setReady] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!personId) { setReady(true); return; }
+    try { setSt(await getPersonStatement(db, personId)); }
+    catch { setSt(null); }
+    finally { setReady(true); }
+  }, [db, personId]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
+
+  if (!ready) return <View style={s.center}><ActivityIndicator color={colors.primary} /></View>;
+  if (!st) {
+    return (
+      <ScrollView style={s.container} contentContainerStyle={s.content}>
+        <DebtHeader title={c.statement} />
+        <EmptyNote icon="account-off-outline" text={bn ? 'ব্যক্তি পাওয়া যায়নি' : 'Person not found'} />
+      </ScrollView>
+    );
+  }
+
+  // netToYou > 0 means they owe you more than you owe them.
+  const netTone = st.netToYouPaisa >= 0 ? accents.green : accents.red;
+
+  return (
+    <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      <DebtHeader title={st.person.name} subtitle={st.person.phone ?? c.statement} />
+
+      <Card>
+        <Text style={[s.big, { color: netTone.on }]}>{money(Math.abs(st.netToYouPaisa))}</Text>
+        <Text style={s.bigLabel}>
+          {st.netToYouPaisa >= 0
+            ? (bn ? 'সে আপনাকে দেবে' : 'They owe you')
+            : (bn ? 'আপনি তাকে দেবেন' : 'You owe them')}
+        </Text>
+        <View style={{ marginTop: spacing.sm }}>
+          <Stat label={c.outstandingDebt} value={money(st.totalDebtRemainingPaisa)} tone={accents.red} />
+          <Stat label={c.outstandingReceivable} value={money(st.totalReceivableRemainingPaisa)} tone={accents.green} />
+          <Stat label={c.totalPaid} value={money(st.totalPaidToThemPaisa)} />
+          <Stat label={c.totalReceived} value={money(st.totalReceivedFromThemPaisa)} />
+          <Stat label={bn ? 'সর্বশেষ লেনদেন' : 'Last transaction'} value={st.lastTransactionDate ?? '—'} />
+          <Stat label={bn ? 'পরবর্তী তারিখ' : 'Next due'} value={st.nextDueDate ?? '—'} />
+        </View>
+      </Card>
+
+      <Card title={`${c.myDebts} · ${c.myReceivables}`}>
+        {st.accounts.length === 0 ? (
+          <Text style={s.statLabel}>{c.noDebts}</Text>
+        ) : st.accounts.map(({ account: a, balance: b }) => {
+          const tone = a.direction === 'DEBT' ? accents.red : accents.green;
+          return (
+            <Pressable
+              key={a.id}
+              accessibilityRole="button"
+              onPress={() => router.push(`/debt/account/${a.id}` as never)}
+              style={({ pressed }) => StyleSheet.flatten([s.listRow, pressed && s.pressed])}
+            >
+              <View style={[s.badge, { backgroundColor: tone.soft, borderColor: tone.border }]}>
+                <Text style={[s.badgeText, { color: tone.on }]}>{c.status[b.status]}</Text>
+              </View>
+              <View style={s.grow}>
+                <Text numberOfLines={1} style={s.listTitle}>{a.title || (a.direction === 'DEBT' ? c.totalDebt : c.totalReceivable)}</Text>
+                <Text numberOfLines={1} style={s.listMeta}>{c.remaining} {money(b.remainingPaisa)} · {c.paid} {money(b.paidPaisa)}</Text>
+              </View>
+              <AppIcon name="chevron-right" size={icon.md} color={colors.textMuted} />
+            </Pressable>
+          );
+        })}
+      </Card>
+
+      <Card title={c.ledger}>
+        {st.transactions.length === 0 ? (
+          <Text style={s.statLabel}>{bn ? 'কোনো লেনদেন নেই' : 'No transactions'}</Text>
+        ) : st.transactions.slice(0, 50).map((t) => (
+          <View key={t.id} style={[s.statRow, t.reversed && s.disabled]}>
+            <View style={s.grow}>
+              <Text style={s.listMeta}>{t.txnDate} · {t.kind}</Text>
+            </View>
+            <Text style={s.listAmt}>{money(t.amountPaisa)}</Text>
+          </View>
+        ))}
+      </Card>
+    </ScrollView>
+  );
+}

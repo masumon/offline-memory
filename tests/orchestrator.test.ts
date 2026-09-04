@@ -94,4 +94,24 @@ describe('local orchestrator', () => {
       reason: 'UNKNOWN_INTENT',
     });
   });
+
+  it('recovers a personal-lookup phrasing with no question mark into an answer attempt', () => {
+    const result = orchestrate('আমার ওয়াইফাই পাসওয়ার্ড দাও', now);
+    expect(result.status).toBe('READY');
+    expect(result.action.type).toBe('ANSWER_QUESTION');
+    if (result.action.type === 'ANSWER_QUESTION') {
+      expect(result.action.keywords).toEqual(expect.arrayContaining(['ওয়াইফাই', 'পাসওয়ার্ড']));
+    }
+  });
+
+  it('still refuses a plain statement that is not a lookup', () => {
+    expect(orchestrate('আজ আকাশ অনেক সুন্দর', now).status).toBe('UNSUPPORTED');
+    expect(orchestrate('lorem ipsum dolor sit', now).status).toBe('UNSUPPORTED');
+  });
+
+  it('maps "show all my memories" to a list-everything search action', () => {
+    const result = orchestrate('আমার সব মেমোরি দেখাও', now);
+    expect(result.status).toBe('READY');
+    expect(result.action).toEqual({ type: 'SEARCH_MEMORY', query: '' });
+  });
 });

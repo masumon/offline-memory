@@ -37,6 +37,8 @@ export const INTENT_CASES: IntentCase[] = [
   // SEARCH_MEMORY
   { input: 'find the report i saved', intent: 'SEARCH_MEMORY' },
   { input: 'আমার দোকান কখন বন্ধ থাকে খুঁজে দাও', intent: 'SEARCH_MEMORY' },
+  { input: 'আমার সব মেমোরি দেখাও', intent: 'SEARCH_MEMORY' },
+  { input: 'show all my notes', intent: 'SEARCH_MEMORY' },
   // ANSWER_QUESTION
   { input: 'আমার পাসপোর্টের মেয়াদ কত?', intent: 'ANSWER_QUESTION', expectKeywords: ['পাসপোর্ট', 'মেয়াদ'] },
   { input: 'what is my wifi password?', intent: 'ANSWER_QUESTION', expectKeywords: ['wifi', 'password'] },

@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { listTasks } from './task-repository';
 import { wasDismissed } from './learning-service';
+import { bangladeshDateKey } from '../i18n/date-time';
 
 // Local, rule-based proactive suggestions for the Home screen. No model — just the
 // user's own on-device data + a few honest heuristics. Nothing here nags: every card
@@ -22,7 +23,7 @@ export interface Suggestion {
 }
 
 const CLOSED = new Set(['COMPLETED', 'ARCHIVED', 'CANCELLED']);
-const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const dayKey = (d: Date) => bangladeshDateKey(d);
 
 export async function getSuggestions(db: SQLiteDatabase, now = new Date(), language: 'bn' | 'en' = 'en'): Promise<Suggestion[]> {
   const bn = language === 'bn';
@@ -71,7 +72,7 @@ export async function getSuggestions(db: SQLiteDatabase, now = new Date(), langu
 
   // 3) Have inbox items but nothing planned for today → nudge to plan (morning only).
   const inboxCount = active.filter((t) => t.status === 'INBOX').length;
-  const plannedToday = active.some((t) => t.plannedDate === todayKey || t.dueAt?.slice(0, 10) === todayKey);
+  const plannedToday = active.some((t) => t.plannedDate === todayKey || (t.dueAt ? bangladeshDateKey(t.dueAt) === todayKey : false));
   if (inboxCount > 0 && !plannedToday && now.getHours() >= 5 && now.getHours() < 12 && !(await wasDismissed(db, 'plan-today'))) {
     out.push({
       id: 'plan-today',

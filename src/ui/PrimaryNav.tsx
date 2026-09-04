@@ -1,16 +1,19 @@
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { AppText as Text } from './AppText';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 
 import { useAppPreferences } from '../app/AppPreferences';
 import { AppIcon } from './AppIcon';
+import { tapSelect } from './haptics';
 import { border, elevation, getWindowSizeClass, icon as iconToken, layout, radius, spacing, typography, type AccentName } from '../theme';
 
 const items = [
   { href: '/', icon: 'home-variant-outline' as const, activeIcon: 'home-variant' as const, tone: 'green' as AccentName, en: 'Home', bn: 'হোম' },
   { href: '/planning', icon: 'calendar-blank-outline' as const, activeIcon: 'calendar-blank' as const, tone: 'blue' as AccentName, en: 'Planning', bn: 'পরিকল্পনা' },
   { href: '/memory', icon: 'bookmark-multiple-outline' as const, activeIcon: 'bookmark-multiple' as const, tone: 'purple' as AccentName, en: 'Memory', bn: 'মেমোরি' },
+  { href: '/debt', icon: 'wallet-outline' as const, activeIcon: 'wallet' as const, tone: 'red' as AccentName, en: 'Debt', bn: 'দেনা' },
   { href: '/inbox', icon: 'inbox-outline' as const, activeIcon: 'inbox' as const, tone: 'orange' as AccentName, en: 'Inbox', bn: 'ইনবক্স' },
   { href: '/more', icon: 'view-grid-outline' as const, activeIcon: 'view-grid' as const, tone: 'yellow' as AccentName, en: 'More', bn: 'আরও' },
 ];
@@ -61,7 +64,7 @@ export function PrimaryNav() {
               accessibilityState={{ selected: active }}
               accessibilityLabel={label}
               hitSlop={6}
-              onPress={() => { if (!active) router.replace(item.href as never); }}
+              onPress={() => { if (!active) { tapSelect(); router.replace(item.href as never); } }}
               style={({ pressed }) => [styles.item, medium && styles.itemMedium, expanded && styles.itemExpanded, pressed && styles.pressed]}
             >
               <View
@@ -79,6 +82,7 @@ export function PrimaryNav() {
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.85}
+                maxFontSizeMultiplier={1.3}
                 style={[styles.label, { color: active ? tone.base : colors.textMuted, fontFamily: active ? typography.label.fontFamily : typography.caption.fontFamily }]}
               >
                 {label}

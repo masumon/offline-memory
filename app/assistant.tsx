@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { AppText as Text, AppTextInput as TextInput } from '../src/ui/AppText';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useSpeech } from '../src/hooks/useSpeech';
@@ -18,6 +19,15 @@ import { localizeMemoryKind, localizeTaskPriority, localizeTaskStatus } from '..
 import { border, control, elevation, icon, layout, opacity, radius, spacing, typography, memoryKindIcon, type ThemeAccents, type ThemeColors } from '../src/theme';
 
 type ActionType = OrchestratedAction['type'];
+
+type Turn =
+  | { id: string; input: string; type: 'exec'; result: AssistantExecutionResult }
+  | { id: string; input: string; type: 'plan'; plan: TurnPlan; run: PlanRun }
+  | { id: string; input: string; type: 'error' };
+
+const MAX_TURNS = 8;
+let turnSeq = 0;
+const newTurnId = () => `t${++turnSeq}-${Date.now()}`;
 
 function actionSummary(type: ActionType, bn: boolean): { title: string; icon: 'clipboard-plus-outline' | 'check-circle-outline' | 'format-list-checks' | 'calendar-clock-outline' | 'bookmark-plus-outline' | 'magnify' | 'help-circle-outline' | 'lifebuoy' | 'chat-outline' } {
   switch (type) {
@@ -43,7 +53,12 @@ export default function AssistantScreen() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [execution, setExecution] = useState<AssistantExecutionResult | null>(null);
+  // A running transcript of finished exchanges (oldest → newest). The in-progress turn
+  // is still previewed live below it.
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [pendingChoice, setPendingChoice] = useState<{ input: string; result: Extract<AssistantExecutionResult, { type: 'NEEDS_TASK_CHOICE' }> } | null>(null);
+  const scroller = useRef<ScrollView>(null);
+  const pushTurn = (turn: Turn) => setTurns(prev => [...prev, turn].slice(-MAX_TURNS));
   const loadTasks = useTaskStore(s => s.load);
   const loadMemories = useMemoryStore(s => s.load);
   const {
@@ -57,6 +72,8 @@ export default function AssistantScreen() {
   } = useSpeech(language);
   const voiceStarted = useRef(false);
   const spokenMode = useRef(false);
+  // The trimmed input we last auto-ran, so a retrieval intent fires once per phrasing.
+  const autoRanFor = useRef('');
   const [voiceBase, setVoiceBase] = useState('');
   // Same inline flow as the Home capture field: the mic drops recognised words straight
   // into the input, live, and the whole transcript stays editable before you run it.
@@ -64,11 +81,9 @@ export default function AssistantScreen() {
     const base = input.trim();
     setVoiceBase(base);
     spokenMode.current = true;
-    setExecution(null);
     setError(null);
     void startListening((finalText) => {
       setInput((base ? base + ' ' : '') + finalText);
-      setExecution(null);
       setError(null);
     });
   };
@@ -84,18 +99,35 @@ export default function AssistantScreen() {
   const result = useMemo<OrchestratorResult | null>(() => { const value = input.trim(); return value ? orchestrate(value, new Date(), convoContext) : null; }, [input, convoContext]);
   const plan = useMemo<TurnPlan | null>(() => { const value = input.trim(); return value ? planTurn(value, new Date(), convoContext) : null; }, [input, convoContext]);
   const isPlan = plan?.multi ?? false;
-  const isConversational = result?.action.type === 'SHOW_HELP' || result?.action.type === 'SMALL_TALK';
-  const [planRun, setPlanRun] = useState<PlanRun | null>(null);
+  // Read-only intents never mutate anything, so there is nothing to "confirm" — run them
+  // straight away and show the reply, the way a real assistant would. Only the four
+  // mutating intents (create / complete / reschedule task, save memory) keep the
+  // explicit "Confirm and run" tap.
+  const AUTO_RUN_TYPES: ReadonlySet<ActionType> = useMemo(
+    () => new Set<ActionType>(['SHOW_HELP', 'SMALL_TALK', 'ANSWER_QUESTION', 'SEARCH_MEMORY', 'LIST_TASKS']),
+    [],
+  );
+  const isAutoRun = result ? AUTO_RUN_TYPES.has(result.action.type) : false;
+  const isConversational = isAutoRun;
   const ready = result?.status === 'READY' && result.action.type !== 'CLARIFY';
+  // Keep the newest content in view: after a turn lands, when a task-choice appears, and
+  // when a confirmable "here's what I understood" preview first shows mid-conversation.
+  useEffect(() => {
+    if (turns.length === 0 && !pendingChoice && !ready) return;
+    const t = setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 60);
+    return () => clearTimeout(t);
+  }, [turns.length, pendingChoice, ready]);
 
   const runWholePlan = async () => {
     if (!plan || !plan.multi || busy) return;
     const startedAt = Date.now();
     const fromVoice = spokenMode.current;
-    setBusy(true); setError(null); setExecution(null); setPlanRun(null);
+    const asked = input.trim();
+    setBusy(true); setError(null);
     try {
       const run = await runPlan(db, plan, { language, enhance: true });
-      setPlanRun(run);
+      pushTurn({ id: newTurnId(), input: asked, type: 'plan', plan, run });
+      setInput('');
       setConvoContext(prev => plan.steps.reduce((c, s) => s.status === 'READY' ? updateContext(s.nlp.intent, s.nlp.entities, c) : c, prev));
       await Promise.all([loadTasks(db), loadMemories(db)]);
       if (fromVoice) {
@@ -105,7 +137,7 @@ export default function AssistantScreen() {
     } catch (e) {
       setError(bn ? 'পরিকল্পনা চালানো যায়নি' : 'Could not run the plan');
       recordAssistantTurn({
-        at: new Date().toISOString(), input: input.trim(), source: fromVoice ? 'voice' : 'text',
+        at: new Date().toISOString(), input: asked, source: fromVoice ? 'voice' : 'text',
         intent: 'PLAN', confidence: 0, status: 'FAILED', actionType: 'RUN_PLAN',
         outcome: 'ERROR', durationMs: Date.now() - startedAt,
         detail: [e instanceof Error ? e.message : String(e)],
@@ -118,15 +150,21 @@ export default function AssistantScreen() {
     const action = result.action;
     const startedAt = Date.now();
     const fromVoice = spokenMode.current;
-    setBusy(true); setError(null); setExecution(null);
+    const asked = input.trim();
+    setBusy(true); setError(null);
     try {
       const next = await executeAssistantAction(db, action, { language, enhance: true });
-      setExecution(next);
       if (fromVoice) { const msg = executionMessage(next, bn); if (msg) speak(msg); }
+      if (next.type === 'NEEDS_TASK_CHOICE') {
+        setPendingChoice({ input: asked, result: next });
+      } else {
+        pushTurn({ id: newTurnId(), input: asked, type: 'exec', result: next });
+        setInput('');
+      }
       setConvoContext(prev => updateContext(result.nlp.intent, result.nlp.entities, prev));
       await Promise.all([loadTasks(db), loadMemories(db)]);
       recordAssistantTurn({
-        at: new Date().toISOString(), input: input.trim(), source: fromVoice ? 'voice' : 'text',
+        at: new Date().toISOString(), input: asked, source: fromVoice ? 'voice' : 'text',
         intent: result.nlp.intent, confidence: result.nlp.confidence, status: result.status,
         actionType: action.type, outcome: next.type, durationMs: Date.now() - startedAt,
         detail: next.type === 'ANSWER' ? next.answer.trace : undefined,
@@ -134,7 +172,7 @@ export default function AssistantScreen() {
     } catch (e) {
       setError(bn ? 'লোকাল অ্যাকশন চালানো যায়নি' : 'Unable to run the local action');
       recordAssistantTurn({
-        at: new Date().toISOString(), input: input.trim(), source: fromVoice ? 'voice' : 'text',
+        at: new Date().toISOString(), input: asked, source: fromVoice ? 'voice' : 'text',
         intent: result.nlp.intent, confidence: result.nlp.confidence, status: result.status,
         actionType: action.type, outcome: 'ERROR', durationMs: Date.now() - startedAt,
         detail: [e instanceof Error ? e.message : String(e)],
@@ -143,41 +181,68 @@ export default function AssistantScreen() {
     finally { setBusy(false); }
   };
 
-  // Conversational intents (help / small talk) shouldn't need a "Confirm and run" tap —
-  // run them straight away so the assistant feels like a chat, not a form.
-  const autoRanFor = useRef('');
+  // Read-only intents shouldn't need a "Confirm and run" tap — run them straight away so
+  // the assistant feels like a chat, not a form.
   useEffect(() => {
     const type = result?.action.type;
     const key = input.trim();
-    if ((type === 'SHOW_HELP' || type === 'SMALL_TALK') && !busy && autoRanFor.current !== key) {
+    if (!key) { autoRanFor.current = ''; return; }
+    if (!type || busy || !ready || !AUTO_RUN_TYPES.has(type) || autoRanFor.current === key) return;
+    // Help / small talk are pure and instant; the retrieval intents touch the local
+    // database, so let the input settle for a beat before firing.
+    const instant = type === 'SHOW_HELP' || type === 'SMALL_TALK';
+    const timer = setTimeout(() => {
       autoRanFor.current = key;
       void execute();
-    }
+    }, instant ? 0 : 420);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result, busy]);
+  }, [result, busy, ready]);
 
-  const pickTaskChoice = async (taskId: string) => {
-    if (busy || execution?.type !== 'NEEDS_TASK_CHOICE') return;
-    const pending = execution.pending;
+  // Escape hatch for a genuinely unrecognised line: search the saved memories with the
+  // raw text so the user is never left with only "I didn't catch that".
+  const runFallbackSearch = async () => {
+    const q = input.trim();
+    if (!q || busy) return;
     setBusy(true); setError(null);
     try {
-      const next = await resolveAssistantTaskChoice(db, pending, taskId);
-      setExecution(next);
+      const next = await executeAssistantAction(db, { type: 'SEARCH_MEMORY', query: q }, { language, enhance: true });
+      pushTurn({ id: newTurnId(), input: q, type: 'exec', result: next });
+      setInput('');
+      await Promise.all([loadTasks(db), loadMemories(db)]);
+    } catch {
+      setError(bn ? 'খোঁজা সম্পন্ন হয়নি' : 'Search did not complete');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pickTaskChoice = async (taskId: string) => {
+    if (busy || !pendingChoice) return;
+    const { input: asked, result: choice } = pendingChoice;
+    setBusy(true); setError(null);
+    try {
+      const next = await resolveAssistantTaskChoice(db, choice.pending, taskId);
       if (spokenMode.current) { const msg = executionMessage(next, bn); if (msg) speak(msg); }
+      pushTurn({ id: newTurnId(), input: asked, type: 'exec', result: next });
+      setPendingChoice(null);
+      setInput('');
       await Promise.all([loadTasks(db), loadMemories(db)]);
     } catch { setError(bn ? 'লোকাল অ্যাকশন চালানো যায়নি' : 'Unable to run the local action'); }
     finally { setBusy(false); }
   };
 
   const copy = bn
-    ? { back: 'আরও', eyebrow: 'লোকাল অ্যাসিস্ট্যান্ট', title: 'কীভাবে সাহায্য করব?', subtitle: 'সবকিছু এই ডিভাইসেই বোঝা ও সম্পন্ন হয়। কোনো ক্লাউড সার্ভিসে ডেটা যায় না।', placeholder: 'যেমন: আগামীকাল সকাল ৯টায় supplier-কে ফোন করতে হবে', understanding: 'আমি যা বুঝেছি', task: 'টাস্ক', memory: 'মেমোরি', query: 'খোঁজা', date: 'তারিখ', time: 'সময়', priority: 'অগ্রাধিকার', tags: 'ট্যাগ', clarify: 'এই কমান্ডটি সম্পন্ন করার আগে আরও একটু তথ্য দিন।', unsupported: 'ঠিক ধরতে পারলাম না — তবে চিন্তা নেই। নিচের যেকোনোটা বেছে নিন, বা একটু অন্যভাবে বলুন। “সাহায্য” লিখলে সব দেখাব।', tryThese: 'এগুলো চেষ্টা করুন', helpChip: 'সাহায্য দেখাও', execute: 'নিশ্চিত করে চালান', empty: 'একটি লোকাল কমান্ড লিখুন — আমি বুঝে নিয়ে দেখাব কী হবে।', completed: 'সম্পন্ন হয়েছে', planning: 'প্ল্যানিং খুলুন', memoryOpen: 'মেমোরি খুলুন', retry: 'আবার চেষ্টা করুন', command: 'লোকাল অ্যাসিস্ট্যান্ট কমান্ড', micStart: 'কথা বলে লিখুন', micStop: 'শোনা বন্ধ করুন', listening: 'শুনছি… বলুন', voiceOffline: 'ভয়েস এই ডিভাইসেই প্রক্রিয়া হয় — অফলাইনে কাজ করে' }
-    : { back: 'More', eyebrow: 'LOCAL ASSISTANT', title: 'How can I help?', subtitle: 'Everything is understood and done on this device. Nothing is sent to a cloud service.', placeholder: 'e.g. আগামীকাল সকাল ৯টায় supplier-কে ফোন করতে হবে', understanding: 'Here’s what I understood', task: 'Task', memory: 'Memory', query: 'Search', date: 'Date', time: 'Time', priority: 'Priority', tags: 'Tags', clarify: 'Add a little more detail before this can run.', unsupported: 'I didn’t quite catch that — no worries. Pick one below, or rephrase. Type “help” to see everything.', tryThese: 'Try one of these', helpChip: 'Show help', execute: 'Confirm and run', empty: 'Type a local command — I’ll interpret it and show what will happen.', completed: 'Done', planning: 'Open planning', memoryOpen: 'Open memory', retry: 'Retry', command: 'Local assistant command', micStart: 'Speak instead of typing', micStop: 'Stop listening', listening: 'Listening… go ahead', voiceOffline: 'Voice is processed on this device — works offline' };
+    ? { back: 'আরও', eyebrow: 'লোকাল অ্যাসিস্ট্যান্ট', title: 'কীভাবে সাহায্য করব?', subtitle: 'সবকিছু এই ডিভাইসেই বোঝা ও সম্পন্ন হয়। কোনো ক্লাউড সার্ভিসে ডেটা যায় না।', placeholder: 'যেমন: আগামীকাল সকাল ৯টায় supplier-কে ফোন করতে হবে', understanding: 'আমি যা বুঝেছি', task: 'টাস্ক', memory: 'মেমোরি', query: 'খোঁজা', date: 'তারিখ', time: 'সময়', priority: 'অগ্রাধিকার', tags: 'ট্যাগ', clarify: 'এই কমান্ডটি সম্পন্ন করার আগে আরও একটু তথ্য দিন।', unsupported: 'ঠিক ধরতে পারলাম না — তবে চিন্তা নেই। নিচের যেকোনোটা বেছে নিন, বা একটু অন্যভাবে বলুন। “সাহায্য” লিখলে সব দেখাব।', searchAnyway: 'তবুও আমার তথ্যে খুঁজুন', tryThese: 'এগুলো চেষ্টা করুন', helpChip: 'সাহায্য দেখাও', execute: 'নিশ্চিত করে চালান', empty: 'একটি লোকাল কমান্ড লিখুন — আমি বুঝে নিয়ে দেখাব কী হবে।', completed: 'সম্পন্ন হয়েছে', planning: 'প্ল্যানিং খুলুন', memoryOpen: 'মেমোরি খুলুন', retry: 'আবার চেষ্টা করুন', command: 'লোকাল অ্যাসিস্ট্যান্ট কমান্ড', micStart: 'কথা বলে লিখুন', micStop: 'শোনা বন্ধ করুন', listening: 'শুনছি… বলুন', voiceOffline: 'ভয়েস এই ডিভাইসেই প্রক্রিয়া হয় — অফলাইনে কাজ করে' }
+    : { back: 'More', eyebrow: 'LOCAL ASSISTANT', title: 'How can I help?', subtitle: 'Everything is understood and done on this device. Nothing is sent to a cloud service.', placeholder: 'e.g. আগামীকাল সকাল ৯টায় supplier-কে ফোন করতে হবে', understanding: 'Here’s what I understood', task: 'Task', memory: 'Memory', query: 'Search', date: 'Date', time: 'Time', priority: 'Priority', tags: 'Tags', clarify: 'Add a little more detail before this can run.', unsupported: 'I didn’t quite catch that — no worries. Pick one below, or rephrase. Type “help” to see everything.', searchAnyway: 'Search my info anyway', tryThese: 'Try one of these', helpChip: 'Show help', execute: 'Confirm and run', empty: 'Type a local command — I’ll interpret it and show what will happen.', completed: 'Done', planning: 'Open planning', memoryOpen: 'Open memory', retry: 'Retry', command: 'Local assistant command', micStart: 'Speak instead of typing', micStop: 'Stop listening', listening: 'Listening… go ahead', voiceOffline: 'Voice is processed on this device — works offline' };
 
   const summary = result ? actionSummary(result.action.type, bn) : null;
   const time = result?.nlp.entities.time;
 
+  const showEmpty = turns.length === 0 && !input.trim() && !pendingChoice;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+    <ScrollView ref={scroller} style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Link href="/more" asChild><Pressable accessibilityRole="button" accessibilityLabel={copy.back} style={({ pressed }) => StyleSheet.flatten([styles.back, pressed && styles.pressed])}><AppIcon name="arrow-left" size={icon.md} color={colors.primary} /><Text style={styles.backText}>{copy.back}</Text></Pressable></Link>
         <View style={styles.titleRow}>
@@ -194,7 +259,7 @@ export default function AssistantScreen() {
         <AppIcon name="message-processing-outline" size={icon.md} color={colors.textMuted} />
         <TextInput
           value={voiceValue}
-          onChangeText={value => { spokenMode.current = false; setInput(value); setExecution(null); setError(null); setPlanRun(null); }}
+          onChangeText={value => { spokenMode.current = false; setInput(value); setError(null); if (pendingChoice) setPendingChoice(null); }}
           editable={!busy && !voiceListening}
           placeholder={copy.placeholder}
           placeholderTextColor={colors.textMuted}
@@ -234,12 +299,27 @@ export default function AssistantScreen() {
         </Pressable>
       ) : null}
 
-      {isPlan && plan ? (
+      {turns.map(turn => (
+        <View key={turn.id}>
+          <View style={styles.userBubbleRow}><View style={styles.userBubble}><Text style={styles.userBubbleText}>{turn.input}</Text></View></View>
+          {turn.type === 'plan' ? (
+            <PlanCard plan={turn.plan} run={turn.run} busy={false} bn={bn} styles={styles} colors={colors} accents={accents} onRun={() => undefined} />
+          ) : turn.type === 'error' ? (
+            <View style={[styles.execution, { borderColor: accents.red.border, backgroundColor: accents.red.soft }]}>
+              <View style={styles.cardHead}><AppIcon name="alert-circle-outline" size={icon.md} color={colors.danger} /><Text style={[styles.executionLabel, { color: colors.danger }]}>{bn ? 'সম্পন্ন হয়নি' : 'Did not complete'}</Text></View>
+            </View>
+          ) : (
+            <ExecutionCard result={turn.result} styles={styles} copy={copy} colors={colors} bn={bn} onExample={(s) => setInput(s)} />
+          )}
+        </View>
+      ))}
+
+      {isPlan && plan && input.trim() ? (
         <>
         <View style={styles.userBubbleRow}>
           <View style={styles.userBubble}><Text style={styles.userBubbleText}>{input.trim()}</Text></View>
         </View>
-        <PlanCard plan={plan} run={planRun} busy={busy} bn={bn} styles={styles} colors={colors} accents={accents} onRun={() => void runWholePlan()} />
+        <PlanCard plan={plan} run={null} busy={busy} bn={bn} styles={styles} colors={colors} accents={accents} onRun={() => void runWholePlan()} />
         </>
       ) : result && summary && !isConversational ? (
         <>
@@ -254,6 +334,9 @@ export default function AssistantScreen() {
           {result.status === 'UNSUPPORTED' ? (
             <>
               <Text style={styles.plain}>{copy.unsupported}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={copy.searchAnyway} disabled={busy} onPress={() => void runFallbackSearch()} style={({ pressed }) => StyleSheet.flatten([styles.executeButton, busy && styles.disabled, pressed && styles.pressed])}>
+                {busy ? <ActivityIndicator color={colors.onPrimary} /> : <><AppIcon name="magnify" size={icon.sm} color={colors.onPrimary} /><Text style={styles.executeText}>{copy.searchAnyway}</Text></>}
+              </Pressable>
               <Text style={styles.suggestLabel}>{copy.tryThese}</Text>
               <View style={styles.suggestRow}>
                 {[
@@ -261,7 +344,7 @@ export default function AssistantScreen() {
                     ? ['আগামীকাল সকাল ৯টায় মাকে ফোন করব', 'আমার wifi পাসওয়ার্ড মনে রাখো', 'আমার কাজগুলো দেখাও', 'আমার পাসপোর্টের মেয়াদ কত?', copy.helpChip]
                     : ['Call mom tomorrow at 9am', 'Remember my wifi password', 'Show my tasks', 'When does my passport expire?', copy.helpChip]),
                 ].map(s => (
-                  <Pressable key={s} accessibilityRole="button" accessibilityLabel={s} onPress={() => { setInput(s === copy.helpChip ? (bn ? 'সাহায্য' : 'help') : s); setExecution(null); setError(null); setPlanRun(null); }} style={({ pressed }) => StyleSheet.flatten([styles.suggestChip, pressed && styles.pressed])}>
+                  <Pressable key={s} accessibilityRole="button" accessibilityLabel={s} onPress={() => { setInput(s === copy.helpChip ? (bn ? 'সাহায্য' : 'help') : s); setError(null); }} style={({ pressed }) => StyleSheet.flatten([styles.suggestChip, pressed && styles.pressed])}>
                     <AppIcon name={s === copy.helpChip ? 'lifebuoy' : 'lightbulb-outline'} size={icon.xs} color={colors.primary} />
                     <Text numberOfLines={2} style={styles.suggestChipText}>{s}</Text>
                   </Pressable>
@@ -291,7 +374,17 @@ export default function AssistantScreen() {
           )}
         </View>
         </>
-      ) : (
+      ) : isAutoRun && input.trim() && !error ? (
+        <>
+          <View style={styles.userBubbleRow}>
+            <View style={styles.userBubble}><Text style={styles.userBubbleText}>{input.trim()}</Text></View>
+          </View>
+          <View style={styles.pendingRow}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={styles.pendingText}>{bn ? 'আপনার সেভ করা তথ্যে খুঁজছি…' : 'Looking through your saved info…'}</Text>
+          </View>
+        </>
+      ) : showEmpty ? (
         <View style={styles.emptyState}>
           <AppIcon name="robot-happy-outline" size={icon.xl} color={colors.textMuted} />
           <Text style={styles.empty}>{copy.empty}</Text>
@@ -301,27 +394,31 @@ export default function AssistantScreen() {
               ? ['আগামীকাল সকাল ৯টায় মাকে ফোন করব', 'বাসার wifi পাসওয়ার্ড মনে রাখো', 'আমার কাজগুলো দেখাও', 'রিপোর্ট খুঁজে দাও']
               : ['Call mom tomorrow at 9am', 'Remember the home wifi password', 'Show my tasks', 'Find the report']
             ).map(s => (
-              <Pressable key={s} accessibilityRole="button" accessibilityLabel={s} onPress={() => { setInput(s); setExecution(null); setError(null); setPlanRun(null); }} style={({ pressed }) => StyleSheet.flatten([styles.suggestChip, pressed && styles.pressed])}>
+              <Pressable key={s} accessibilityRole="button" accessibilityLabel={s} onPress={() => { setInput(s); setError(null); }} style={({ pressed }) => StyleSheet.flatten([styles.suggestChip, pressed && styles.pressed])}>
                 <AppIcon name="lightbulb-outline" size={icon.xs} color={colors.primary} />
                 <Text numberOfLines={2} style={styles.suggestChipText}>{s}</Text>
               </Pressable>
             ))}
           </View>
         </View>
-      )}
+      ) : null}
+
+      {pendingChoice ? (
+        <>
+          <View style={styles.userBubbleRow}><View style={styles.userBubble}><Text style={styles.userBubbleText}>{pendingChoice.input}</Text></View></View>
+          <View style={styles.execution}>
+            <View style={styles.cardHead}><AppIcon name="help-circle-outline" size={icon.md} color={accents.blue.on} /><Text style={styles.executionLabel}>{bn ? 'কোন টাস্ক?' : 'Which task?'}</Text></View>
+            {pendingChoice.result.candidates.map(task => (
+              <Pressable key={task.id} accessibilityRole="button" accessibilityLabel={task.title} disabled={busy} onPress={() => void pickTaskChoice(task.id)} style={({ pressed }) => StyleSheet.flatten([styles.linkButton, { alignSelf: 'stretch', justifyContent: 'flex-start', marginTop: spacing.sm }, pressed && styles.pressed])}>
+                <AppIcon name="clipboard-text-outline" size={icon.sm} color={colors.primary} />
+                <Text numberOfLines={2} style={styles.linkText}>{task.title}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
 
       {error ? <AppState title={bn ? 'অ্যাকশন চালানো যায়নি' : 'Action failed'} description={bn ? 'লোকাল অ্যাকশনটি সম্পন্ন হয়নি।' : 'The local action did not complete.'} icon="alert-circle-outline" actionLabel={copy.retry} onAction={() => void (isPlan ? runWholePlan() : execute())} /> : null}
-      {execution?.type === 'NEEDS_TASK_CHOICE' ? (
-        <View style={styles.execution}>
-          <View style={styles.cardHead}><AppIcon name="help-circle-outline" size={icon.md} color={accents.blue.on} /><Text style={styles.executionLabel}>{bn ? 'কোন টাস্ক?' : 'Which task?'}</Text></View>
-          {execution.candidates.map(task => (
-            <Pressable key={task.id} accessibilityRole="button" accessibilityLabel={task.title} disabled={busy} onPress={() => void pickTaskChoice(task.id)} style={({ pressed }) => StyleSheet.flatten([styles.linkButton, { alignSelf: 'stretch', justifyContent: 'flex-start' }, pressed && styles.pressed])}>
-              <AppIcon name="clipboard-text-outline" size={icon.sm} color={colors.primary} />
-              <Text numberOfLines={2} style={styles.linkText}>{task.title}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : execution ? <ExecutionCard result={execution} styles={styles} copy={copy} colors={colors} bn={bn} onExample={(s) => { setInput(s); setExecution(null); setError(null); setPlanRun(null); }} /> : null}
     </ScrollView>
   );
 }
@@ -507,6 +604,8 @@ function makeStyles(colors: ThemeColors, accents: ThemeAccents) {
     userBubbleRow: { alignItems: 'flex-end', marginTop: spacing.md },
     userBubble: { maxWidth: '85%', backgroundColor: colors.primary, borderRadius: radius.lg, borderBottomRightRadius: radius.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
     userBubbleText: { color: colors.onPrimary, ...typography.bodySmall },
+    pendingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.smd, borderRadius: radius.lg, borderWidth: border.thin, borderColor: colors.border, backgroundColor: colors.surface },
+    pendingText: { flex: 1, color: colors.textSecondary, ...typography.bodySmall, fontWeight: '700' },
     emptyState: { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.sm },
     suggestLabel: { color: colors.textSecondary, ...typography.caption, fontFamily: typography.label.fontFamily, marginTop: spacing.md },
     suggestRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, justifyContent: 'center', marginTop: spacing.xs },

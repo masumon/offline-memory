@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { advanceRecurrence, completeTask } from '../src/services/task-service';
+import { advanceRecurrence, completeTask, skipRecurrence } from '../src/services/task-service';
 import * as repo from '../src/services/task-repository';
 import type { Task } from '../src/types/task-model';
 
@@ -64,5 +64,39 @@ describe('completeTask with recurrence', () => {
     await completeTask(db, 't1');
 
     expect(mockedCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('skipRecurrence', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('moves a recurring task to its next occurrence without spawning a duplicate', async () => {
+    mockedGet.mockResolvedValue(baseTask);
+    mockedUpdate.mockResolvedValue({ ...baseTask, dueAt: '2026-08-29T07:00:00.000Z' });
+
+    await skipRecurrence(db, 't1');
+
+    expect(mockedCreate).not.toHaveBeenCalled();
+    expect(mockedUpdate).toHaveBeenCalledWith(db, 't1', expect.objectContaining({
+      dueAt: new Date('2026-08-29T07:00:00.000Z').toISOString(),
+    }));
+  });
+
+  it('is a no-op for a one-off task (no recurrence)', async () => {
+    mockedGet.mockResolvedValue({ ...baseTask, recurrence: null });
+
+    const result = await skipRecurrence(db, 't1');
+
+    expect(result).toBeNull();
+    expect(mockedUpdate).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op for a recurring task with no due date', async () => {
+    mockedGet.mockResolvedValue({ ...baseTask, dueAt: null });
+
+    const result = await skipRecurrence(db, 't1');
+
+    expect(result).toBeNull();
+    expect(mockedUpdate).not.toHaveBeenCalled();
   });
 });

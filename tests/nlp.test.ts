@@ -53,6 +53,24 @@ describe('local NLP parser', () => {
     expect(result.entities.query).toBe('আমার দোকান কখন বন্ধ থাকে');
   });
 
+  it('keeps the original capitalisation of a saved memory (passwords, proper nouns)', () => {
+    const result = parseLocalNlp('remember my Gmail password is AbC#123XyZ', now);
+    expect(result.intent).toBe('CREATE_MEMORY');
+    expect(result.entities.memoryText).toContain('AbC#123XyZ');
+    expect(result.entities.memoryText).toContain('Gmail');
+  });
+
+  it('routes "show all my memories" to a list-everything search', () => {
+    const result = parseLocalNlp('আমার সব মেমোরি দেখাও', now);
+    expect(result.intent).toBe('SEARCH_MEMORY');
+    expect(result.entities.query).toBe('');
+  });
+
+  it('does not mis-tag a shop note as family from a substring of "আমার"', () => {
+    const result = parseLocalNlp('মনে রাখো আমার দোকান শুক্রবার বন্ধ থাকে', now);
+    expect(result.entities.tags ?? []).not.toContain('family');
+  });
+
   it('parses Bengali date terms without ASCII word-boundary assumptions', () => {
     const result = parseLocalNlp('পরশু সকাল ৮টায় রিপোর্ট পাঠাতে হবে', now);
     expect(result.intent).toBe('CREATE_TASK');

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AppText as Text } from './AppText';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { getContentUriAsync } from 'expo-file-system/legacy';
 import { useEvent } from 'expo';

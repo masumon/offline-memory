@@ -1,4 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { bangladeshDateKey } from '../i18n/date-time';
 
 // One-tap demo content so a new user can see every screen populated — tasks across all
 // priorities and states, memories of every kind, subtasks, a recurrence, and a few
@@ -98,7 +99,7 @@ export async function seedDemoData(db: SQLiteDatabase): Promise<DemoSeedResult> 
       const planned = t.plannedOffset !== undefined
         ? dateKey(t.plannedOffset)
         : dueAt
-          ? dueAt.slice(0, 10)
+          ? bangladeshDateKey(dueAt)
           : null;
       const completedAt = t.completedOffset !== undefined ? at(t.completedOffset, 12) : null;
       await db.runAsync(

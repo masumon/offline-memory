@@ -1,4 +1,5 @@
 <resources>
   <string name="app_name">Offline Memory</string>
+  <string name="widget_quickadd_description" translatable="false">Quick-add a task or memory</string>
   <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
 </resources>

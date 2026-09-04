@@ -93,9 +93,31 @@ function tidySpan(value: string | undefined): string | undefined {
   return cleaned || undefined;
 }
 
+/**
+ * The text that comes *after* the question's subject in the sentence — "গাড়ির নম্বর
+ * ঢাকা মেট্রো গ ১২-৩৪৫৬" → "ঢাকা মেট্রো গ ১২-৩৪৫৬". Beats a bare-number regex for
+ * plate numbers, addresses, names, and free-form facts.
+ */
+function valueAfterSubject(s: string, keywords: string[]): string | undefined {
+  let cut = -1;
+  for (const k of keywords) {
+    if (k.length < 2) continue;
+    const i = s.lastIndexOf(k);
+    if (i >= 0) cut = Math.max(cut, i + k.length);
+  }
+  if (cut < 0) return undefined;
+  let tail = s.slice(cut).replace(/^[\s:=\-–—,।"'()]+/u, '').replace(/[\s।.;!?,)"']+$/u, '').trim();
+  // Drop a leading copula / filler left dangling after the subject noun.
+  tail = tail.replace(/^(?:হলো|হল|হচ্ছে|হয়|is|was|are|=|:|এর|টা|টি|নম্বর|no\.?|number)\s+/u, '').trim();
+  const words = tail.split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 9) return undefined;
+  return tail;
+}
+
 /** Pull the answer span from a sentence, guided by the question type. */
-function extractSpan(sentence: string, type: QuestionType): string | undefined {
+function extractSpan(sentence: string, type: QuestionType, keywords: string[] = []): string | undefined {
   const s = normalizeText(sentence); // digits → ASCII, lower-cased, NFKC
+  const tail = valueAfterSubject(s, keywords);
 
   const year = s.match(/(?<!\d)(?:19|20)\d{2}(?!\d)/u)?.[0];
   const isoDate = s.match(/(?<!\d)\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?(?!\d)/u)?.[0];
@@ -107,23 +129,28 @@ function extractSpan(sentence: string, type: QuestionType): string | undefined {
   )?.[0]?.trim();
 
   if (type === 'TIME') {
-    return tidySpan(year ?? isoDate ?? monthDate ?? relDay ?? clock ?? numberWithUnit);
+    return tidySpan(year ?? isoDate ?? monthDate ?? relDay ?? clock ?? numberWithUnit ?? tail);
   }
   if (type === 'QUANTITY') {
-    return tidySpan(numberWithUnit ?? year ?? isoDate);
+    // A multi-token tail with a digit ("ঢাকা মেট্রো গ ১২-৩৪৫৬", "01712-345678") is a
+    // better answer than the first stray number the regex finds.
+    if (tail && /\d/u.test(tail) && (!numberWithUnit || tail.length > numberWithUnit.length + 1)) {
+      return tidySpan(tail);
+    }
+    return tidySpan(numberWithUnit ?? year ?? isoDate ?? tail);
   }
   if (type === 'PERSON') {
     // "… নাম <X>" / "name is <X>" / "… হলেন <X>"
     const m = s.match(/(?:name\s+is|নাম\s*[:\-]?|হলেন|হল|হচ্ছে|is)\s+([^\s।.,;]+(?:\s+[^\s।.,;]+){0,2})/u);
-    return tidySpan(m?.[1]);
+    return tidySpan(m?.[1] ?? tail);
   }
   if (type === 'PLACE') {
     const m = s.match(/(?:address\s+is|ঠিকানা\s*[:\-]?|located\s+at|at\s+|in\s+|এ\s+আছে|তে\s+আছে|রেখেছি|রাখা\s+আছে)\s*([^।.;]+)/u);
-    return tidySpan(m?.[1]);
+    return tidySpan(m?.[1] ?? tail);
   }
-  // GENERIC: whatever follows a copula / colon.
+  // GENERIC: whatever follows a copula / colon, else the text after the subject.
   const copula = s.match(/(?:\bis\b|\bare\b|হল|হলো|হচ্ছে|:|=)\s*([^।.;]+)/u);
-  return tidySpan(copula?.[1] || year || numberWithUnit);
+  return tidySpan(copula?.[1] || tail || year || numberWithUnit);
 }
 
 /** Fraction of keyword *concepts* (a keyword or any of its synonyms) present in `text`. */
@@ -134,10 +161,15 @@ function keywordCoverage(text: string, concepts: string[][]): number {
   return hit / concepts.length;
 }
 
-/** True when the question's subject (its first concept) is actually in `text`. */
+/**
+ * True when the question's head subject is actually in `text`. The first keyword is the
+ * head noun ("ভিসা", "passport"); requiring it — not merely "any early keyword" — is what
+ * stops a visa question being answered from a passport note that only shares "মেয়াদ".
+ */
 function subjectPresent(text: string, concepts: string[][]): boolean {
   const lower = normalizeText(text);
-  return concepts.slice(0, 2).some((forms) => forms.some((f) => lower.includes(f)));
+  const head = concepts[0];
+  return !!head && head.some((f) => lower.includes(f));
 }
 
 function composeAnswer(
@@ -236,10 +268,18 @@ export async function answerQuestion(
       best.subject &&
       (best.coverage >= MIN_COVERAGE || (best.coverage >= 0.34 && best.sem >= MIN_SEMANTIC));
 
+    // Up to three on-subject notes as sources, best first — transparency about where
+    // the answer came from, and useful extra context when the top note is terse.
+    const onSubjectSources = (): AnswerSource[] =>
+      scored
+        .filter((c) => c.subject)
+        .slice(0, 3)
+        .map((c) => ({ id: c.memory.id, origin: 'MEMORY' as const, snippet: clampSnippet(c.memory.content) }));
+
     if (best && accepted) {
       trace.push(`memory.match coverage=${best.coverage.toFixed(2)} sem=${best.sem.toFixed(2)} subject=${best.subject}`);
       const sentence = bestSentence(best.memory.content, keywords);
-      const span = extractSpan(sentence, type);
+      const span = extractSpan(sentence, type, keywords);
       const confidence = Math.min(
         0.99,
         0.35 + best.coverage * 0.4 + Math.min(0.2, best.sem * 0.4) + (span ? 0.12 : 0),
@@ -251,7 +291,28 @@ export async function answerQuestion(
         span,
         confidence,
         questionType: type,
-        sources: [{ id: best.memory.id, origin: 'MEMORY', snippet: clampSnippet(best.memory.content) }],
+        sources: onSubjectSources(),
+        trace,
+      };
+    }
+
+    // ── Soft tier ────────────────────────────────────────────────────────────────
+    // The strict floor was missed, but the top note is unambiguously about the same
+    // subject and does carry real (if partial) keyword overlap. Returning it as a
+    // best-effort answer — clearly sourced, lower confidence — is far more useful
+    // than a blank "I don't know" when the note the user wants is sitting right there.
+    if (best && best.subject && (best.coverage >= 0.3 || best.sem >= MIN_SEMANTIC)) {
+      const sentence = bestSentence(best.memory.content, keywords);
+      const span = extractSpan(sentence, type, keywords);
+      const confidence = Math.min(0.7, 0.25 + best.coverage * 0.4 + (span ? 0.1 : 0));
+      trace.push(`memory.soft coverage=${best.coverage.toFixed(2)} sem=${best.sem.toFixed(2)} span=${span ?? '∅'}`);
+      return {
+        type: 'ANSWER',
+        text: composeAnswer(lang, span, sentence, 'MEMORY'),
+        span,
+        confidence,
+        questionType: type,
+        sources: onSubjectSources(),
         trace,
       };
     }

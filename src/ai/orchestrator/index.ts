@@ -78,10 +78,15 @@ function actionForIntent(
 
     case 'CREATE_MEMORY':
       if (!entities.memoryText) return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_MEMORY_TEXT') };
-      return { status: 'READY', action: { type: 'CREATE_MEMORY', content: entities.memoryText } };
+      return {
+        status: 'READY',
+        action: { type: 'CREATE_MEMORY', content: entities.memoryText, tags: entities.tags?.length ? entities.tags : undefined },
+      };
 
     case 'SEARCH_MEMORY':
-      if (!resolved.memoryQuery) return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_QUERY') };
+      // An empty string is a deliberate "list everything" request; only `undefined` means
+      // we genuinely have nothing to search for.
+      if (resolved.memoryQuery === undefined) return { status: 'NEEDS_INPUT', action: clarifyAction('MISSING_QUERY') };
       return { status: 'READY', action: { type: 'SEARCH_MEMORY', query: resolved.memoryQuery } };
 
     case 'ANSWER_QUESTION': {
@@ -105,8 +110,28 @@ function actionForIntent(
       return { status: 'READY', action: { type: 'SMALL_TALK', text: entities.question ?? '' } };
 
     case 'UNKNOWN':
-    default:
+    default: {
+      // Last-chance recovery: a personal-lookup phrasing that carried no question mark
+      // and no explicit verb ("আমার ওয়াইফাই পাসওয়ার্ড দাও", "my passport number") is
+      // still almost certainly a request to recall a saved fact. Route it to the
+      // answering pipeline (which has its own strong guardrails and will say
+      // "nothing saved" if it truly finds nothing) rather than dead-ending the user.
+      const q = entities.question?.trim();
+      let keywords = entities.keywords ?? [];
+      if (keywords.length < 3 && context.lastKeywords?.length) {
+        keywords = [...new Set([...keywords, ...context.lastKeywords])].slice(0, 6);
+      }
+      const lookupShape =
+        !!q &&
+        keywords.length > 0 &&
+        /(?:^|[\s("'।,])(?:আমার|আমাদের|মোর|my|our|mine)(?![\p{L}\p{M}])|(?<![\p{L}\p{M}])(?:দাও|দেখাও|বল(?:ো|েন|ুন)?|জানাও|মনে\s*করিয়ে|বের\s*কর|কোথায়|কী|কি|কত|show|tell|give|find)(?![\p{L}\p{M}])/u.test(
+          q,
+        );
+      if (lookupShape) {
+        return { status: 'READY', action: { type: 'ANSWER_QUESTION', question: q, keywords } };
+      }
       return { status: 'UNSUPPORTED', action: clarifyAction('UNKNOWN_INTENT') };
+    }
   }
 }
 

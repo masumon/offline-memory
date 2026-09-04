@@ -1,4 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { readDebtTables, type DebtBackupData } from './debt-tables';
 
 export interface SQLiteBackupData {
   appMetadata: Record<string, unknown>[];
@@ -8,6 +9,8 @@ export interface SQLiteBackupData {
   memories: Record<string, unknown>[];
   notificationDeliveries: Record<string, unknown>[];
   relations: Record<string, unknown>[];
+  /** Every `dr_` table; `{}` on a database still on a pre-v13 schema. */
+  debt: DebtBackupData;
   schemaVersion: number;
 }
 
@@ -22,5 +25,6 @@ export async function readSQLiteBackupData(db: SQLiteDatabase): Promise<SQLiteBa
     Promise.resolve(db.getAllAsync<Record<string, unknown>>('SELECT id, from_type, from_id, to_type, to_id, created_at FROM relations ORDER BY id ASC')).catch(() => []),
     db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;'),
   ]);
-  return { appMetadata, appPreferences, tasks, subtasks, memories, notificationDeliveries, relations: relations ?? [], schemaVersion: versionRow?.user_version ?? 0 };
+  const debt = await readDebtTables(db);
+  return { appMetadata, appPreferences, tasks, subtasks, memories, notificationDeliveries, relations: relations ?? [], debt, schemaVersion: versionRow?.user_version ?? 0 };
 }

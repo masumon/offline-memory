@@ -25,6 +25,7 @@ export type OrchestratedAction =
   | {
       type: 'CREATE_MEMORY';
       content: string;
+      tags?: string[];
     }
   | {
       type: 'SEARCH_MEMORY';

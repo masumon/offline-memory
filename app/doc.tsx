@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { AppText as Text } from '../src/ui/AppText';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAppPreferences } from '../src/app/AppPreferences';
 import { AppIcon } from '../src/ui/AppIcon';
@@ -57,17 +58,17 @@ function makeStyles(colors: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm, borderBottomWidth: border.thin, borderBottomColor: colors.border },
-    title: { color: colors.textPrimary, ...typography.titleLarge, fontWeight: '900', marginTop: spacing.xs },
+    title: { color: colors.textPrimary, ...typography.titleLarge, fontWeight: '700', marginTop: spacing.xs },
     subtitle: { color: colors.textMuted, ...typography.caption, fontWeight: '700', letterSpacing: 0.4, marginTop: spacing.xxs },
     content: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxl },
-    h1: { color: colors.primary, ...typography.heading, fontWeight: '900', marginTop: spacing.lg, marginBottom: spacing.xs },
-    h2: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '900', marginTop: spacing.lg, marginBottom: spacing.xxs },
+    h1: { color: colors.primary, ...typography.heading, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.xs },
+    h2: { color: colors.textPrimary, ...typography.cardTitle, fontWeight: '700', marginTop: spacing.lg, marginBottom: spacing.xxs },
     h3: { color: colors.textMuted, ...typography.meta, fontWeight: '800', marginTop: spacing.md, marginBottom: spacing.xxs },
-    p: { color: colors.textSecondary, ...typography.bodySmall, lineHeight: 21, marginTop: spacing.xs },
-    pMuted: { color: colors.textMuted, ...typography.caption, lineHeight: 17 },
+    p: { color: colors.textSecondary, ...typography.bodySmall, lineHeight: 23, marginTop: spacing.xs },
+    pMuted: { color: colors.textMuted, ...typography.caption },
     li: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs, paddingRight: spacing.sm },
-    bullet: { color: colors.primary, ...typography.bodySmall, fontWeight: '900', lineHeight: 21 },
-    liText: { flex: 1, color: colors.textSecondary, ...typography.bodySmall, lineHeight: 21 },
+    bullet: { color: colors.primary, ...typography.bodySmall, fontWeight: '700', lineHeight: 23 },
+    liText: { flex: 1, color: colors.textSecondary, ...typography.bodySmall, lineHeight: 23 },
     codeWrap: { marginTop: spacing.sm, borderWidth: border.thin, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, ...elevation.soft },
     codeInner: { padding: spacing.md },
     code: { color: colors.textPrimary, fontFamily: typography.numeric.fontFamily, fontSize: 12, lineHeight: 18 },

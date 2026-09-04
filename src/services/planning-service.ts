@@ -1,11 +1,12 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { Task } from '../types/task-model';
 import { editTask, getTask, listTasks } from './task-service';
+import { bangladeshDateKey } from '../i18n/date-time';
 
 export interface DailyPlan { date: string; overdue: Task[]; inProgress: Task[]; scheduled: Task[]; inbox: Task[]; }
 
 function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return bangladeshDateKey(date);
 }
 
 export async function getDailyPlan(db: SQLiteDatabase, date = new Date()): Promise<DailyPlan> {
@@ -17,7 +18,12 @@ export async function getDailyPlan(db: SQLiteDatabase, date = new Date()): Promi
   ]);
   const startIso = new Date(date.getFullYear(), date.getMonth(), date.getDate()).toISOString();
   const scheduled = planned.filter((task) => task.plannedDate === dateKey);
-  const overdue = [...planned, ...inProgress].filter((task) => task.dueAt !== null && task.dueAt < startIso).sort((a, b) => (a.dueAt ?? '').localeCompare(b.dueAt ?? ''));
+  const scheduledIds = new Set(scheduled.map((task) => task.id));
+  // A task already shown under "scheduled today" must not also appear under "overdue" —
+  // that used to render the same row twice.
+  const overdue = [...planned, ...inProgress]
+    .filter((task) => task.dueAt !== null && task.dueAt < startIso && !scheduledIds.has(task.id))
+    .sort((a, b) => (a.dueAt ?? '').localeCompare(b.dueAt ?? ''));
   return { date: dateKey, overdue, inProgress, scheduled, inbox };
 }
 

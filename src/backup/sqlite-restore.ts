@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { DATABASE_VERSION } from '../database';
 import { parseM7BackupDocument } from './m7-format';
+import { restoreDebtTables, validateDebtBackup } from './debt-tables';
 
 interface BackupRow { [key: string]: unknown }
 const TASK_STATUSES = new Set(['INBOX', 'PLANNED', 'IN_PROGRESS', 'COMPLETED', 'RESCHEDULED', 'ARCHIVED', 'CANCELLED']);
@@ -58,6 +59,9 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
   const notificationDeliveries = rows(backup.data, 'notificationDeliveries');
   const hasAttachments = Object.prototype.hasOwnProperty.call(backup.data, 'attachments');
   const attachments = hasAttachments ? rows(backup.data, 'attachments') : [];
+  // Optional so a backup taken before the debt module still restores cleanly.
+  const hasDebt = Object.prototype.hasOwnProperty.call(backup.data, 'debt');
+  const debt = hasDebt ? validateDebtBackup(backup.data.debt) : {};
   const hasRelations = Object.prototype.hasOwnProperty.call(backup.data, 'relations');
   const relations = hasRelations ? rows(backup.data, 'relations') : [];
 
@@ -68,6 +72,7 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
     const priority = requiredString(row, 'priority'); if (!PRIORITIES.has(priority)) throw new Error(`Unsupported task priority: ${priority}`);
     if (schemaVersion >= 6) optionalString(row, 'planned_date');
     if (schemaVersion >= 9) optionalString(row, 'recurrence');
+    if (schemaVersion >= 12) optionalString(row, 'deleted_at');
     requiredString(row, 'created_at'); requiredString(row, 'updated_at');
   }
   const subtaskIds = new Set<string>();
@@ -104,7 +109,7 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
     const value = requiredString(row, 'value');
     if (!PREFERENCE_KEYS.has(key)) throw new Error(`Unsupported preference key: ${key}`);
     if (key === 'language' && !['en', 'bn'].includes(value)) throw new Error('Unsupported language preference');
-    if (key === 'themeMode' && !['light', 'dark'].includes(value)) throw new Error('Unsupported theme preference');
+    if (key === 'themeMode' && !['light', 'dark', 'system'].includes(value)) throw new Error('Unsupported theme preference');
   }
   if (hasAttachments) {
     const attachmentIds = new Set<string>();
@@ -139,13 +144,14 @@ export async function restoreSQLiteBackupData(db: SQLiteDatabase, input: unknown
     await db.runAsync('DELETE FROM tasks');
     await db.runAsync('DELETE FROM app_metadata');
     await db.runAsync('DELETE FROM app_preferences');
-    for (const row of tasks) await db.runAsync(`INSERT INTO tasks (id,title,notes,status,priority,due_at,planned_date,completed_at,recurrence,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`, requiredString(row, 'id'), requiredString(row, 'title'), optionalString(row, 'notes'), requiredString(row, 'status'), requiredString(row, 'priority'), optionalString(row, 'due_at'), schemaVersion >= 6 ? optionalString(row, 'planned_date') : null, optionalString(row, 'completed_at'), schemaVersion >= 9 ? optionalString(row, 'recurrence') : null, requiredString(row, 'created_at'), requiredString(row, 'updated_at'));
+    for (const row of tasks) await db.runAsync(`INSERT INTO tasks (id,title,notes,status,priority,due_at,planned_date,completed_at,recurrence,created_at,updated_at,deleted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, requiredString(row, 'id'), requiredString(row, 'title'), optionalString(row, 'notes'), requiredString(row, 'status'), requiredString(row, 'priority'), optionalString(row, 'due_at'), schemaVersion >= 6 ? optionalString(row, 'planned_date') : null, optionalString(row, 'completed_at'), schemaVersion >= 9 ? optionalString(row, 'recurrence') : null, requiredString(row, 'created_at'), requiredString(row, 'updated_at'), schemaVersion >= 12 ? optionalString(row, 'deleted_at') : null);
     for (const row of subtasks) await db.runAsync('INSERT INTO subtasks (id,task_id,title,completed,position,created_at,updated_at) VALUES (?,?,?,?,?,?,?)', requiredString(row, 'id'), requiredString(row, 'task_id'), requiredString(row, 'title'), requiredNumber(row, 'completed'), requiredNumber(row, 'position'), requiredString(row, 'created_at'), requiredString(row, 'updated_at'));
-    for (const row of memories) await db.runAsync('INSERT INTO memories (id,title,content,kind,source,tags_json,importance,archived,created_at,updated_at,last_accessed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', requiredString(row, 'id'), optionalString(row, 'title'), requiredString(row, 'content'), requiredString(row, 'kind'), requiredString(row, 'source'), requiredString(row, 'tags_json'), requiredNumber(row, 'importance'), requiredNumber(row, 'archived'), requiredString(row, 'created_at'), requiredString(row, 'updated_at'), optionalString(row, 'last_accessed_at'));
+    for (const row of memories) await db.runAsync('INSERT INTO memories (id,title,content,kind,source,tags_json,importance,archived,created_at,updated_at,last_accessed_at,deleted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', requiredString(row, 'id'), optionalString(row, 'title'), requiredString(row, 'content'), requiredString(row, 'kind'), requiredString(row, 'source'), requiredString(row, 'tags_json'), requiredNumber(row, 'importance'), requiredNumber(row, 'archived'), requiredString(row, 'created_at'), requiredString(row, 'updated_at'), optionalString(row, 'last_accessed_at'), schemaVersion >= 12 ? optionalString(row, 'deleted_at') : null);
     if (hasAttachments) for (const row of attachments) await db.runAsync('INSERT INTO attachments (id,owner_type,owner_id,name,mime_type,size,uri,created_at) VALUES (?,?,?,?,?,?,?,?)', requiredString(row, 'id'), requiredString(row, 'owner_type'), requiredString(row, 'owner_id'), requiredString(row, 'name'), requiredString(row, 'mime_type'), row.size === null || row.size === undefined ? null : requiredNumber(row, 'size'), requiredString(row, 'uri'), requiredString(row, 'created_at'));
     for (const row of notificationDeliveries) await db.runAsync('INSERT INTO notification_deliveries (task_id,due_at,delivered_at) VALUES (?,?,?)', requiredString(row, 'task_id'), requiredString(row, 'due_at'), requiredString(row, 'delivered_at'));
     if (hasRelations) for (const row of relations) await db.runAsync('INSERT INTO relations (id,from_type,from_id,to_type,to_id,created_at) VALUES (?,?,?,?,?,?)', requiredString(row, 'id'), requiredString(row, 'from_type'), requiredString(row, 'from_id'), requiredString(row, 'to_type'), requiredString(row, 'to_id'), requiredString(row, 'created_at'));
     for (const row of appMetadata) await db.runAsync('INSERT INTO app_metadata (key,value,updated_at) VALUES (?,?,?)', requiredString(row, 'key'), requiredString(row, 'value'), requiredString(row, 'updated_at'));
     for (const row of appPreferences) await db.runAsync('INSERT INTO app_preferences (key,value) VALUES (?,?)', requiredString(row, 'key'), requiredString(row, 'value'));
+    if (hasDebt) await restoreDebtTables(db, debt);
   });
 }
